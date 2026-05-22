@@ -20,6 +20,8 @@ public sealed record RunState(
     CombatState? Combat
 )
 {
+    public PveRoundDefinition CurrentRoundDefinition => PveRunSchedule.GetRound(Round);
+
     public static RunState NewRun(
         CommanderState? commander = null,
         EconomyConfig? economy = null,
@@ -40,7 +42,7 @@ public sealed record RunState(
             Shop: shop ?? ShopState.StartingShop,
             Artifacts: new List<ArtifactState>(),
             Phase: RunPhase.Preparation,
-            NextEnemyId: "round_01_training_band",
+            NextEnemyId: PveRunSchedule.GetRound(PveRunSchedule.FirstRound).EnemyId,
             Combat: null
         );
     }
@@ -204,7 +206,7 @@ public sealed record RunState(
         return this with { Artifacts = artifacts };
     }
 
-    public RunState StartCombat(int runeSeed = 1337)
+    public RunState StartCombat(int? runeSeed = null)
     {
         EnsurePreparationPhase();
 
@@ -216,7 +218,7 @@ public sealed record RunState(
         return this with
         {
             Phase = RunPhase.Combat,
-            Combat = CombatState.Start(runeSeed)
+            Combat = CombatState.Start(runeSeed ?? CurrentRoundDefinition.CombatRuneSeed)
         };
     }
 
@@ -250,24 +252,31 @@ public sealed record RunState(
         };
     }
 
-    public RunState ClaimReward(int goldReward)
+    public RunState ClaimReward(int? goldReward = null)
     {
         if (Phase != RunPhase.Combat)
         {
             throw new InvalidOperationException("Rewards can only be claimed after combat resolution.");
         }
 
-        if (goldReward < 0)
+        var resolvedGoldReward = goldReward ?? CurrentRoundDefinition.BaseGoldReward;
+        if (resolvedGoldReward < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(goldReward), "Gold reward cannot be negative.");
         }
 
         return this with
         {
-            Gold = Gold + goldReward,
-            Phase = Round >= 10 ? RunPhase.Victory : RunPhase.Reward,
+            Gold = Gold + resolvedGoldReward,
+            Phase = Round >= PveRunSchedule.FinalRound ? RunPhase.Victory : RunPhase.Reward,
             Combat = null
         };
+    }
+
+    public RunState AdvanceRound(ShopState? nextShop = null)
+    {
+        var nextRound = PveRunSchedule.GetRound(Round + 1);
+        return AdvanceRound(nextRound.EnemyId, nextShop);
     }
 
     public RunState AdvanceRound(string nextEnemyId, ShopState? nextShop = null)

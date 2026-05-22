@@ -54,6 +54,38 @@ Require(nextRound.Round == 2, "advancing reward starts the next round");
 Require(nextRound.Phase == RunPhase.Preparation, "advancing reward returns to preparation");
 Require(nextRound.Shop.Offers.Count == 3, "next round refreshes the shop");
 Require(nextRound.NextEnemyId == "round_02_scouts", "next round updates the enemy preview");
+Require(PveRunSchedule.Rounds.Count == 10, "MVP PvE schedule has 10 rounds");
+Require(PveRunSchedule.GetRound(1).EnemyId == state.NextEnemyId, "new run uses the first scheduled enemy");
+RequireThrows(() => PveRunSchedule.GetRound(11), "round 11 is outside the MVP schedule");
+
+var scheduledRun = RunState.NewRun()
+    .BuyHero(0)
+    .PlaceHeroFromBench("iron_guard_1_1", new TacticalPosition(2, 1));
+
+for (var expectedRound = 1; expectedRound < PveRunSchedule.FinalRound; expectedRound += 1)
+{
+    var definition = PveRunSchedule.GetRound(expectedRound);
+    Require(scheduledRun.Round == expectedRound, "scheduled run is on the expected round");
+    Require(scheduledRun.NextEnemyId == definition.EnemyId, "scheduled run exposes the current enemy preview");
+
+    var combatRound = scheduledRun.StartCombat();
+    Require(combatRound.Combat is not null, "scheduled round starts combat");
+
+    var rewardedRound = combatRound.ClaimReward();
+    Require(rewardedRound.Phase == RunPhase.Reward, "non-final scheduled rounds enter reward phase");
+    Require(rewardedRound.Gold == scheduledRun.Gold + definition.BaseGoldReward, "scheduled reward grants round gold");
+
+    scheduledRun = rewardedRound.AdvanceRound();
+    var nextDefinition = PveRunSchedule.GetRound(expectedRound + 1);
+    Require(scheduledRun.Round == expectedRound + 1, "scheduled run advances by one round");
+    Require(scheduledRun.Phase == RunPhase.Preparation, "scheduled run returns to preparation between rounds");
+    Require(scheduledRun.NextEnemyId == nextDefinition.EnemyId, "scheduled run previews the next enemy");
+}
+
+var finalCombat = scheduledRun.StartCombat();
+var finalReward = finalCombat.ClaimReward();
+Require(finalReward.Round == PveRunSchedule.FinalRound, "final reward stays on round 10");
+Require(finalReward.Phase == RunPhase.Victory, "final scheduled reward ends the MVP run in victory");
 
 var board = Match3Board.CreateDeterministic(1337);
 Require(Match3Board.AreAdjacent(new BoardPoint(0, 0), new BoardPoint(0, 1)), "horizontal neighbors are adjacent");
