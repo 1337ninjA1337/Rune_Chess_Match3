@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace RuneChess.Core;
 
@@ -8,38 +10,226 @@ public sealed record RunState(
     int Gold,
     int Xp,
     int PlayerLevel,
-    string CommanderId,
-    IReadOnlyList<string> Team,
-    IReadOnlyList<string> Bench,
-    IReadOnlyList<string> Shop,
-    IReadOnlyList<string> Artifacts,
-    RunPhase Phase
+    CommanderState Commander,
+    IReadOnlyList<BoardHero> Team,
+    IReadOnlyList<HeroInstance> Bench,
+    ShopState Shop,
+    IReadOnlyList<ArtifactState> Artifacts,
+    RunPhase Phase,
+    string NextEnemyId
 )
 {
-    public static RunState NewRun(string commanderId = "stone_oath")
+    public static RunState NewRun(
+        CommanderState? commander = null,
+        EconomyConfig? economy = null,
+        ShopState? shop = null
+    )
     {
+        var config = economy ?? EconomyConfig.Default;
+
         return new RunState(
             Round: 1,
-            RunHealth: 100,
-            Gold: 6,
-            Xp: 0,
-            PlayerLevel: 1,
-            CommanderId: commanderId,
-            Team: new List<string>(),
-            Bench: new List<string>(),
-            Shop: new List<string> { "iron_guard", "oath_archer", "field_medic" },
-            Artifacts: new List<string>(),
-            Phase: RunPhase.Preparation
+            RunHealth: config.StartingRunHealth,
+            Gold: config.StartingGold,
+            Xp: config.StartingXp,
+            PlayerLevel: config.StartingPlayerLevel,
+            Commander: commander ?? CommanderState.StoneOath,
+            Team: new List<BoardHero>(),
+            Bench: new List<HeroInstance>(),
+            Shop: shop ?? ShopState.StartingShop,
+            Artifacts: new List<ArtifactState>(),
+            Phase: RunPhase.Preparation,
+            NextEnemyId: "round_01_training_band"
         );
+    }
+
+    public RunState BuyHero(int offerIndex, EconomyConfig? economy = null)
+    {
+        EnsurePreparationPhase();
+        var config = economy ?? EconomyConfig.Default;
+
+        if (offerIndex < 0 || offerIndex >= Shop.Offers.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offerIndex), "Shop offer index is outside the current shop.");
+        }
+
+        if (Bench.Count >= config.StartingBenchSize)
+        {
+            throw new InvalidOperationException("Bench is full.");
+        }
+
+        var offer = Shop.Offers[offerIndex];
+        if (Gold < offer.Cost)
+        {
+            throw new InvalidOperationException("Not enough gold to buy this hero.");
+        }
+
+        var bench = Bench.ToList();
+        bench.Add(new HeroInstance(CreateInstanceId(offer.HeroId), offer.HeroId, Stars: 1));
+
+        var offers = Shop.Offers.ToList();
+        offers.RemoveAt(offerIndex);
+
+        return this with
+        {
+            Gold = Gold - offer.Cost,
+            Bench = bench,
+            Shop = Shop with { Offers = offers }
+        };
+    }
+
+    public RunState PlaceHeroFromBench(string instanceId, TacticalPosition position)
+    {
+        EnsurePreparationPhase();
+
+        if (!position.IsPlayerSide)
+        {
+            throw new InvalidOperationException("Heroes can only be placed on the player side during preparation.");
+        }
+
+        if (Team.Any(slot => slot.Position == position))
+        {
+            throw new InvalidOperationException("That tactical cell is already occupied.");
+        }
+
+        if (Team.Count >= PlayerLevel)
+        {
+            throw new InvalidOperationException("The number of heroes on the field is limited by player level.");
+        }
+
+        var bench = Bench.ToList();
+        var hero = bench.FirstOrDefault(hero => hero.InstanceId == instanceId)
+            ?? throw new InvalidOperationException("Hero instance is not on the bench.");
+
+        bench.Remove(hero);
+
+        var team = Team.ToList();
+        team.Add(new BoardHero(hero, position));
+
+        return this with
+        {
+            Bench = bench,
+            Team = team
+        };
+    }
+
+    public RunState MoveHeroToBench(string instanceId, EconomyConfig? economy = null)
+    {
+        EnsurePreparationPhase();
+        var config = economy ?? EconomyConfig.Default;
+
+        if (Bench.Count >= config.StartingBenchSize)
+        {
+            throw new InvalidOperationException("Bench is full.");
+        }
+
+        var team = Team.ToList();
+        var boardHero = team.FirstOrDefault(hero => hero.Hero.InstanceId == instanceId)
+            ?? throw new InvalidOperationException("Hero instance is not on the tactical board.");
+
+        team.Remove(boardHero);
+
+        var bench = Bench.ToList();
+        bench.Add(boardHero.Hero);
+
+        return this with
+        {
+            Team = team,
+            Bench = bench
+        };
+    }
+
+    public RunState BuyXp(EconomyConfig? economy = null)
+    {
+        EnsurePreparationPhase();
+        var config = economy ?? EconomyConfig.Default;
+
+        if (Gold < config.BuyXpCost)
+        {
+            throw new InvalidOperationException("Not enough gold to buy XP.");
+        }
+
+        return this with
+        {
+            Gold = Gold - config.BuyXpCost,
+            Xp = Xp + config.XpPerPurchase
+        };
+    }
+
+    public RunState LevelUp(int xpCost)
+    {
+        EnsurePreparationPhase();
+
+        if (Xp < xpCost)
+        {
+            throw new InvalidOperationException("Not enough XP to level up.");
+        }
+
+        return this with
+        {
+            Xp = Xp - xpCost,
+            PlayerLevel = PlayerLevel + 1
+        };
+    }
+
+    public RunState RerollShop(IReadOnlyList<ShopOffer> nextOffers, EconomyConfig? economy = null)
+    {
+        EnsurePreparationPhase();
+        var config = economy ?? EconomyConfig.Default;
+
+        if (nextOffers.Count != config.StartingShopSize)
+        {
+            throw new ArgumentException("Reroll result must match the configured shop size.", nameof(nextOffers));
+        }
+
+        if (Gold < config.RerollCost)
+        {
+            throw new InvalidOperationException("Not enough gold to reroll the shop.");
+        }
+
+        return this with
+        {
+            Gold = Gold - config.RerollCost,
+            Shop = new ShopState(nextOffers.ToList(), Shop.RerollsThisRound + 1)
+        };
+    }
+
+    public RunState AddArtifact(ArtifactState artifact)
+    {
+        var artifacts = Artifacts.ToList();
+        artifacts.Add(artifact);
+
+        return this with { Artifacts = artifacts };
     }
 
     public RunState StartCombat()
     {
+        EnsurePreparationPhase();
         return this with { Phase = RunPhase.Combat };
+    }
+
+    public RunState ApplyRunDamage(int damage)
+    {
+        if (damage < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(damage), "Run damage cannot be negative.");
+        }
+
+        var nextHealth = Math.Max(0, RunHealth - damage);
+        return this with
+        {
+            RunHealth = nextHealth,
+            Phase = nextHealth == 0 ? RunPhase.Defeat : Phase
+        };
     }
 
     public RunState ClaimReward(int goldReward)
     {
+        if (Phase != RunPhase.Combat)
+        {
+            throw new InvalidOperationException("Rewards can only be claimed after combat resolution.");
+        }
+
         return this with
         {
             Gold = Gold + goldReward,
@@ -47,12 +237,33 @@ public sealed record RunState(
         };
     }
 
-    public RunState AdvanceRound()
+    public RunState AdvanceRound(string nextEnemyId)
     {
+        if (Phase != RunPhase.Reward && Phase != RunPhase.Event)
+        {
+            throw new InvalidOperationException("Rounds can only advance from reward or event phases.");
+        }
+
         return this with
         {
             Round = Round + 1,
-            Phase = RunPhase.Preparation
+            Phase = RunPhase.Preparation,
+            Shop = Shop with { RerollsThisRound = 0 },
+            NextEnemyId = nextEnemyId
         };
+    }
+
+    private void EnsurePreparationPhase()
+    {
+        if (Phase != RunPhase.Preparation)
+        {
+            throw new InvalidOperationException("This action is only available during preparation.");
+        }
+    }
+
+    private string CreateInstanceId(string heroId)
+    {
+        var nextNumber = Bench.Count + Team.Count + 1;
+        return $"{heroId}_{Round}_{nextNumber}";
     }
 }
