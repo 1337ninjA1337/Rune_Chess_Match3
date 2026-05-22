@@ -21,6 +21,9 @@ public sealed record RunState(
 )
 {
     public PveRoundDefinition CurrentRoundDefinition => PveRunSchedule.GetRound(Round);
+    public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
+    public bool IsRunWon => Phase == RunPhase.Victory;
+    public bool IsRunComplete => Phase is RunPhase.Victory or RunPhase.Defeat;
 
     public static RunState NewRun(
         CommanderState? commander = null,
@@ -268,7 +271,7 @@ public sealed record RunState(
         return this with
         {
             Gold = Gold + resolvedGoldReward,
-            Phase = Round >= PveRunSchedule.FinalRound ? RunPhase.Victory : RunPhase.Reward,
+            Phase = IsFinalRound ? RunPhase.Victory : RunPhase.Reward,
             Combat = null
         };
     }

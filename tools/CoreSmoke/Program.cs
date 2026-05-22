@@ -86,6 +86,9 @@ var finalCombat = scheduledRun.StartCombat();
 var finalReward = finalCombat.ClaimReward();
 Require(finalReward.Round == PveRunSchedule.FinalRound, "final reward stays on round 10");
 Require(finalReward.Phase == RunPhase.Victory, "final scheduled reward ends the MVP run in victory");
+Require(finalReward.IsFinalRound, "final reward is marked as the final round");
+Require(finalReward.IsRunWon, "final reward exposes a run win flag");
+Require(finalReward.IsRunComplete, "victory marks the run complete");
 
 var board = Match3Board.CreateDeterministic(1337);
 Require(Match3Board.AreAdjacent(new BoardPoint(0, 0), new BoardPoint(0, 1)), "horizontal neighbors are adjacent");
