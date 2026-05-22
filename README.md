@@ -1,41 +1,45 @@
 # Rune Chess Match-3
 
-Native iOS tactical roguelite for portrait play sessions. The MVP combines auto battler squad building with an active match-3 rune board during combat.
+Windows-developed Unity tactical roguelite targeting iOS portrait play sessions. The MVP combines auto battler squad building with an active match-3 rune board during combat.
 
 ## Project Sources
 
 - Product design: [`GDD_Rune_Chess_Match3.md`](GDD_Rune_Chess_Match3.md)
 - Development checklist: [`tasks/.tasks.md`](tasks/.tasks.md)
 - Architecture and stack: [`docs/architecture.md`](docs/architecture.md)
-- iOS project scaffold: [`ios/README.md`](ios/README.md)
+- Pure C# core package: [`Packages/com.runechess.core`](Packages/com.runechess.core)
 
 ## Fixed Stack
 
-The MVP stack is native iOS:
+The MVP stack is now Windows-first Unity:
 
-- Swift 6 for gameplay, UI shell, persistence, and tests.
-- SpriteKit for 2D board rendering, animation, particles, and touch input.
-- GameplayKit for state machines, deterministic systems, and future AI helpers.
-- SwiftUI for app hosting and non-game screens.
-- XCTest for deterministic game-rule coverage.
+- Unity 6.3 LTS for Windows editor development.
+- C# for gameplay, presentation, and tests.
+- Unity 2D + uGUI for the first portrait game surface.
+- Pure C# core logic in a local Unity package with no `UnityEngine` dependency.
+- .NET smoke checks for domain logic that can run on Windows without Unity.
 
-This replaces the earlier Expo/React Native prototype direction. For an iOS-first 2D game, native Swift + SpriteKit is the stronger baseline: lower runtime overhead, direct Apple framework integration, better touch/animation control, and fewer cross-platform compromises.
+Final iOS signing/building still needs Apple's iOS toolchain somewhere. We will use a cloud macOS builder such as Unity Build Automation or Codemagic when the project is ready for iPhone/App Store validation.
 
-## Local Setup
+## Local Setup On Windows
 
-On macOS with Xcode installed:
+Install Unity Hub, then install the latest Unity 6.3 LTS editor available in Hub. Open this repository as a Unity project.
+
+Inside Unity:
+
+1. Open the menu `Rune Chess > Create Main Scene`.
+2. Press Play.
+3. Use the Game view in portrait resolution, for example `390x844`.
+
+For pure core smoke checks without Unity:
 
 ```sh
-cd ios
-xcodegen generate
-open RuneChess.xcodeproj
+dotnet run --project tools/CoreSmoke/CoreSmoke.csproj
 ```
-
-If XcodeGen is unavailable, create an iOS App project in Xcode named `RuneChess`, then add the `ios/RuneChess` and `ios/RuneChessTests` folders to the project.
 
 ## Working Rules
 
 - Keep the MVP focused on iOS portrait.
-- Keep combat, economy, run progression, and match-3 rules outside SpriteKit rendering code.
-- Store balance numbers in explicit Swift configs or Codable data.
+- Keep combat, economy, run progression, and match-3 rules outside MonoBehaviours.
+- Store balance numbers in explicit C# configs or data assets.
 - Prefer small, testable modules that map directly to the GDD systems.

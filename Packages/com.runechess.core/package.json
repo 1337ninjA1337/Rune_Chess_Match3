@@ -1,0 +1,10 @@
+{
+  "name": "com.runechess.core",
+  "version": "0.1.0",
+  "displayName": "Rune Chess Core",
+  "description": "Pure C# domain rules for Rune Chess Match-3.",
+  "unity": "6000.3",
+  "author": {
+    "name": "Rune Chess"
+  }
+}

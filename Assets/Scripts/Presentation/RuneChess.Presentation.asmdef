@@ -1,0 +1,7 @@
+{
+  "name": "RuneChess.Presentation",
+  "rootNamespace": "RuneChess.Presentation",
+  "references": [
+    "RuneChess.Core"
+  ]
+}

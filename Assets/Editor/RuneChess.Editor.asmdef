@@ -1,0 +1,11 @@
+{
+  "name": "RuneChess.Editor",
+  "rootNamespace": "RuneChess.Editor",
+  "references": [
+    "RuneChess.Presentation",
+    "RuneChess.Core"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}
