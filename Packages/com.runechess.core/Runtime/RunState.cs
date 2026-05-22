@@ -16,7 +16,8 @@ public sealed record RunState(
     ShopState Shop,
     IReadOnlyList<ArtifactState> Artifacts,
     RunPhase Phase,
-    string NextEnemyId
+    string NextEnemyId,
+    CombatState? Combat
 )
 {
     public static RunState NewRun(
@@ -39,7 +40,8 @@ public sealed record RunState(
             Shop: shop ?? ShopState.StartingShop,
             Artifacts: new List<ArtifactState>(),
             Phase: RunPhase.Preparation,
-            NextEnemyId: "round_01_training_band"
+            NextEnemyId: "round_01_training_band",
+            Combat: null
         );
     }
 
@@ -202,10 +204,35 @@ public sealed record RunState(
         return this with { Artifacts = artifacts };
     }
 
-    public RunState StartCombat()
+    public RunState StartCombat(int runeSeed = 1337)
     {
         EnsurePreparationPhase();
-        return this with { Phase = RunPhase.Combat };
+
+        if (Team.Count == 0)
+        {
+            throw new InvalidOperationException("At least one hero must be placed before combat starts.");
+        }
+
+        return this with
+        {
+            Phase = RunPhase.Combat,
+            Combat = CombatState.Start(runeSeed)
+        };
+    }
+
+    public RunState SwapRunes(BoardPoint a, BoardPoint b, int comboDepth = 0)
+    {
+        if (Phase != RunPhase.Combat)
+        {
+            throw new InvalidOperationException("Runes can only be swapped during combat.");
+        }
+
+        if (Combat is null)
+        {
+            throw new InvalidOperationException("Combat rune board has not been initialized.");
+        }
+
+        return this with { Combat = Combat.SwapRunes(a, b, comboDepth) };
     }
 
     public RunState ApplyRunDamage(int damage)
@@ -230,14 +257,20 @@ public sealed record RunState(
             throw new InvalidOperationException("Rewards can only be claimed after combat resolution.");
         }
 
+        if (goldReward < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(goldReward), "Gold reward cannot be negative.");
+        }
+
         return this with
         {
             Gold = Gold + goldReward,
-            Phase = Round >= 10 ? RunPhase.Victory : RunPhase.Reward
+            Phase = Round >= 10 ? RunPhase.Victory : RunPhase.Reward,
+            Combat = null
         };
     }
 
-    public RunState AdvanceRound(string nextEnemyId)
+    public RunState AdvanceRound(string nextEnemyId, ShopState? nextShop = null)
     {
         if (Phase != RunPhase.Reward && Phase != RunPhase.Event)
         {
@@ -248,8 +281,9 @@ public sealed record RunState(
         {
             Round = Round + 1,
             Phase = RunPhase.Preparation,
-            Shop = Shop with { RerollsThisRound = 0 },
-            NextEnemyId = nextEnemyId
+            Shop = nextShop ?? ShopState.StartingShop,
+            NextEnemyId = nextEnemyId,
+            Combat = null
         };
     }
 
