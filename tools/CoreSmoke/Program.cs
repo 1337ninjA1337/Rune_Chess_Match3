@@ -292,6 +292,37 @@ var staleMatchBoard = CreatePatternBoard(
 Require(staleMatchBoard.FindMatches().Count >= 3, "stale-match fixture starts with an unrelated match");
 Require(!staleMatchBoard.IsLegalSwap(swapA, swapB), "legal swap ignores pre-existing unrelated matches");
 RequireThrows(() => staleMatchBoard.SwapIfCreatesMatch(swapA, swapB), "match swap command rejects unrelated pre-existing matches");
+var horizontalMatchBoard = CreatePatternBoard(
+    (new BoardPoint(0, 1), RuneType.Red),
+    (new BoardPoint(0, 2), RuneType.Red)
+);
+var horizontalMatchCells = new[] { new BoardPoint(0, 0), new BoardPoint(0, 1), new BoardPoint(0, 2) };
+Require(ContainsExactly(horizontalMatchBoard.FindHorizontalMatches(), horizontalMatchCells), "horizontal match scan finds row matches");
+Require(horizontalMatchBoard.FindVerticalMatches().Count == 0, "horizontal match scan does not leak into vertical matches");
+Require(ContainsExactly(horizontalMatchBoard.FindMatches(), horizontalMatchCells), "combined match scan includes horizontal matches");
+var verticalMatchBoard = CreatePatternBoard(
+    (new BoardPoint(1, 0), RuneType.Red),
+    (new BoardPoint(2, 0), RuneType.Red)
+);
+var verticalMatchCells = new[] { new BoardPoint(0, 0), new BoardPoint(1, 0), new BoardPoint(2, 0) };
+Require(verticalMatchBoard.FindHorizontalMatches().Count == 0, "vertical match scan does not leak into horizontal matches");
+Require(ContainsExactly(verticalMatchBoard.FindVerticalMatches(), verticalMatchCells), "vertical match scan finds column matches");
+Require(ContainsExactly(verticalMatchBoard.FindMatches(), verticalMatchCells), "combined match scan includes vertical matches");
+var crossMatchBoard = CreatePatternBoard(
+    (new BoardPoint(0, 1), RuneType.Red),
+    (new BoardPoint(0, 2), RuneType.Red),
+    (new BoardPoint(1, 0), RuneType.Red),
+    (new BoardPoint(2, 0), RuneType.Red)
+);
+var crossMatchCells = new[]
+{
+    new BoardPoint(0, 0),
+    new BoardPoint(0, 1),
+    new BoardPoint(0, 2),
+    new BoardPoint(1, 0),
+    new BoardPoint(2, 0)
+};
+Require(ContainsExactly(crossMatchBoard.FindMatches(), crossMatchCells), "combined match scan unions horizontal and vertical matches");
 Require(board.FindMatches() is not null, "match scan returns a set");
 
 Console.WriteLine("Core smoke checks passed.");
@@ -350,6 +381,11 @@ static void RequireThrows(Action action, string message)
     }
 
     throw new InvalidOperationException($"Smoke check failed: {message}");
+}
+
+static bool ContainsExactly(IReadOnlySet<BoardPoint> actual, IReadOnlyList<BoardPoint> expected)
+{
+    return actual.Count == expected.Count && expected.All(actual.Contains);
 }
 
 static Match3Board CreatePatternBoard(params (BoardPoint Point, RuneType Rune)[] overrides)

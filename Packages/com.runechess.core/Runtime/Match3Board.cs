@@ -74,12 +74,26 @@ public sealed class Match3Board
 
     public IReadOnlySet<BoardPoint> FindMatches()
     {
+        var matches = new HashSet<BoardPoint>(FindHorizontalMatches());
+        matches.UnionWith(FindVerticalMatches());
+        return matches;
+    }
+
+    public IReadOnlySet<BoardPoint> FindHorizontalMatches()
+    {
         var matches = new HashSet<BoardPoint>();
 
         for (var row = 0; row < Rows; row += 1)
         {
             AddLineMatches(matches, Enumerable.Range(0, Columns).Select(column => new BoardPoint(row, column)));
         }
+
+        return matches;
+    }
+
+    public IReadOnlySet<BoardPoint> FindVerticalMatches()
+    {
+        var matches = new HashSet<BoardPoint>();
 
         for (var column = 0; column < Columns; column += 1)
         {
