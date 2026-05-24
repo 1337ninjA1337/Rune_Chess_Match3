@@ -67,4 +67,22 @@ public sealed record TacticalField(int Columns, int Rows)
     {
         return Contains(position) && GetSide(position) == TacticalSide.Player;
     }
+
+    public TacticalLine GetLine(TacticalPosition position)
+    {
+        var side = GetSide(position);
+        var frontRow = side == TacticalSide.Enemy ? HalfRows - 1 : HalfRows;
+
+        return position.Row == frontRow ? TacticalLine.Frontline : TacticalLine.Backline;
+    }
+
+    public bool IsFrontline(TacticalPosition position)
+    {
+        return Contains(position) && GetLine(position) == TacticalLine.Frontline;
+    }
+
+    public bool IsBackline(TacticalPosition position)
+    {
+        return Contains(position) && GetLine(position) == TacticalLine.Backline;
+    }
 }
