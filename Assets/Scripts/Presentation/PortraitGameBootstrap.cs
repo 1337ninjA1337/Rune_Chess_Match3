@@ -108,7 +108,8 @@ public sealed class PortraitGameBootstrap : MonoBehaviour
         {
             for (var column = 0; column < TacticalField.Mvp.Columns; column += 1)
             {
-                var isEnemySide = row < 2;
+                var position = new TacticalPosition(row, column);
+                var isEnemySide = TacticalField.Mvp.GetSide(position) == TacticalSide.Enemy;
                 var cell = CreatePanel($"Cell {row}:{column}", gridRoot.transform, isEnemySide ? GameColors.EnemyCell : GameColors.PlayerCell);
                 AddCellUnitIfNeeded(cell.transform, row, column);
             }

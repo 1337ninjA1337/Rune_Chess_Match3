@@ -10,6 +10,7 @@ public sealed record TacticalField(int Columns, int Rows)
     public static TacticalField Mvp { get; } = new(MvpColumns, MvpRows);
 
     public int CellCount => Columns * Rows;
+    public int HalfRows => Rows / 2;
 
     public bool Contains(TacticalPosition position)
     {
@@ -31,5 +32,39 @@ public sealed record TacticalField(int Columns, int Rows)
         }
 
         return cells;
+    }
+
+    public IReadOnlyList<TacticalPosition> CreateCells(TacticalSide side)
+    {
+        var cells = new List<TacticalPosition>(CellCount / 2);
+        foreach (var position in CreateCells())
+        {
+            if (GetSide(position) == side)
+            {
+                cells.Add(position);
+            }
+        }
+
+        return cells;
+    }
+
+    public TacticalSide GetSide(TacticalPosition position)
+    {
+        if (!Contains(position))
+        {
+            throw new System.ArgumentOutOfRangeException(nameof(position), "Tactical position is outside the field.");
+        }
+
+        return position.Row < HalfRows ? TacticalSide.Enemy : TacticalSide.Player;
+    }
+
+    public bool IsEnemySide(TacticalPosition position)
+    {
+        return Contains(position) && GetSide(position) == TacticalSide.Enemy;
+    }
+
+    public bool IsPlayerSide(TacticalPosition position)
+    {
+        return Contains(position) && GetSide(position) == TacticalSide.Player;
     }
 }
