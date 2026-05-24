@@ -29,12 +29,11 @@ public sealed class Match3Board
     public static Match3Board CreateDeterministic(int seed)
     {
         var random = new Random(seed);
-        var values = Enum.GetValues<RuneType>();
         var runes = new RuneType[CellCount];
 
         for (var index = 0; index < runes.Length; index += 1)
         {
-            runes[index] = values[random.Next(values.Length)];
+            runes[index] = RuneTypes.All[random.Next(RuneTypes.All.Count)];
         }
 
         return new Match3Board(runes);

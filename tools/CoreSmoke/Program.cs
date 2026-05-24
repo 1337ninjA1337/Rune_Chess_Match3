@@ -207,6 +207,32 @@ Require(timerVictory.Gold == afterPlace.Gold + 2, "timer victory grants reward")
 RequireThrows(() => afterPlace.StartCombat(1337).ResolveCombatTick(1, playerHealthPercent: 101), "combat tick validates health percent");
 
 var board = Match3Board.CreateDeterministic(1337);
+Require(RuneTypes.All.Count == 6, "rune catalog exposes six rune types");
+Require(
+    RuneTypes.All.SequenceEqual(new[]
+    {
+        RuneType.Red,
+        RuneType.Blue,
+        RuneType.Green,
+        RuneType.Yellow,
+        RuneType.Purple,
+        RuneType.White
+    }),
+    "rune catalog keeps the canonical MVP order"
+);
+Require(
+    string.Join(",", RuneTypes.All.Select(RuneTypes.GetId)) == "red,blue,green,yellow,purple,white",
+    "rune catalog exposes canonical lowercase ids"
+);
+Require(RuneTypes.ParseId("red") == RuneType.Red, "red rune id parses to red");
+Require(RuneTypes.ParseId("blue") == RuneType.Blue, "blue rune id parses to blue");
+Require(RuneTypes.ParseId("green") == RuneType.Green, "green rune id parses to green");
+Require(RuneTypes.ParseId("yellow") == RuneType.Yellow, "yellow rune id parses to yellow");
+Require(RuneTypes.ParseId("purple") == RuneType.Purple, "purple rune id parses to purple");
+Require(RuneTypes.ParseId("white") == RuneType.White, "white rune id parses to white");
+Require(RuneTypes.TryParseId("WHITE", out var parsedWhite) && parsedWhite == RuneType.White, "rune parsing accepts case-insensitive ids");
+Require(!RuneTypes.TryParseId("orange", out _), "rune parsing rejects unknown ids");
+RequireThrows(() => RuneTypes.ParseId("orange"), "rune parsing throws for unknown ids");
 Require(Match3Board.Rows == 7, "match-3 board has seven rows");
 Require(Match3Board.Columns == 7, "match-3 board has seven columns");
 Require(Match3Board.CellCount == 49, "match-3 board has 49 cells");
