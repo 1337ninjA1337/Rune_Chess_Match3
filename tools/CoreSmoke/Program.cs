@@ -51,6 +51,15 @@ RequireThrows(
 );
 RequireThrows(() => afterPlace.StartCombat().MoveHeroToBench(boughtHeroId), "moving to bench is blocked during combat");
 
+var twoHeroBench = state.BuyHero(0).BuyHero(0);
+var firstLimitedHeroId = twoHeroBench.Bench[0].InstanceId;
+var secondLimitedHeroId = twoHeroBench.Bench[1].InstanceId;
+var fieldAtLevelCap = twoHeroBench.PlaceHeroFromBench(firstLimitedHeroId, new TacticalPosition(2, 2));
+RequireThrows(
+    () => fieldAtLevelCap.PlaceHeroFromBench(secondLimitedHeroId, new TacticalPosition(3, 2)),
+    "player level limits the number of fielded heroes"
+);
+
 RequireThrows(() => state.StartCombat(), "combat cannot start before placement");
 
 var afterXp = afterPlace.BuyXp();
