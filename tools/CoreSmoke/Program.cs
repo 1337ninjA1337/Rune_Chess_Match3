@@ -207,6 +207,17 @@ Require(timerVictory.Gold == afterPlace.Gold + 2, "timer victory grants reward")
 RequireThrows(() => afterPlace.StartCombat(1337).ResolveCombatTick(1, playerHealthPercent: 101), "combat tick validates health percent");
 
 var board = Match3Board.CreateDeterministic(1337);
+Require(Match3Board.Rows == 7, "match-3 board has seven rows");
+Require(Match3Board.Columns == 7, "match-3 board has seven columns");
+Require(Match3Board.CellCount == 49, "match-3 board has 49 cells");
+Require(Match3Board.Contains(new BoardPoint(6, 6)), "match-3 board includes its last cell");
+Require(!Match3Board.Contains(new BoardPoint(7, 0)), "match-3 board rejects rows outside the board");
+Require(Match3Board.CreateCells().Count == Match3Board.CellCount, "match-3 board enumerates every cell");
+Require(Enum.IsDefined(typeof(RuneType), board[6, 6]), "match-3 board stores a rune in every cell");
+RequireThrows(
+    () => { _ = board[7, 0]; },
+    "match-3 board rejects index access outside the board"
+);
 Require(Match3Board.AreAdjacent(new BoardPoint(0, 0), new BoardPoint(0, 1)), "horizontal neighbors are adjacent");
 Require(!Match3Board.AreAdjacent(new BoardPoint(0, 0), new BoardPoint(1, 1)), "diagonal cells are not adjacent");
 Require(board.FindMatches() is not null, "match scan returns a set");

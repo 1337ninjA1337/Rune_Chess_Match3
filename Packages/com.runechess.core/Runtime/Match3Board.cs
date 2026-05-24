@@ -10,14 +10,15 @@ public sealed class Match3Board
 {
     public const int Rows = 7;
     public const int Columns = 7;
+    public const int CellCount = Rows * Columns;
 
     private readonly RuneType[] cells;
 
     public Match3Board(IReadOnlyList<RuneType> runes)
     {
-        if (runes.Count != Rows * Columns)
+        if (runes.Count != CellCount)
         {
-            throw new ArgumentException($"A match-3 board needs {Rows * Columns} runes.", nameof(runes));
+            throw new ArgumentException($"A match-3 board needs {CellCount} runes.", nameof(runes));
         }
 
         cells = runes.ToArray();
@@ -29,7 +30,7 @@ public sealed class Match3Board
     {
         var random = new Random(seed);
         var values = Enum.GetValues<RuneType>();
-        var runes = new RuneType[Rows * Columns];
+        var runes = new RuneType[CellCount];
 
         for (var index = 0; index < runes.Length; index += 1)
         {
@@ -45,6 +46,25 @@ public sealed class Match3Board
         var columnDistance = Math.Abs(a.Column - b.Column);
 
         return rowDistance + columnDistance == 1;
+    }
+
+    public static bool Contains(BoardPoint point)
+    {
+        return point.Row >= 0 && point.Row < Rows && point.Column >= 0 && point.Column < Columns;
+    }
+
+    public static IReadOnlyList<BoardPoint> CreateCells()
+    {
+        var points = new List<BoardPoint>(CellCount);
+        for (var row = 0; row < Rows; row += 1)
+        {
+            for (var column = 0; column < Columns; column += 1)
+            {
+                points.Add(new BoardPoint(row, column));
+            }
+        }
+
+        return points;
     }
 
     public IReadOnlySet<BoardPoint> FindMatches()
@@ -121,7 +141,7 @@ public sealed class Match3Board
 
     private static int Index(int row, int column)
     {
-        if (row is < 0 or >= Rows || column is < 0 or >= Columns)
+        if (!Contains(new BoardPoint(row, column)))
         {
             throw new ArgumentOutOfRangeException(nameof(row), "Board coordinates are outside the 7x7 board.");
         }
