@@ -15,6 +15,17 @@ public sealed record Match3ChainStep(
 {
     public int ChainNumber => ComboDepth + 1;
     public int MatchedRunesCount => MatchedCells.Count;
+    public int MatchPower => GetMatchPower();
+
+    public int GetMatchPower(int comboDepthOffset = 0)
+    {
+        if (comboDepthOffset < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(comboDepthOffset), "Combo depth offset cannot be negative.");
+        }
+
+        return Match3Scoring.CalculateMatchPower(MatchedRunesCount, ComboDepth + comboDepthOffset);
+    }
 }
 
 public sealed record Match3ChainResolution(
@@ -25,6 +36,17 @@ public sealed record Match3ChainResolution(
     public int ReactionCount => Math.Max(0, Steps.Count - 1);
     public int MaxComboDepth => Steps.Count == 0 ? 0 : Steps.Max(step => step.ComboDepth);
     public int TotalMatchedRunesCount => Steps.Sum(step => step.MatchedRunesCount);
+    public int TotalMatchPower => GetTotalMatchPower();
+
+    public int GetTotalMatchPower(int comboDepthOffset = 0)
+    {
+        if (comboDepthOffset < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(comboDepthOffset), "Combo depth offset cannot be negative.");
+        }
+
+        return Steps.Sum(step => step.GetMatchPower(comboDepthOffset));
+    }
 }
 
 public sealed class Match3Board

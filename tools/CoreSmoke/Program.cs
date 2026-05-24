@@ -102,7 +102,7 @@ Require(afterRuneSwap.Combat is not null, "rune swaps keep combat state");
 var swappedCombat = afterRuneSwap.Combat ?? throw new InvalidOperationException("Smoke check failed: swapped combat state missing");
 Require(swappedCombat.Match3MovesUsed == 1, "rune swap counts as a match-3 combat move");
 Require(swappedCombat.LastMatchedRunesCount >= 3, "rune swap records matched runes");
-Require(swappedCombat.LastMatchPower == swappedCombat.LastMatchedRunesCount, "first swap uses matchPower = matchedRunesCount + comboDepth");
+Require(swappedCombat.LastMatchPower >= swappedCombat.LastMatchedRunesCount, "rune swap records matchPower from matched runes and combo depth");
 Require(swappedCombat.RuneBoard.FindMatches().Count == 0, "rune swap resolves matches and chains before combat continues");
 
 var progressStore = new RunProgressStore();
@@ -234,6 +234,10 @@ Require(RuneTypes.ParseId("white") == RuneType.White, "white rune id parses to w
 Require(RuneTypes.TryParseId("WHITE", out var parsedWhite) && parsedWhite == RuneType.White, "rune parsing accepts case-insensitive ids");
 Require(!RuneTypes.TryParseId("orange", out _), "rune parsing rejects unknown ids");
 RequireThrows(() => RuneTypes.ParseId("orange"), "rune parsing throws for unknown ids");
+Require(Match3Scoring.CalculateMatchPower(3, 0) == 3, "matchPower starts from matched rune count");
+Require(Match3Scoring.CalculateMatchPower(5, 2) == 7, "matchPower adds combo depth");
+RequireThrows(() => Match3Scoring.CalculateMatchPower(-1, 0), "matchPower rejects negative matched rune count");
+RequireThrows(() => Match3Scoring.CalculateMatchPower(3, -1), "matchPower rejects negative combo depth");
 Require(Match3Board.Rows == 7, "match-3 board has seven rows");
 Require(Match3Board.Columns == 7, "match-3 board has seven columns");
 Require(Match3Board.CellCount == 49, "match-3 board has 49 cells");
@@ -285,6 +289,18 @@ Require(legalMatchBoard.CreatesMatchAfterSwap(legalMatchA, legalMatchB), "match 
 Require(legalMatchBoard.IsLegalSwap(legalMatchA, legalMatchB), "legal swap accepts swaps that create a match");
 var legalMatchResult = legalMatchBoard.SwapIfCreatesMatch(legalMatchA, legalMatchB);
 Require(legalMatchResult.FindMatches().Contains(legalMatchA), "created match includes one of the swapped runes");
+var comboScoredCombat = new CombatState(
+    RuneBoard: legalMatchBoard,
+    Match3MovesUsed: 0,
+    LastMatchedRunesCount: 0,
+    LastComboDepth: 0,
+    LastMatchPower: 0,
+    DurationSeconds: CombatState.DefaultDurationSeconds,
+    ElapsedSeconds: 0
+).SwapRunes(legalMatchA, legalMatchB, comboDepth: 2);
+Require(comboScoredCombat.LastMatchedRunesCount == 3, "scored combat records the matched rune count");
+Require(comboScoredCombat.LastComboDepth == 2, "scored combat records the requested combo depth");
+Require(comboScoredCombat.LastMatchPower == 5, "scored combat uses matchPower = matchedRunesCount + comboDepth");
 var staleMatchBoard = CreatePatternBoard(
     (new BoardPoint(6, 0), RuneType.Red),
     (new BoardPoint(6, 1), RuneType.Red),
@@ -373,8 +389,12 @@ Require(chainResolution.MaxComboDepth == 1, "chain resolution records the deepes
 Require(chainResolution.TotalMatchedRunesCount == 6, "chain resolution totals matched runes across steps");
 Require(chainResolution.Steps[0].ComboDepth == 0, "initial match starts at combo depth zero");
 Require(chainResolution.Steps[0].ChainNumber == 1, "initial match is chain number one for effect bonuses");
+Require(chainResolution.Steps[0].MatchPower == 3, "initial chain step calculates base matchPower");
 Require(chainResolution.Steps[1].ComboDepth == 1, "refill-created match increments combo depth");
 Require(chainResolution.Steps[1].ChainNumber == 2, "first chain reaction is chain number two for bonuses");
+Require(chainResolution.Steps[1].MatchPower == 4, "chain reaction matchPower includes combo depth");
+Require(chainResolution.TotalMatchPower == 7, "chain resolution totals per-step matchPower");
+Require(chainResolution.GetTotalMatchPower(2) == 11, "chain resolution applies external combo depth offsets");
 Require(ContainsExactly(chainResolution.Steps[0].MatchedCells, horizontalMatchCells), "chain step records its matched cells");
 Require(chainResolution.Steps[0].BoardAfterRemoval.EmptyCellCount == horizontalMatchCells.Length, "chain step exposes the post-removal board");
 Require(chainResolution.Steps[0].BoardAfterDrop.EmptyCellCount == 0, "chain step exposes the post-drop board");
@@ -383,6 +403,8 @@ Require(chainResolution.Board.EmptyCellCount == 0, "chain resolution ends on a f
 Require(chainResolution.Board.FindMatches().Count == 0, "chain resolution ends on a stable board");
 RequireThrows(() => horizontalMatchBoard.ResolveChainReactions(0, 0), "chain resolution rejects a non-positive depth limit");
 RequireThrows(() => horizontalMatchBoard.ResolveChainReactions(0, 1), "chain resolution enforces the maximum chain depth");
+RequireThrows(() => chainResolution.Steps[0].GetMatchPower(-1), "chain step rejects negative combo depth offsets");
+RequireThrows(() => chainResolution.GetTotalMatchPower(-1), "chain resolution rejects negative combo depth offsets");
 Require(board.FindMatches() is not null, "match scan returns a set");
 
 Console.WriteLine("Core smoke checks passed.");

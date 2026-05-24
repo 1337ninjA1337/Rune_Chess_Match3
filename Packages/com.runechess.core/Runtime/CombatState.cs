@@ -58,14 +58,16 @@ public sealed record CombatState(
         var swapped = RuneBoard.SwapIfCreatesMatch(a, b);
         var resolution = swapped.ResolveChainReactions(Match3MovesUsed + 1);
         var matchedRunesCount = resolution.TotalMatchedRunesCount;
+        var resolvedComboDepth = comboDepth + resolution.MaxComboDepth;
+        var matchPower = resolution.GetTotalMatchPower(comboDepth);
 
         return this with
         {
             RuneBoard = resolution.Board,
             Match3MovesUsed = Match3MovesUsed + 1,
             LastMatchedRunesCount = matchedRunesCount,
-            LastComboDepth = comboDepth,
-            LastMatchPower = matchedRunesCount + comboDepth
+            LastComboDepth = resolvedComboDepth,
+            LastMatchPower = matchPower
         };
     }
 }
