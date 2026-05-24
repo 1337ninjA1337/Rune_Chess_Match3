@@ -90,6 +90,20 @@ Require(finalReward.IsFinalRound, "final reward is marked as the final round");
 Require(finalReward.IsRunWon, "final reward exposes a run win flag");
 Require(finalReward.IsRunComplete, "victory marks the run complete");
 
+var healthDefeat = RunState.NewRun().ApplyRunDamage(100);
+Require(healthDefeat.Phase == RunPhase.Defeat, "run health depletion causes defeat");
+Require(healthDefeat.IsRunLost, "health defeat exposes a run loss flag");
+Require(healthDefeat.IsRunComplete, "health defeat marks the run complete");
+Require(healthDefeat.DefeatReason == "run_health_depleted", "health defeat records a reason");
+
+var combatDefeat = afterPlace.StartCombat().ResolveCombatDefeat("all_allies_defeated");
+Require(combatDefeat.Phase == RunPhase.Defeat, "combat condition failure causes defeat");
+Require(combatDefeat.Combat is null, "combat defeat clears combat state");
+Require(combatDefeat.IsRunLost, "combat defeat exposes a run loss flag");
+Require(combatDefeat.DefeatReason == "all_allies_defeated", "combat defeat records a reason");
+RequireThrows(() => afterPlace.ResolveCombatDefeat(), "combat defeat cannot be resolved outside combat");
+RequireThrows(() => afterPlace.StartCombat().ResolveCombatDefeat(" "), "combat defeat requires a reason");
+
 var board = Match3Board.CreateDeterministic(1337);
 Require(Match3Board.AreAdjacent(new BoardPoint(0, 0), new BoardPoint(0, 1)), "horizontal neighbors are adjacent");
 Require(!Match3Board.AreAdjacent(new BoardPoint(0, 0), new BoardPoint(1, 1)), "diagonal cells are not adjacent");
@@ -142,6 +156,10 @@ static void RequireThrows(Action action, string message)
         action();
     }
     catch (InvalidOperationException)
+    {
+        return;
+    }
+    catch (ArgumentException)
     {
         return;
     }

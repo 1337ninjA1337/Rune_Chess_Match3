@@ -17,12 +17,14 @@ public sealed record RunState(
     IReadOnlyList<ArtifactState> Artifacts,
     RunPhase Phase,
     string NextEnemyId,
-    CombatState? Combat
+    CombatState? Combat,
+    string? DefeatReason
 )
 {
     public PveRoundDefinition CurrentRoundDefinition => PveRunSchedule.GetRound(Round);
     public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
     public bool IsRunWon => Phase == RunPhase.Victory;
+    public bool IsRunLost => Phase == RunPhase.Defeat;
     public bool IsRunComplete => Phase is RunPhase.Victory or RunPhase.Defeat;
 
     public static RunState NewRun(
@@ -46,7 +48,8 @@ public sealed record RunState(
             Artifacts: new List<ArtifactState>(),
             Phase: RunPhase.Preparation,
             NextEnemyId: PveRunSchedule.GetRound(PveRunSchedule.FirstRound).EnemyId,
-            Combat: null
+            Combat: null,
+            DefeatReason: null
         );
     }
 
@@ -251,7 +254,29 @@ public sealed record RunState(
         return this with
         {
             RunHealth = nextHealth,
-            Phase = nextHealth == 0 ? RunPhase.Defeat : Phase
+            Phase = nextHealth == 0 ? RunPhase.Defeat : Phase,
+            Combat = nextHealth == 0 ? null : Combat,
+            DefeatReason = nextHealth == 0 ? "run_health_depleted" : DefeatReason
+        };
+    }
+
+    public RunState ResolveCombatDefeat(string defeatReason = "combat_condition_failed")
+    {
+        if (Phase != RunPhase.Combat)
+        {
+            throw new InvalidOperationException("Combat defeat can only be resolved during combat.");
+        }
+
+        if (string.IsNullOrWhiteSpace(defeatReason))
+        {
+            throw new ArgumentException("Defeat reason is required.", nameof(defeatReason));
+        }
+
+        return this with
+        {
+            Phase = RunPhase.Defeat,
+            Combat = null,
+            DefeatReason = defeatReason
         };
     }
 
@@ -272,7 +297,8 @@ public sealed record RunState(
         {
             Gold = Gold + resolvedGoldReward,
             Phase = IsFinalRound ? RunPhase.Victory : RunPhase.Reward,
-            Combat = null
+            Combat = null,
+            DefeatReason = null
         };
     }
 
@@ -295,7 +321,8 @@ public sealed record RunState(
             Phase = RunPhase.Preparation,
             Shop = nextShop ?? ShopState.StartingShop,
             NextEnemyId = nextEnemyId,
-            Combat = null
+            Combat = null,
+            DefeatReason = null
         };
     }
 
