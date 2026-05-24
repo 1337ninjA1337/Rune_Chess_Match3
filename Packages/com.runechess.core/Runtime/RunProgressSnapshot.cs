@@ -22,7 +22,7 @@ public sealed record RunProgressSnapshot(
     string? DefeatReason
 )
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public static RunProgressSnapshot Capture(RunState state)
     {
@@ -91,7 +91,8 @@ public sealed record CombatProgressSnapshot(
     int DurationSeconds,
     int ElapsedSeconds,
     int GlobalCooldownMillisecondsRemaining,
-    int SecondsSinceLastRuneSwap
+    int SecondsSinceLastRuneSwap,
+    int SlowdownMillisecondsRemaining
 )
 {
     public static CombatProgressSnapshot Capture(CombatState state)
@@ -114,7 +115,8 @@ public sealed record CombatProgressSnapshot(
             DurationSeconds: state.DurationSeconds,
             ElapsedSeconds: state.ElapsedSeconds,
             GlobalCooldownMillisecondsRemaining: state.GlobalCooldownMillisecondsRemaining,
-            SecondsSinceLastRuneSwap: state.SecondsSinceLastRuneSwap
+            SecondsSinceLastRuneSwap: state.SecondsSinceLastRuneSwap,
+            SlowdownMillisecondsRemaining: state.SlowdownMillisecondsRemaining
         );
     }
 
@@ -140,6 +142,11 @@ public sealed record CombatProgressSnapshot(
             throw new InvalidOperationException("Combat progress idle timer cannot be negative.");
         }
 
+        if (SlowdownMillisecondsRemaining < 0)
+        {
+            throw new InvalidOperationException("Combat progress slowdown cannot be negative.");
+        }
+
         return new CombatState(
             RuneBoard: new Match3Board(Runes.ToList()),
             Match3MovesUsed: Match3MovesUsed,
@@ -149,7 +156,8 @@ public sealed record CombatProgressSnapshot(
             DurationSeconds: DurationSeconds,
             ElapsedSeconds: ElapsedSeconds,
             GlobalCooldownMillisecondsRemaining: GlobalCooldownMillisecondsRemaining,
-            SecondsSinceLastRuneSwap: SecondsSinceLastRuneSwap
+            SecondsSinceLastRuneSwap: SecondsSinceLastRuneSwap,
+            SlowdownMillisecondsRemaining: SlowdownMillisecondsRemaining
         );
     }
 }

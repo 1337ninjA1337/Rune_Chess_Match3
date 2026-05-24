@@ -88,6 +88,9 @@ Require(combat.RemainingSeconds == CombatState.DefaultDurationSeconds, "new comb
 Require(combat.GlobalCooldownMillisecondsRemaining == 0, "new combat starts without match-3 cooldown");
 Require(!combat.IsSwapOnCooldown, "new combat allows an immediate rune swap");
 Require(combat.SecondsSinceLastRuneSwap == 0, "new combat starts with a fresh rune-swap idle timer");
+Require(combat.SlowdownMillisecondsRemaining == 0, "new combat starts without slowdown");
+Require(!combat.IsCombatSlowed, "new combat runs at normal speed");
+Require(combat.CombatSpeedPercent == CombatState.NormalCombatSpeedPercent, "normal combat speed is 100 percent");
 Require(!combat.ShouldShowMatchHint, "new combat does not show a match hint immediately");
 Require(combat.CurrentMatchHint is null, "match hint is hidden before the idle delay");
 var hintReadyCombat = combat.AdvanceTimer(CombatState.MatchHintDelaySeconds);
@@ -144,6 +147,7 @@ Require(restoredCombat.ElapsedSeconds == savedCombat.ElapsedSeconds, "restored p
 Require(restoredCombat.Match3MovesUsed == savedCombat.Match3MovesUsed, "restored progress preserves match-3 move count");
 Require(restoredCombat.GlobalCooldownMillisecondsRemaining == savedCombat.GlobalCooldownMillisecondsRemaining, "restored progress preserves match-3 cooldown");
 Require(restoredCombat.SecondsSinceLastRuneSwap == savedCombat.SecondsSinceLastRuneSwap, "restored progress preserves match hint idle timer");
+Require(restoredCombat.SlowdownMillisecondsRemaining == savedCombat.SlowdownMillisecondsRemaining, "restored progress preserves combat slowdown");
 Require(restoredCombat.RuneBoard[0, 0] == savedCombat.RuneBoard[0, 0], "restored progress preserves rune board");
 var unsupportedSnapshot = progressStore.Snapshot ?? throw new InvalidOperationException("Smoke check failed: snapshot missing");
 RequireThrows(() => (unsupportedSnapshot with { Version = 0 }).Restore(), "unsupported progress version is rejected");
@@ -320,6 +324,20 @@ Require(firstHint.From == legalMatchA && firstHint.To == legalMatchB, "board hin
 Require(!noMatchSwapBoard.TryCreateMoveHint(swapA, swapB, out var missingHint) && missingHint is null, "move hint rejects no-match swaps");
 var legalMatchResult = legalMatchBoard.SwapIfCreatesMatch(legalMatchA, legalMatchB);
 Require(legalMatchResult.FindMatches().Contains(legalMatchA), "created match includes one of the swapped runes");
+var smallScoredCombat = new CombatState(
+    RuneBoard: legalMatchBoard,
+    Match3MovesUsed: 0,
+    LastMatchedRunesCount: 0,
+    LastComboDepth: 0,
+    LastMatchPower: 0,
+    DurationSeconds: CombatState.DefaultDurationSeconds,
+    ElapsedSeconds: 0,
+    GlobalCooldownMillisecondsRemaining: 0,
+    SecondsSinceLastRuneSwap: 0,
+    SlowdownMillisecondsRemaining: 0
+).SwapRunes(legalMatchA, legalMatchB);
+Require(!smallScoredCombat.IsCombatSlowed, "base match-3 does not slow combat");
+Require(smallScoredCombat.CombatSpeedPercent == CombatState.NormalCombatSpeedPercent, "base match-3 keeps normal combat speed");
 var comboScoredCombat = new CombatState(
     RuneBoard: legalMatchBoard,
     Match3MovesUsed: 0,
@@ -329,11 +347,20 @@ var comboScoredCombat = new CombatState(
     DurationSeconds: CombatState.DefaultDurationSeconds,
     ElapsedSeconds: 0,
     GlobalCooldownMillisecondsRemaining: 0,
-    SecondsSinceLastRuneSwap: 0
+    SecondsSinceLastRuneSwap: 0,
+    SlowdownMillisecondsRemaining: 0
 ).SwapRunes(legalMatchA, legalMatchB, comboDepth: 2);
 Require(comboScoredCombat.LastMatchedRunesCount == 3, "scored combat records the matched rune count");
 Require(comboScoredCombat.LastComboDepth == 2, "scored combat records the requested combo depth");
 Require(comboScoredCombat.LastMatchPower == 5, "scored combat uses matchPower = matchedRunesCount + comboDepth");
+Require(comboScoredCombat.IsCombatSlowed, "large combo starts combat slowdown");
+Require(comboScoredCombat.CombatSpeedPercent == CombatState.LargeComboCombatSpeedPercent, "large combo slows combat to 70 percent");
+Require(comboScoredCombat.SlowdownMillisecondsRemaining == CombatState.LargeComboSlowdownMilliseconds, "large combo slowdown lasts one second");
+var almostNormalCombat = comboScoredCombat.AdvanceTimedEffectsMilliseconds(CombatState.LargeComboSlowdownMilliseconds - 1);
+Require(almostNormalCombat.IsCombatSlowed, "combat remains slowed before the full slowdown second passes");
+var normalSpeedCombat = almostNormalCombat.AdvanceTimedEffectsMilliseconds(1);
+Require(!normalSpeedCombat.IsCombatSlowed, "combat slowdown expires after one second");
+Require(normalSpeedCombat.CombatSpeedPercent == CombatState.NormalCombatSpeedPercent, "combat speed returns to normal after slowdown");
 var staleMatchBoard = CreatePatternBoard(
     (new BoardPoint(6, 0), RuneType.Red),
     (new BoardPoint(6, 1), RuneType.Red),
