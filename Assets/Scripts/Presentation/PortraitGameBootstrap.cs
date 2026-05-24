@@ -66,6 +66,7 @@ public sealed class PortraitGameBootstrap : MonoBehaviour
         titleStack.childForceExpandHeight = false;
         CreateText($"ROUND {runState.Round}", titleBlock.transform, 13, GameColors.Gold, TextAnchor.MiddleLeft);
         CreateText("Rune Chess", titleBlock.transform, 24, GameColors.Text, TextAnchor.MiddleLeft);
+        CreateText($"NEXT ENEMY {runState.NextEnemyId}", titleBlock.transform, 11, GameColors.Muted, TextAnchor.MiddleLeft);
 
         var stats = CreatePanel("Stats", header.transform, Color.clear);
         var statsLayout = stats.AddComponent<HorizontalLayoutGroup>();
