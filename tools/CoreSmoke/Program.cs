@@ -39,6 +39,10 @@ RequireThrows(
     () => afterBuy.PlaceHeroFromBench(boughtHeroId, new TacticalPosition(4, 0)),
     "placing rejects positions outside the MVP tactical field"
 );
+RequireThrows(
+    () => afterBuy.PlaceHeroFromBench(boughtHeroId, new TacticalPosition(1, 0)),
+    "placing rejects the enemy side during preparation"
+);
 
 RequireThrows(() => state.StartCombat(), "combat cannot start before placement");
 
