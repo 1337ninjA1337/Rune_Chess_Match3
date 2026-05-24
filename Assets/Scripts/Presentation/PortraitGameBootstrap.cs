@@ -42,7 +42,7 @@ public sealed class PortraitGameBootstrap : MonoBehaviour
         stack.childForceExpandHeight = false;
 
         AddHeader(content.transform);
-        AddSectionTitle(content.transform, "TACTICAL FIELD", "6x4");
+        AddSectionTitle(content.transform, "TACTICAL FIELD", $"{TacticalField.Mvp.Columns}x{TacticalField.Mvp.Rows}");
         AddTacticalGrid(content.transform);
         AddSectionTitle(content.transform, "RUNE BOARD", "7x7");
         AddRuneGrid(content.transform);
@@ -99,14 +99,14 @@ public sealed class PortraitGameBootstrap : MonoBehaviour
 
         var grid = gridRoot.AddComponent<GridLayoutGroup>();
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = 6;
+        grid.constraintCount = TacticalField.Mvp.Columns;
         grid.spacing = new Vector2(4, 4);
         grid.cellSize = new Vector2(55, 55);
         grid.childAlignment = TextAnchor.MiddleCenter;
 
-        for (var row = 0; row < 4; row += 1)
+        for (var row = 0; row < TacticalField.Mvp.Rows; row += 1)
         {
-            for (var column = 0; column < 6; column += 1)
+            for (var column = 0; column < TacticalField.Mvp.Columns; column += 1)
             {
                 var isEnemySide = row < 2;
                 var cell = CreatePanel($"Cell {row}:{column}", gridRoot.transform, isEnemySide ? GameColors.EnemyCell : GameColors.PlayerCell);

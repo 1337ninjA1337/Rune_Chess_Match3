@@ -17,11 +17,21 @@ var afterBuy = state.BuyHero(0);
 Require(afterBuy.Gold == 5, "buying a common hero spends gold");
 Require(afterBuy.Bench.Count == 1, "bought hero goes to bench");
 Require(afterBuy.Shop.Offers.Count == 2, "bought shop offer is removed");
+Require(TacticalField.Mvp.Columns == 6, "MVP tactical field has six columns");
+Require(TacticalField.Mvp.Rows == 4, "MVP tactical field has four rows");
+Require(TacticalField.Mvp.CellCount == 24, "MVP tactical field has 24 cells");
+Require(TacticalField.Mvp.Contains(new TacticalPosition(3, 5)), "MVP tactical field includes its last cell");
+Require(!TacticalField.Mvp.Contains(new TacticalPosition(4, 0)), "MVP tactical field rejects rows outside the board");
+Require(TacticalField.Mvp.CreateCells().Count == TacticalField.Mvp.CellCount, "MVP tactical field enumerates every cell");
 
 var boughtHeroId = afterBuy.Bench[0].InstanceId;
 var afterPlace = afterBuy.PlaceHeroFromBench(boughtHeroId, new TacticalPosition(2, 1));
 Require(afterPlace.Bench.Count == 0, "placing removes hero from bench");
 Require(afterPlace.Team.Count == 1, "placing adds hero to team");
+RequireThrows(
+    () => afterBuy.PlaceHeroFromBench(boughtHeroId, new TacticalPosition(4, 0)),
+    "placing rejects positions outside the MVP tactical field"
+);
 
 RequireThrows(() => state.StartCombat(), "combat cannot start before placement");
 

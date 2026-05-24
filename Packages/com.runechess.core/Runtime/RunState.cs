@@ -92,6 +92,11 @@ public sealed record RunState(
     {
         EnsurePreparationPhase();
 
+        if (!position.IsInsideMvpField)
+        {
+            throw new InvalidOperationException("Tactical position is outside the MVP field.");
+        }
+
         if (!position.IsPlayerSide)
         {
             throw new InvalidOperationException("Heroes can only be placed on the player side during preparation.");
