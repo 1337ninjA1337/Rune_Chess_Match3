@@ -22,7 +22,7 @@ public sealed record RunProgressSnapshot(
     string? DefeatReason
 )
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public static RunProgressSnapshot Capture(RunState state)
     {
@@ -90,7 +90,8 @@ public sealed record CombatProgressSnapshot(
     int LastMatchPower,
     int DurationSeconds,
     int ElapsedSeconds,
-    int GlobalCooldownMillisecondsRemaining
+    int GlobalCooldownMillisecondsRemaining,
+    int SecondsSinceLastRuneSwap
 )
 {
     public static CombatProgressSnapshot Capture(CombatState state)
@@ -112,7 +113,8 @@ public sealed record CombatProgressSnapshot(
             LastMatchPower: state.LastMatchPower,
             DurationSeconds: state.DurationSeconds,
             ElapsedSeconds: state.ElapsedSeconds,
-            GlobalCooldownMillisecondsRemaining: state.GlobalCooldownMillisecondsRemaining
+            GlobalCooldownMillisecondsRemaining: state.GlobalCooldownMillisecondsRemaining,
+            SecondsSinceLastRuneSwap: state.SecondsSinceLastRuneSwap
         );
     }
 
@@ -133,6 +135,11 @@ public sealed record CombatProgressSnapshot(
             throw new InvalidOperationException("Combat progress cooldown cannot be negative.");
         }
 
+        if (SecondsSinceLastRuneSwap < 0)
+        {
+            throw new InvalidOperationException("Combat progress idle timer cannot be negative.");
+        }
+
         return new CombatState(
             RuneBoard: new Match3Board(Runes.ToList()),
             Match3MovesUsed: Match3MovesUsed,
@@ -141,7 +148,8 @@ public sealed record CombatProgressSnapshot(
             LastMatchPower: LastMatchPower,
             DurationSeconds: DurationSeconds,
             ElapsedSeconds: ElapsedSeconds,
-            GlobalCooldownMillisecondsRemaining: GlobalCooldownMillisecondsRemaining
+            GlobalCooldownMillisecondsRemaining: GlobalCooldownMillisecondsRemaining,
+            SecondsSinceLastRuneSwap: SecondsSinceLastRuneSwap
         );
     }
 }

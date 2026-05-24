@@ -10,15 +10,19 @@ public sealed record CombatState(
     int LastMatchPower,
     int DurationSeconds,
     int ElapsedSeconds,
-    int GlobalCooldownMillisecondsRemaining
+    int GlobalCooldownMillisecondsRemaining,
+    int SecondsSinceLastRuneSwap
 )
 {
     public const int DefaultDurationSeconds = 60;
     public const int SwapGlobalCooldownMilliseconds = 250;
+    public const int MatchHintDelaySeconds = 8;
 
     public int RemainingSeconds => Math.Max(0, DurationSeconds - ElapsedSeconds);
     public bool IsTimerExpired => RemainingSeconds == 0;
     public bool IsSwapOnCooldown => GlobalCooldownMillisecondsRemaining > 0;
+    public bool ShouldShowMatchHint => SecondsSinceLastRuneSwap >= MatchHintDelaySeconds;
+    public Match3MoveHint? CurrentMatchHint => ShouldShowMatchHint ? RuneBoard.FindFirstLegalMoveHint() : null;
 
     public static CombatState Start(int runeSeed, int durationSeconds = DefaultDurationSeconds)
     {
@@ -35,7 +39,8 @@ public sealed record CombatState(
             LastMatchPower: 0,
             DurationSeconds: durationSeconds,
             ElapsedSeconds: 0,
-            GlobalCooldownMillisecondsRemaining: 0
+            GlobalCooldownMillisecondsRemaining: 0,
+            SecondsSinceLastRuneSwap: 0
         );
     }
 
@@ -53,7 +58,8 @@ public sealed record CombatState(
 
         return cooldownAdvanced with
         {
-            ElapsedSeconds = Math.Min(DurationSeconds, ElapsedSeconds + elapsedSeconds)
+            ElapsedSeconds = Math.Min(DurationSeconds, ElapsedSeconds + elapsedSeconds),
+            SecondsSinceLastRuneSwap = AddClamped(SecondsSinceLastRuneSwap, elapsedSeconds)
         };
     }
 
@@ -95,7 +101,13 @@ public sealed record CombatState(
             LastMatchedRunesCount = matchedRunesCount,
             LastComboDepth = resolvedComboDepth,
             LastMatchPower = matchPower,
-            GlobalCooldownMillisecondsRemaining = SwapGlobalCooldownMilliseconds
+            GlobalCooldownMillisecondsRemaining = SwapGlobalCooldownMilliseconds,
+            SecondsSinceLastRuneSwap = 0
         };
+    }
+
+    private static int AddClamped(int a, int b)
+    {
+        return a > int.MaxValue - b ? int.MaxValue : a + b;
     }
 }

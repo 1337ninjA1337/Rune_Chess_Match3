@@ -6,6 +6,24 @@ namespace RuneChess.Core;
 
 public readonly record struct BoardPoint(int Row, int Column);
 
+public sealed record Match3MoveHint(
+    BoardPoint From,
+    BoardPoint To,
+    IReadOnlySet<BoardPoint> MatchedCells
+)
+{
+    public IReadOnlySet<BoardPoint> HighlightedCells
+    {
+        get
+        {
+            var highlighted = MatchedCells.ToHashSet();
+            highlighted.Add(From);
+            highlighted.Add(To);
+            return highlighted;
+        }
+    }
+}
+
 public sealed record Match3ChainStep(
     int ComboDepth,
     IReadOnlySet<BoardPoint> MatchedCells,
@@ -307,16 +325,58 @@ public sealed class Match3Board
         return swapped;
     }
 
-    public bool CreatesMatchAfterSwap(BoardPoint a, BoardPoint b)
+    public Match3MoveHint? FindFirstLegalMoveHint()
     {
-        if (!CanSwap(a, b))
+        for (var row = 0; row < Rows; row += 1)
+        {
+            for (var column = 0; column < Columns; column += 1)
+            {
+                var current = new BoardPoint(row, column);
+                if (column + 1 < Columns)
+                {
+                    var right = new BoardPoint(row, column + 1);
+                    if (TryCreateMoveHint(current, right, out var horizontalHint))
+                    {
+                        return horizontalHint;
+                    }
+                }
+
+                if (row + 1 < Rows)
+                {
+                    var down = new BoardPoint(row + 1, column);
+                    if (TryCreateMoveHint(current, down, out var verticalHint))
+                    {
+                        return verticalHint;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public bool TryCreateMoveHint(BoardPoint a, BoardPoint b, out Match3MoveHint? hint)
+    {
+        hint = null;
+        if (!CanSwap(a, b) || IsEmpty(a) || IsEmpty(b))
         {
             return false;
         }
 
         var swapped = Swap(a, b);
         var matches = swapped.FindMatches();
-        return ContainsSwappedRuneMatch(matches, a, b);
+        if (!ContainsSwappedRuneMatch(matches, a, b))
+        {
+            return false;
+        }
+
+        hint = new Match3MoveHint(a, b, matches.ToHashSet());
+        return true;
+    }
+
+    public bool CreatesMatchAfterSwap(BoardPoint a, BoardPoint b)
+    {
+        return TryCreateMoveHint(a, b, out _);
     }
 
     public bool IsLegalSwap(BoardPoint a, BoardPoint b)

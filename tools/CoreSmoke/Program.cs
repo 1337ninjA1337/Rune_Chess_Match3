@@ -87,6 +87,14 @@ Require(combat.DurationSeconds == CombatState.DefaultDurationSeconds, "start com
 Require(combat.RemainingSeconds == CombatState.DefaultDurationSeconds, "new combat starts with full timer remaining");
 Require(combat.GlobalCooldownMillisecondsRemaining == 0, "new combat starts without match-3 cooldown");
 Require(!combat.IsSwapOnCooldown, "new combat allows an immediate rune swap");
+Require(combat.SecondsSinceLastRuneSwap == 0, "new combat starts with a fresh rune-swap idle timer");
+Require(!combat.ShouldShowMatchHint, "new combat does not show a match hint immediately");
+Require(combat.CurrentMatchHint is null, "match hint is hidden before the idle delay");
+var hintReadyCombat = combat.AdvanceTimer(CombatState.MatchHintDelaySeconds);
+Require(hintReadyCombat.SecondsSinceLastRuneSwap == CombatState.MatchHintDelaySeconds, "combat tracks rune-swap idle seconds");
+Require(hintReadyCombat.ShouldShowMatchHint, "combat shows a match hint after eight idle seconds");
+var idleHint = hintReadyCombat.CurrentMatchHint ?? throw new InvalidOperationException("Smoke check failed: idle hint missing");
+Require(combat.RuneBoard.TryCreateMoveHint(idleHint.From, idleHint.To, out _), "idle hint points to a legal match move");
 
 var timedCombat = afterXp.StartCombat(1337, 45);
 Require(timedCombat.Combat?.DurationSeconds == 45, "combat can start with a custom timer");
@@ -109,6 +117,8 @@ Require(swappedCombat.LastMatchPower >= swappedCombat.LastMatchedRunesCount, "ru
 Require(swappedCombat.RuneBoard.FindMatches().Count == 0, "rune swap resolves matches and chains before combat continues");
 Require(swappedCombat.GlobalCooldownMillisecondsRemaining == CombatState.SwapGlobalCooldownMilliseconds, "rune swap starts the global cooldown");
 Require(swappedCombat.IsSwapOnCooldown, "rune swap blocks immediate follow-up swaps");
+Require(swappedCombat.SecondsSinceLastRuneSwap == 0, "rune swap resets the match hint idle timer");
+Require(!swappedCombat.ShouldShowMatchHint, "rune swap hides the idle match hint");
 RequireThrows(() => swappedCombat.SwapRunes(legalSwap.From, legalSwap.To), "global cooldown blocks immediate rune swaps");
 var almostReadyCombat = swappedCombat.AdvanceCooldownMilliseconds(CombatState.SwapGlobalCooldownMilliseconds - 1);
 Require(almostReadyCombat.IsSwapOnCooldown, "global cooldown remains active before 0.25 seconds pass");
@@ -133,6 +143,7 @@ var savedCombat = combatProgress.Combat ?? throw new InvalidOperationException("
 Require(restoredCombat.ElapsedSeconds == savedCombat.ElapsedSeconds, "restored progress preserves combat timer");
 Require(restoredCombat.Match3MovesUsed == savedCombat.Match3MovesUsed, "restored progress preserves match-3 move count");
 Require(restoredCombat.GlobalCooldownMillisecondsRemaining == savedCombat.GlobalCooldownMillisecondsRemaining, "restored progress preserves match-3 cooldown");
+Require(restoredCombat.SecondsSinceLastRuneSwap == savedCombat.SecondsSinceLastRuneSwap, "restored progress preserves match hint idle timer");
 Require(restoredCombat.RuneBoard[0, 0] == savedCombat.RuneBoard[0, 0], "restored progress preserves rune board");
 var unsupportedSnapshot = progressStore.Snapshot ?? throw new InvalidOperationException("Smoke check failed: snapshot missing");
 RequireThrows(() => (unsupportedSnapshot with { Version = 0 }).Restore(), "unsupported progress version is rejected");
@@ -298,6 +309,15 @@ var legalMatchBoard = CreatePatternBoard(
 Require(legalMatchBoard.FindMatches().Count == 0, "legal swap fixture starts without matches");
 Require(legalMatchBoard.CreatesMatchAfterSwap(legalMatchA, legalMatchB), "match swap check accepts swaps that create a match");
 Require(legalMatchBoard.IsLegalSwap(legalMatchA, legalMatchB), "legal swap accepts swaps that create a match");
+var legalMatchCells = new[] { new BoardPoint(0, 0), legalMatchA, new BoardPoint(0, 2) };
+Require(legalMatchBoard.TryCreateMoveHint(legalMatchA, legalMatchB, out var directHint) && directHint is not null, "move hint accepts legal match swaps");
+Require(ContainsExactly(directHint.MatchedCells, legalMatchCells), "move hint reports the created match cells");
+Require(directHint.HighlightedCells.Contains(legalMatchA), "move hint highlights the source cell");
+Require(directHint.HighlightedCells.Contains(legalMatchB), "move hint highlights the swap target");
+var firstHint = legalMatchBoard.FindFirstLegalMoveHint();
+Require(firstHint is not null, "board finds a legal move hint");
+Require(firstHint.From == legalMatchA && firstHint.To == legalMatchB, "board hint uses deterministic scan order");
+Require(!noMatchSwapBoard.TryCreateMoveHint(swapA, swapB, out var missingHint) && missingHint is null, "move hint rejects no-match swaps");
 var legalMatchResult = legalMatchBoard.SwapIfCreatesMatch(legalMatchA, legalMatchB);
 Require(legalMatchResult.FindMatches().Contains(legalMatchA), "created match includes one of the swapped runes");
 var comboScoredCombat = new CombatState(
@@ -308,7 +328,8 @@ var comboScoredCombat = new CombatState(
     LastMatchPower: 0,
     DurationSeconds: CombatState.DefaultDurationSeconds,
     ElapsedSeconds: 0,
-    GlobalCooldownMillisecondsRemaining: 0
+    GlobalCooldownMillisecondsRemaining: 0,
+    SecondsSinceLastRuneSwap: 0
 ).SwapRunes(legalMatchA, legalMatchB, comboDepth: 2);
 Require(comboScoredCombat.LastMatchedRunesCount == 3, "scored combat records the matched rune count");
 Require(comboScoredCombat.LastComboDepth == 2, "scored combat records the requested combo depth");
