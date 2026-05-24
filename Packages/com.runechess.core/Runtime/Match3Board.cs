@@ -103,9 +103,33 @@ public sealed class Match3Board
         return new Match3Board(swapped);
     }
 
+    public Match3Board SwapIfCreatesMatch(BoardPoint a, BoardPoint b)
+    {
+        var swapped = Swap(a, b);
+        var matches = swapped.FindMatches();
+        if (!ContainsSwappedRuneMatch(matches, a, b))
+        {
+            throw new InvalidOperationException("Rune swap must create a match-3 or higher.");
+        }
+
+        return swapped;
+    }
+
+    public bool CreatesMatchAfterSwap(BoardPoint a, BoardPoint b)
+    {
+        if (!CanSwap(a, b))
+        {
+            return false;
+        }
+
+        var swapped = Swap(a, b);
+        var matches = swapped.FindMatches();
+        return ContainsSwappedRuneMatch(matches, a, b);
+    }
+
     public bool IsLegalSwap(BoardPoint a, BoardPoint b)
     {
-        return CanSwap(a, b) && Swap(a, b).FindMatches().Count > 0;
+        return CreatesMatchAfterSwap(a, b);
     }
 
     private void AddLineMatches(HashSet<BoardPoint> matches, IEnumerable<BoardPoint> line)
@@ -142,6 +166,11 @@ public sealed class Match3Board
         {
             matches.Add(point);
         }
+    }
+
+    private static bool ContainsSwappedRuneMatch(IReadOnlySet<BoardPoint> matches, BoardPoint a, BoardPoint b)
+    {
+        return matches.Contains(a) || matches.Contains(b);
     }
 
     private static int Index(int row, int column)

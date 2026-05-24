@@ -55,12 +55,7 @@ public sealed record CombatState(
             throw new ArgumentOutOfRangeException(nameof(comboDepth), "Combo depth cannot be negative.");
         }
 
-        if (!RuneBoard.IsLegalSwap(a, b))
-        {
-            throw new InvalidOperationException("Rune swap must create a match during combat.");
-        }
-
-        var swapped = RuneBoard.Swap(a, b);
+        var swapped = RuneBoard.SwapIfCreatesMatch(a, b);
         var matches = swapped.FindMatches();
         var matchedRunesCount = matches.Count;
 

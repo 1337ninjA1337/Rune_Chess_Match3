@@ -266,6 +266,32 @@ Require(swapFixture[swapA] == RuneType.Red, "swap does not mutate the original b
 RequireThrows(() => swapFixture.Swap(swapA, new BoardPoint(1, 1)), "swap rejects diagonal runes");
 RequireThrows(() => swapFixture.Swap(swapA, swapA), "swap rejects the same rune");
 RequireThrows(() => swapFixture.Swap(new BoardPoint(-1, 0), swapA), "swap rejects out-of-board runes");
+var noMatchSwapBoard = CreatePatternBoard();
+Require(noMatchSwapBoard.Swap(swapA, swapB).FindMatches().Count == 0, "raw adjacent swap can produce no matches");
+Require(!noMatchSwapBoard.CreatesMatchAfterSwap(swapA, swapB), "match swap check rejects no-match swaps");
+Require(!noMatchSwapBoard.IsLegalSwap(swapA, swapB), "legal swap rejects no-match swaps");
+RequireThrows(() => noMatchSwapBoard.SwapIfCreatesMatch(swapA, swapB), "match swap command rejects no-match swaps");
+var legalMatchA = new BoardPoint(0, 1);
+var legalMatchB = new BoardPoint(1, 1);
+var legalMatchBoard = CreatePatternBoard(
+    (new BoardPoint(0, 0), RuneType.Red),
+    (new BoardPoint(0, 1), RuneType.Blue),
+    (new BoardPoint(0, 2), RuneType.Red),
+    (new BoardPoint(1, 1), RuneType.Red)
+);
+Require(legalMatchBoard.FindMatches().Count == 0, "legal swap fixture starts without matches");
+Require(legalMatchBoard.CreatesMatchAfterSwap(legalMatchA, legalMatchB), "match swap check accepts swaps that create a match");
+Require(legalMatchBoard.IsLegalSwap(legalMatchA, legalMatchB), "legal swap accepts swaps that create a match");
+var legalMatchResult = legalMatchBoard.SwapIfCreatesMatch(legalMatchA, legalMatchB);
+Require(legalMatchResult.FindMatches().Contains(legalMatchA), "created match includes one of the swapped runes");
+var staleMatchBoard = CreatePatternBoard(
+    (new BoardPoint(6, 0), RuneType.Red),
+    (new BoardPoint(6, 1), RuneType.Red),
+    (new BoardPoint(6, 2), RuneType.Red)
+);
+Require(staleMatchBoard.FindMatches().Count >= 3, "stale-match fixture starts with an unrelated match");
+Require(!staleMatchBoard.IsLegalSwap(swapA, swapB), "legal swap ignores pre-existing unrelated matches");
+RequireThrows(() => staleMatchBoard.SwapIfCreatesMatch(swapA, swapB), "match swap command rejects unrelated pre-existing matches");
 Require(board.FindMatches() is not null, "match scan returns a set");
 
 Console.WriteLine("Core smoke checks passed.");
@@ -324,4 +350,23 @@ static void RequireThrows(Action action, string message)
     }
 
     throw new InvalidOperationException($"Smoke check failed: {message}");
+}
+
+static Match3Board CreatePatternBoard(params (BoardPoint Point, RuneType Rune)[] overrides)
+{
+    var runes = Match3Board.CreateCells()
+        .Select(point => RuneTypes.All[((point.Row * 2) + point.Column) % RuneTypes.All.Count])
+        .ToList();
+
+    foreach (var (point, rune) in overrides)
+    {
+        if (!Match3Board.Contains(point))
+        {
+            throw new ArgumentOutOfRangeException(nameof(overrides), "Board override point is outside the board.");
+        }
+
+        runes[(point.Row * Match3Board.Columns) + point.Column] = rune;
+    }
+
+    return new Match3Board(runes);
 }
