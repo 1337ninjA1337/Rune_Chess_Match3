@@ -55,6 +55,29 @@ Require(swappedCombat.Match3MovesUsed == 1, "rune swap counts as a match-3 comba
 Require(swappedCombat.LastMatchedRunesCount >= 3, "rune swap records matched runes");
 Require(swappedCombat.LastMatchPower == swappedCombat.LastMatchedRunesCount, "first swap uses matchPower = matchedRunesCount + comboDepth");
 
+var progressStore = new RunProgressStore();
+Require(!progressStore.HasSavedRun, "new progress store starts empty");
+Require(!progressStore.TryLoad(out var emptyProgress), "empty progress store reports no saved run");
+Require(emptyProgress.Round == 1, "empty progress store provides a safe new run fallback");
+
+var combatProgress = afterRuneSwap.ResolveCombatTick(12);
+progressStore.Save(combatProgress);
+Require(progressStore.HasSavedRun, "progress store reports saved run after save");
+Require(progressStore.Snapshot?.Version == RunProgressSnapshot.CurrentVersion, "progress snapshot records its version");
+Require(progressStore.TryLoad(out var restoredProgress), "progress store restores saved run");
+Require(restoredProgress.Phase == RunPhase.Combat, "restored progress preserves combat phase");
+Require(restoredProgress.Gold == combatProgress.Gold, "restored progress preserves economy");
+Require(restoredProgress.Team.Count == combatProgress.Team.Count, "restored progress preserves team");
+var restoredCombat = restoredProgress.Combat ?? throw new InvalidOperationException("Smoke check failed: restored combat missing");
+var savedCombat = combatProgress.Combat ?? throw new InvalidOperationException("Smoke check failed: saved combat missing");
+Require(restoredCombat.ElapsedSeconds == savedCombat.ElapsedSeconds, "restored progress preserves combat timer");
+Require(restoredCombat.Match3MovesUsed == savedCombat.Match3MovesUsed, "restored progress preserves match-3 move count");
+Require(restoredCombat.RuneBoard[0, 0] == savedCombat.RuneBoard[0, 0], "restored progress preserves rune board");
+var unsupportedSnapshot = progressStore.Snapshot ?? throw new InvalidOperationException("Smoke check failed: snapshot missing");
+RequireThrows(() => (unsupportedSnapshot with { Version = 0 }).Restore(), "unsupported progress version is rejected");
+progressStore.Clear();
+Require(!progressStore.HasSavedRun, "progress store clears saved run");
+
 var reward = afterRuneSwap.ClaimReward(2);
 Require(reward.Phase == RunPhase.Reward, "claiming reward exits combat into reward phase");
 Require(reward.Combat is null, "claiming reward clears combat state");
