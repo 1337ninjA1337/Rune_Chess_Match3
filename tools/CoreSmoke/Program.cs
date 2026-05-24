@@ -85,6 +85,8 @@ var combat = inCombat.Combat ?? throw new InvalidOperationException("Smoke check
 Require(combat.RuneBoard is not null, "start combat creates a match-3 board");
 Require(combat.DurationSeconds == CombatState.DefaultDurationSeconds, "start combat creates the default combat timer");
 Require(combat.RemainingSeconds == CombatState.DefaultDurationSeconds, "new combat starts with full timer remaining");
+Require(combat.GlobalCooldownMillisecondsRemaining == 0, "new combat starts without match-3 cooldown");
+Require(!combat.IsSwapOnCooldown, "new combat allows an immediate rune swap");
 
 var timedCombat = afterXp.StartCombat(1337, 45);
 Require(timedCombat.Combat?.DurationSeconds == 45, "combat can start with a custom timer");
@@ -93,6 +95,7 @@ Require(tickedCombat.Phase == RunPhase.Combat, "non-terminal combat tick stays i
 Require(tickedCombat.Combat?.ElapsedSeconds == 10, "combat tick advances elapsed time");
 Require(tickedCombat.Combat?.RemainingSeconds == 35, "combat tick updates remaining time");
 RequireThrows(() => timedCombat.ResolveCombatTick(-1), "combat tick rejects negative elapsed time");
+RequireThrows(() => combat.AdvanceCooldownMilliseconds(-1), "cooldown tick rejects negative elapsed milliseconds");
 RequireThrows(() => afterXp.StartCombat(1337, 0), "combat timer must be positive");
 
 var legalSwap = FindFirstLegalSwap(combat.RuneBoard);
@@ -104,6 +107,13 @@ Require(swappedCombat.Match3MovesUsed == 1, "rune swap counts as a match-3 comba
 Require(swappedCombat.LastMatchedRunesCount >= 3, "rune swap records matched runes");
 Require(swappedCombat.LastMatchPower >= swappedCombat.LastMatchedRunesCount, "rune swap records matchPower from matched runes and combo depth");
 Require(swappedCombat.RuneBoard.FindMatches().Count == 0, "rune swap resolves matches and chains before combat continues");
+Require(swappedCombat.GlobalCooldownMillisecondsRemaining == CombatState.SwapGlobalCooldownMilliseconds, "rune swap starts the global cooldown");
+Require(swappedCombat.IsSwapOnCooldown, "rune swap blocks immediate follow-up swaps");
+RequireThrows(() => swappedCombat.SwapRunes(legalSwap.From, legalSwap.To), "global cooldown blocks immediate rune swaps");
+var almostReadyCombat = swappedCombat.AdvanceCooldownMilliseconds(CombatState.SwapGlobalCooldownMilliseconds - 1);
+Require(almostReadyCombat.IsSwapOnCooldown, "global cooldown remains active before 0.25 seconds pass");
+var readyCombat = almostReadyCombat.AdvanceCooldownMilliseconds(1);
+Require(!readyCombat.IsSwapOnCooldown, "global cooldown expires after 0.25 seconds");
 
 var progressStore = new RunProgressStore();
 Require(!progressStore.HasSavedRun, "new progress store starts empty");
@@ -122,6 +132,7 @@ var restoredCombat = restoredProgress.Combat ?? throw new InvalidOperationExcept
 var savedCombat = combatProgress.Combat ?? throw new InvalidOperationException("Smoke check failed: saved combat missing");
 Require(restoredCombat.ElapsedSeconds == savedCombat.ElapsedSeconds, "restored progress preserves combat timer");
 Require(restoredCombat.Match3MovesUsed == savedCombat.Match3MovesUsed, "restored progress preserves match-3 move count");
+Require(restoredCombat.GlobalCooldownMillisecondsRemaining == savedCombat.GlobalCooldownMillisecondsRemaining, "restored progress preserves match-3 cooldown");
 Require(restoredCombat.RuneBoard[0, 0] == savedCombat.RuneBoard[0, 0], "restored progress preserves rune board");
 var unsupportedSnapshot = progressStore.Snapshot ?? throw new InvalidOperationException("Smoke check failed: snapshot missing");
 RequireThrows(() => (unsupportedSnapshot with { Version = 0 }).Restore(), "unsupported progress version is rejected");
@@ -296,7 +307,8 @@ var comboScoredCombat = new CombatState(
     LastComboDepth: 0,
     LastMatchPower: 0,
     DurationSeconds: CombatState.DefaultDurationSeconds,
-    ElapsedSeconds: 0
+    ElapsedSeconds: 0,
+    GlobalCooldownMillisecondsRemaining: 0
 ).SwapRunes(legalMatchA, legalMatchB, comboDepth: 2);
 Require(comboScoredCombat.LastMatchedRunesCount == 3, "scored combat records the matched rune count");
 Require(comboScoredCombat.LastComboDepth == 2, "scored combat records the requested combo depth");

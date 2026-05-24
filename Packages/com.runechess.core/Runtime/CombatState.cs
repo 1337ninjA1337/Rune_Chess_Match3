@@ -9,13 +9,16 @@ public sealed record CombatState(
     int LastComboDepth,
     int LastMatchPower,
     int DurationSeconds,
-    int ElapsedSeconds
+    int ElapsedSeconds,
+    int GlobalCooldownMillisecondsRemaining
 )
 {
     public const int DefaultDurationSeconds = 60;
+    public const int SwapGlobalCooldownMilliseconds = 250;
 
     public int RemainingSeconds => Math.Max(0, DurationSeconds - ElapsedSeconds);
     public bool IsTimerExpired => RemainingSeconds == 0;
+    public bool IsSwapOnCooldown => GlobalCooldownMillisecondsRemaining > 0;
 
     public static CombatState Start(int runeSeed, int durationSeconds = DefaultDurationSeconds)
     {
@@ -31,7 +34,8 @@ public sealed record CombatState(
             LastComboDepth: 0,
             LastMatchPower: 0,
             DurationSeconds: durationSeconds,
-            ElapsedSeconds: 0
+            ElapsedSeconds: 0,
+            GlobalCooldownMillisecondsRemaining: 0
         );
     }
 
@@ -42,9 +46,27 @@ public sealed record CombatState(
             throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), "Elapsed combat time cannot be negative.");
         }
 
-        return this with
+        var elapsedMilliseconds = elapsedSeconds > int.MaxValue / 1000
+            ? int.MaxValue
+            : elapsedSeconds * 1000;
+        var cooldownAdvanced = AdvanceCooldownMilliseconds(elapsedMilliseconds);
+
+        return cooldownAdvanced with
         {
             ElapsedSeconds = Math.Min(DurationSeconds, ElapsedSeconds + elapsedSeconds)
+        };
+    }
+
+    public CombatState AdvanceCooldownMilliseconds(int elapsedMilliseconds)
+    {
+        if (elapsedMilliseconds < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(elapsedMilliseconds), "Elapsed cooldown time cannot be negative.");
+        }
+
+        return this with
+        {
+            GlobalCooldownMillisecondsRemaining = Math.Max(0, GlobalCooldownMillisecondsRemaining - elapsedMilliseconds)
         };
     }
 
@@ -53,6 +75,11 @@ public sealed record CombatState(
         if (comboDepth < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(comboDepth), "Combo depth cannot be negative.");
+        }
+
+        if (IsSwapOnCooldown)
+        {
+            throw new InvalidOperationException("Rune swap is on global cooldown.");
         }
 
         var swapped = RuneBoard.SwapIfCreatesMatch(a, b);
@@ -67,7 +94,8 @@ public sealed record CombatState(
             Match3MovesUsed = Match3MovesUsed + 1,
             LastMatchedRunesCount = matchedRunesCount,
             LastComboDepth = resolvedComboDepth,
-            LastMatchPower = matchPower
+            LastMatchPower = matchPower,
+            GlobalCooldownMillisecondsRemaining = SwapGlobalCooldownMilliseconds
         };
     }
 }
