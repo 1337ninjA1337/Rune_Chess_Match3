@@ -7,18 +7,45 @@ public sealed record CombatState(
     int Match3MovesUsed,
     int LastMatchedRunesCount,
     int LastComboDepth,
-    int LastMatchPower
+    int LastMatchPower,
+    int DurationSeconds,
+    int ElapsedSeconds
 )
 {
-    public static CombatState Start(int runeSeed)
+    public const int DefaultDurationSeconds = 60;
+
+    public int RemainingSeconds => Math.Max(0, DurationSeconds - ElapsedSeconds);
+    public bool IsTimerExpired => RemainingSeconds == 0;
+
+    public static CombatState Start(int runeSeed, int durationSeconds = DefaultDurationSeconds)
     {
+        if (durationSeconds <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(durationSeconds), "Combat duration must be positive.");
+        }
+
         return new CombatState(
             RuneBoard: Match3Board.CreateDeterministic(runeSeed),
             Match3MovesUsed: 0,
             LastMatchedRunesCount: 0,
             LastComboDepth: 0,
-            LastMatchPower: 0
+            LastMatchPower: 0,
+            DurationSeconds: durationSeconds,
+            ElapsedSeconds: 0
         );
+    }
+
+    public CombatState AdvanceTimer(int elapsedSeconds)
+    {
+        if (elapsedSeconds < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), "Elapsed combat time cannot be negative.");
+        }
+
+        return this with
+        {
+            ElapsedSeconds = Math.Min(DurationSeconds, ElapsedSeconds + elapsedSeconds)
+        };
     }
 
     public CombatState SwapRunes(BoardPoint a, BoardPoint b, int comboDepth = 0)

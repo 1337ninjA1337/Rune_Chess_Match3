@@ -34,6 +34,17 @@ Require(inCombat.Phase == RunPhase.Combat, "start combat changes phase");
 Require(inCombat.Combat is not null, "start combat creates a combat state");
 var combat = inCombat.Combat ?? throw new InvalidOperationException("Smoke check failed: combat state missing");
 Require(combat.RuneBoard is not null, "start combat creates a match-3 board");
+Require(combat.DurationSeconds == CombatState.DefaultDurationSeconds, "start combat creates the default combat timer");
+Require(combat.RemainingSeconds == CombatState.DefaultDurationSeconds, "new combat starts with full timer remaining");
+
+var timedCombat = afterXp.StartCombat(1337, 45);
+Require(timedCombat.Combat?.DurationSeconds == 45, "combat can start with a custom timer");
+var tickedCombat = timedCombat.ResolveCombatTick(10);
+Require(tickedCombat.Phase == RunPhase.Combat, "non-terminal combat tick stays in combat");
+Require(tickedCombat.Combat?.ElapsedSeconds == 10, "combat tick advances elapsed time");
+Require(tickedCombat.Combat?.RemainingSeconds == 35, "combat tick updates remaining time");
+RequireThrows(() => timedCombat.ResolveCombatTick(-1), "combat tick rejects negative elapsed time");
+RequireThrows(() => afterXp.StartCombat(1337, 0), "combat timer must be positive");
 
 var legalSwap = FindFirstLegalSwap(combat.RuneBoard);
 var afterRuneSwap = inCombat.SwapRunes(legalSwap.From, legalSwap.To);
@@ -103,6 +114,25 @@ Require(combatDefeat.IsRunLost, "combat defeat exposes a run loss flag");
 Require(combatDefeat.DefeatReason == "all_allies_defeated", "combat defeat records a reason");
 RequireThrows(() => afterPlace.ResolveCombatDefeat(), "combat defeat cannot be resolved outside combat");
 RequireThrows(() => afterPlace.StartCombat().ResolveCombatDefeat(" "), "combat defeat requires a reason");
+
+var defeatedByAllies = afterPlace.StartCombat(1337).ResolveCombatTick(1, allAlliesDefeated: true);
+Require(defeatedByAllies.Phase == RunPhase.Defeat, "all allies defeated resolves combat defeat");
+Require(defeatedByAllies.DefeatReason == "all_allies_defeated", "allies defeat records a reason");
+
+var rewardedByEnemies = afterPlace.StartCombat(1337).ResolveCombatTick(1, allEnemiesDefeated: true, goldReward: 1);
+Require(rewardedByEnemies.Phase == RunPhase.Reward, "all enemies defeated resolves combat victory");
+Require(rewardedByEnemies.Gold == afterPlace.Gold + 1, "combat victory tick grants reward");
+
+var timerDefeat = afterPlace.StartCombat(1337, 5)
+    .ResolveCombatTick(5, playerHealthPercent: 40, enemyHealthPercent: 60);
+Require(timerDefeat.Phase == RunPhase.Defeat, "expired timer with enemy health advantage causes defeat");
+Require(timerDefeat.DefeatReason == "timer_enemy_health_advantage", "timer defeat records a reason");
+
+var timerVictory = afterPlace.StartCombat(1337, 5)
+    .ResolveCombatTick(5, playerHealthPercent: 60, enemyHealthPercent: 40, goldReward: 2);
+Require(timerVictory.Phase == RunPhase.Reward, "expired timer without enemy health advantage grants victory");
+Require(timerVictory.Gold == afterPlace.Gold + 2, "timer victory grants reward");
+RequireThrows(() => afterPlace.StartCombat(1337).ResolveCombatTick(1, playerHealthPercent: 101), "combat tick validates health percent");
 
 var board = Match3Board.CreateDeterministic(1337);
 Require(Match3Board.AreAdjacent(new BoardPoint(0, 0), new BoardPoint(0, 1)), "horizontal neighbors are adjacent");

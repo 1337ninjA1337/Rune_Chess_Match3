@@ -212,7 +212,7 @@ public sealed record RunState(
         return this with { Artifacts = artifacts };
     }
 
-    public RunState StartCombat(int? runeSeed = null)
+    public RunState StartCombat(int? runeSeed = null, int? durationSeconds = null)
     {
         EnsurePreparationPhase();
 
@@ -224,7 +224,10 @@ public sealed record RunState(
         return this with
         {
             Phase = RunPhase.Combat,
-            Combat = CombatState.Start(runeSeed ?? CurrentRoundDefinition.CombatRuneSeed)
+            Combat = CombatState.Start(
+                runeSeed ?? CurrentRoundDefinition.CombatRuneSeed,
+                durationSeconds ?? CombatState.DefaultDurationSeconds
+            )
         };
     }
 
@@ -241,6 +244,50 @@ public sealed record RunState(
         }
 
         return this with { Combat = Combat.SwapRunes(a, b, comboDepth) };
+    }
+
+    public RunState ResolveCombatTick(
+        int elapsedSeconds,
+        bool allEnemiesDefeated = false,
+        bool allAlliesDefeated = false,
+        int playerHealthPercent = 100,
+        int enemyHealthPercent = 100,
+        int? goldReward = null
+    )
+    {
+        if (Phase != RunPhase.Combat)
+        {
+            throw new InvalidOperationException("Combat ticks can only be resolved during combat.");
+        }
+
+        if (Combat is null)
+        {
+            throw new InvalidOperationException("Combat state has not been initialized.");
+        }
+
+        ValidateHealthPercent(playerHealthPercent, nameof(playerHealthPercent));
+        ValidateHealthPercent(enemyHealthPercent, nameof(enemyHealthPercent));
+
+        var updatedRun = this with { Combat = Combat.AdvanceTimer(elapsedSeconds) };
+
+        if (allAlliesDefeated)
+        {
+            return updatedRun.ResolveCombatDefeat("all_allies_defeated");
+        }
+
+        if (allEnemiesDefeated)
+        {
+            return updatedRun.ClaimReward(goldReward);
+        }
+
+        if (updatedRun.Combat?.IsTimerExpired != true)
+        {
+            return updatedRun;
+        }
+
+        return enemyHealthPercent > playerHealthPercent
+            ? updatedRun.ResolveCombatDefeat("timer_enemy_health_advantage")
+            : updatedRun.ClaimReward(goldReward);
     }
 
     public RunState ApplyRunDamage(int damage)
@@ -331,6 +378,14 @@ public sealed record RunState(
         if (Phase != RunPhase.Preparation)
         {
             throw new InvalidOperationException("This action is only available during preparation.");
+        }
+    }
+
+    private static void ValidateHealthPercent(int value, string paramName)
+    {
+        if (value is < 0 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(paramName, "Health percent must be between 0 and 100.");
         }
     }
 
