@@ -12,9 +12,26 @@ public static class GameColors
     public static readonly Color Muted = ColorFromHex(0xB8B0A3);
     public static readonly Color EnemyCell = ColorFromHex(0x342638);
     public static readonly Color PlayerCell = ColorFromHex(0x22352E);
+    public static readonly Color CellAvailable = ColorFromHex(0x2F5C46);
+    public static readonly Color CellUnavailable = ColorFromHex(0x25262A);
+    public static readonly Color AllyCellOccupied = ColorFromHex(0x255B4B);
+    public static readonly Color EnemyCellOccupied = ColorFromHex(0x5B2C36);
     public static readonly Color Gold = ColorFromHex(0xD9A441);
     public static readonly Color Health = ColorFromHex(0xD25A50);
     public static readonly Color Mana = ColorFromHex(0x5D8BD6);
+
+    public static Color TacticalCellColor(RuneChess.Core.TacticalCellState state)
+    {
+        return state switch
+        {
+            RuneChess.Core.TacticalCellState.Free => PlayerCell,
+            RuneChess.Core.TacticalCellState.OccupiedAlly => AllyCellOccupied,
+            RuneChess.Core.TacticalCellState.OccupiedEnemy => EnemyCellOccupied,
+            RuneChess.Core.TacticalCellState.AvailableForPlacement => CellAvailable,
+            RuneChess.Core.TacticalCellState.Unavailable => CellUnavailable,
+            _ => PanelRaised
+        };
+    }
 
     public static Color RuneColor(RuneChess.Core.RuneType rune)
     {

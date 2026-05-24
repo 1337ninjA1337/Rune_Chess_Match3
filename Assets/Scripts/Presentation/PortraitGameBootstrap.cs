@@ -110,8 +110,9 @@ public sealed class PortraitGameBootstrap : MonoBehaviour
             for (var column = 0; column < TacticalField.Mvp.Columns; column += 1)
             {
                 var position = new TacticalPosition(row, column);
-                var isEnemySide = TacticalField.Mvp.GetSide(position) == TacticalSide.Enemy;
-                var cell = CreatePanel($"Cell {row}:{column}", gridRoot.transform, isEnemySide ? GameColors.EnemyCell : GameColors.PlayerCell);
+                var state = GetDemoCellState(position);
+                var cell = CreatePanel($"Cell {row}:{column}", gridRoot.transform, GameColors.TacticalCellColor(state));
+                AddCellStateMarker(cell.transform, state);
                 AddCellUnitIfNeeded(cell.transform, row, column);
             }
         }
@@ -210,6 +211,42 @@ public sealed class PortraitGameBootstrap : MonoBehaviour
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
         CreateText(unit.Item1, marker.transform, 16, GameColors.Text, TextAnchor.MiddleCenter);
+    }
+
+    private TacticalCellState GetDemoCellState(TacticalPosition position)
+    {
+        var key = $"{position.Row}:{position.Column}";
+        var hasEnemy = key is "0:1" or "0:4" or "1:2";
+        var hasAlly = key is "2:1" or "2:4" or "3:2";
+
+        if (hasEnemy)
+        {
+            return TacticalCellState.OccupiedEnemy;
+        }
+
+        if (hasAlly)
+        {
+            return TacticalCellState.OccupiedAlly;
+        }
+
+        return position.IsPlayerSide ? TacticalCellState.AvailableForPlacement : TacticalCellState.Unavailable;
+    }
+
+    private void AddCellStateMarker(Transform parent, TacticalCellState state)
+    {
+        if (state is TacticalCellState.OccupiedAlly or TacticalCellState.OccupiedEnemy)
+        {
+            return;
+        }
+
+        var marker = CreatePanel("Cell State", parent, state == TacticalCellState.AvailableForPlacement
+            ? new Color(1f, 1f, 1f, 0.18f)
+            : new Color(0f, 0f, 0f, 0.22f));
+        var rect = marker.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.34f, 0.34f);
+        rect.anchorMax = new Vector2(0.66f, 0.66f);
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
     }
 
     private Canvas CreateCanvas()

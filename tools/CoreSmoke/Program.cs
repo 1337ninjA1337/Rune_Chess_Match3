@@ -37,6 +37,11 @@ Require(TacticalField.Mvp.GetLine(new TacticalPosition(3, 0)) == TacticalLine.Ba
 Require(new TacticalPosition(2, 5).IsFrontline, "tactical position exposes frontline");
 Require(new TacticalPosition(3, 5).IsBackline, "tactical position exposes backline");
 RequireThrows(() => TacticalField.Mvp.GetLine(new TacticalPosition(4, 0)), "tactical line rejects positions outside the field");
+Require(Enum.IsDefined(typeof(TacticalCellState), TacticalCellState.Free), "tactical cells support a free state");
+Require(Enum.IsDefined(typeof(TacticalCellState), TacticalCellState.OccupiedAlly), "tactical cells support an ally-occupied state");
+Require(Enum.IsDefined(typeof(TacticalCellState), TacticalCellState.OccupiedEnemy), "tactical cells support an enemy-occupied state");
+Require(Enum.IsDefined(typeof(TacticalCellState), TacticalCellState.AvailableForPlacement), "tactical cells support placement availability");
+Require(Enum.IsDefined(typeof(TacticalCellState), TacticalCellState.Unavailable), "tactical cells support unavailable state");
 
 var boughtHeroId = afterBuy.Bench[0].InstanceId;
 var afterPlace = afterBuy.PlaceHeroFromBench(boughtHeroId, new TacticalPosition(2, 1));
