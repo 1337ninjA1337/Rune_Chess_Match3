@@ -12,7 +12,7 @@ public sealed class Match3Board
     public const int Columns = 7;
     public const int CellCount = Rows * Columns;
 
-    private readonly RuneType[] cells;
+    private readonly RuneType?[] cells;
 
     public Match3Board(IReadOnlyList<RuneType> runes)
     {
@@ -21,11 +21,35 @@ public sealed class Match3Board
             throw new ArgumentException($"A match-3 board needs {CellCount} runes.", nameof(runes));
         }
 
+        cells = runes.Select(rune => (RuneType?)rune).ToArray();
+    }
+
+    private Match3Board(IReadOnlyList<RuneType?> runes)
+    {
+        if (runes.Count != CellCount)
+        {
+            throw new ArgumentException($"A match-3 board needs {CellCount} cells.", nameof(runes));
+        }
+
         cells = runes.ToArray();
     }
 
-    public RuneType this[int row, int column] => cells[Index(row, column)];
+    public RuneType this[int row, int column]
+    {
+        get
+        {
+            var rune = GetRuneOrEmpty(row, column);
+            if (!rune.HasValue)
+            {
+                throw new InvalidOperationException("Board cell is empty.");
+            }
+
+            return rune.Value;
+        }
+    }
+
     public RuneType this[BoardPoint point] => this[point.Row, point.Column];
+    public int EmptyCellCount => cells.Count(rune => !rune.HasValue);
 
     public static Match3Board CreateDeterministic(int seed)
     {
@@ -103,6 +127,21 @@ public sealed class Match3Board
         return matches;
     }
 
+    public RuneType? GetRuneOrEmpty(int row, int column)
+    {
+        return cells[Index(row, column)];
+    }
+
+    public RuneType? GetRuneOrEmpty(BoardPoint point)
+    {
+        return GetRuneOrEmpty(point.Row, point.Column);
+    }
+
+    public bool IsEmpty(BoardPoint point)
+    {
+        return !GetRuneOrEmpty(point).HasValue;
+    }
+
     public Match3Board Swap(BoardPoint a, BoardPoint b)
     {
         if (!CanSwap(a, b))
@@ -110,11 +149,38 @@ public sealed class Match3Board
             throw new InvalidOperationException("Only adjacent in-board runes can be swapped.");
         }
 
+        var aIndex = Index(a.Row, a.Column);
+        var bIndex = Index(b.Row, b.Column);
+        if (!cells[aIndex].HasValue || !cells[bIndex].HasValue)
+        {
+            throw new InvalidOperationException("Only filled rune cells can be swapped.");
+        }
+
         var swapped = cells.ToArray();
-        (swapped[Index(a.Row, a.Column)], swapped[Index(b.Row, b.Column)]) =
-            (swapped[Index(b.Row, b.Column)], swapped[Index(a.Row, a.Column)]);
+        (swapped[aIndex], swapped[bIndex]) = (swapped[bIndex], swapped[aIndex]);
 
         return new Match3Board(swapped);
+    }
+
+    public Match3Board RemoveMatches()
+    {
+        return RemoveRunes(FindMatches());
+    }
+
+    public Match3Board RemoveRunes(IReadOnlySet<BoardPoint> points)
+    {
+        if (points is null)
+        {
+            throw new ArgumentNullException(nameof(points));
+        }
+
+        var removed = cells.ToArray();
+        foreach (var point in points)
+        {
+            removed[Index(point.Row, point.Column)] = null;
+        }
+
+        return new Match3Board(removed);
     }
 
     public Match3Board SwapIfCreatesMatch(BoardPoint a, BoardPoint b)
@@ -153,8 +219,16 @@ public sealed class Match3Board
 
         foreach (var point in line)
         {
-            var rune = this[point.Row, point.Column];
-            if (currentRune == rune)
+            var rune = GetRuneOrEmpty(point);
+            if (!rune.HasValue)
+            {
+                FlushRun(matches, run);
+                run.Clear();
+                currentRune = null;
+                continue;
+            }
+
+            if (currentRune == rune.Value)
             {
                 run.Add(point);
                 continue;
@@ -163,7 +237,7 @@ public sealed class Match3Board
             FlushRun(matches, run);
             run.Clear();
             run.Add(point);
-            currentRune = rune;
+            currentRune = rune.Value;
         }
 
         FlushRun(matches, run);

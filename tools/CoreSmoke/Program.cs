@@ -323,6 +323,22 @@ var crossMatchCells = new[]
     new BoardPoint(2, 0)
 };
 Require(ContainsExactly(crossMatchBoard.FindMatches(), crossMatchCells), "combined match scan unions horizontal and vertical matches");
+Require(horizontalMatchBoard.EmptyCellCount == 0, "filled board starts without empty cells");
+var noRemovalBoard = noMatchSwapBoard.RemoveMatches();
+Require(noRemovalBoard.EmptyCellCount == 0, "removing matches from a no-match board leaves it filled");
+var removedHorizontalBoard = horizontalMatchBoard.RemoveMatches();
+Require(removedHorizontalBoard.EmptyCellCount == horizontalMatchCells.Length, "removing a horizontal match empties matched cells");
+Require(removedHorizontalBoard.IsEmpty(new BoardPoint(0, 0)), "removed match leaves an empty first matched cell");
+Require(removedHorizontalBoard.IsEmpty(new BoardPoint(0, 1)), "removed match leaves an empty middle matched cell");
+Require(removedHorizontalBoard.IsEmpty(new BoardPoint(0, 2)), "removed match leaves an empty last matched cell");
+Require(removedHorizontalBoard.GetRuneOrEmpty(new BoardPoint(0, 3)) == horizontalMatchBoard[new BoardPoint(0, 3)], "removing matches preserves unrelated cells");
+Require(horizontalMatchBoard.EmptyCellCount == 0, "removing matches does not mutate the original board");
+Require(removedHorizontalBoard.FindMatches().Count == 0, "empty cells do not count as rune matches");
+RequireThrows(() => { _ = removedHorizontalBoard[new BoardPoint(0, 0)]; }, "indexing a removed cell rejects empty cells");
+RequireThrows(() => removedHorizontalBoard.Swap(new BoardPoint(0, 0), new BoardPoint(0, 1)), "swap rejects empty cells");
+var removedCrossBoard = crossMatchBoard.RemoveMatches();
+Require(removedCrossBoard.EmptyCellCount == crossMatchCells.Length, "removing cross matches empties the union of matched cells once");
+Require(removedCrossBoard.GetRuneOrEmpty(new BoardPoint(0, 0)) is null, "removed cells expose no rune value");
 Require(board.FindMatches() is not null, "match scan returns a set");
 
 Console.WriteLine("Core smoke checks passed.");
