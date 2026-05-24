@@ -183,6 +183,35 @@ public sealed class Match3Board
         return new Match3Board(removed);
     }
 
+    public Match3Board DropRunesFromTop(int seed)
+    {
+        var random = new Random(seed);
+        var dropped = new RuneType?[CellCount];
+
+        for (var column = 0; column < Columns; column += 1)
+        {
+            var writeRow = Rows - 1;
+            for (var readRow = Rows - 1; readRow >= 0; readRow -= 1)
+            {
+                var rune = GetRuneOrEmpty(readRow, column);
+                if (!rune.HasValue)
+                {
+                    continue;
+                }
+
+                dropped[Index(writeRow, column)] = rune.Value;
+                writeRow -= 1;
+            }
+
+            for (; writeRow >= 0; writeRow -= 1)
+            {
+                dropped[Index(writeRow, column)] = RuneTypes.All[random.Next(RuneTypes.All.Count)];
+            }
+        }
+
+        return new Match3Board(dropped);
+    }
+
     public Match3Board SwapIfCreatesMatch(BoardPoint a, BoardPoint b)
     {
         var swapped = Swap(a, b);

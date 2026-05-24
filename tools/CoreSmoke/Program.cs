@@ -339,6 +339,28 @@ RequireThrows(() => removedHorizontalBoard.Swap(new BoardPoint(0, 0), new BoardP
 var removedCrossBoard = crossMatchBoard.RemoveMatches();
 Require(removedCrossBoard.EmptyCellCount == crossMatchCells.Length, "removing cross matches empties the union of matched cells once");
 Require(removedCrossBoard.GetRuneOrEmpty(new BoardPoint(0, 0)) is null, "removed cells expose no rune value");
+var droppedFilledBoard = noMatchSwapBoard.DropRunesFromTop(101);
+Require(droppedFilledBoard.EmptyCellCount == 0, "dropping a filled board keeps it filled");
+Require(droppedFilledBoard[0, 0] == noMatchSwapBoard[0, 0], "dropping a filled board preserves existing cells");
+Require(droppedFilledBoard[6, 6] == noMatchSwapBoard[6, 6], "dropping a filled board preserves the last cell");
+var fallSourceBoard = CreatePatternBoard();
+var fallBoardWithGaps = fallSourceBoard.RemoveRunes(new HashSet<BoardPoint>
+{
+    new(3, 0),
+    new(5, 0),
+    new(6, 1)
+});
+var droppedFallBoard = fallBoardWithGaps.DropRunesFromTop(2024);
+Require(droppedFallBoard.EmptyCellCount == 0, "dropping runes refills every empty cell");
+Require(droppedFallBoard[6, 0] == fallSourceBoard[6, 0], "bottom rune stays at the bottom after falling");
+Require(droppedFallBoard[5, 0] == fallSourceBoard[4, 0], "runes above a gap fall downward in order");
+Require(droppedFallBoard[4, 0] == fallSourceBoard[2, 0], "runes preserve vertical order while falling");
+Require(droppedFallBoard[3, 0] == fallSourceBoard[1, 0], "upper runes fall into lower empty cells");
+Require(droppedFallBoard[2, 0] == fallSourceBoard[0, 0], "top original rune falls below newly spawned runes");
+Require(droppedFallBoard.GetRuneOrEmpty(new BoardPoint(0, 0)).HasValue, "new runes spawn into top empty cells");
+Require(droppedFallBoard.GetRuneOrEmpty(new BoardPoint(1, 0)).HasValue, "new runes fill every top gap");
+Require(droppedFallBoard[6, 1] == fallSourceBoard[5, 1], "bottom-column gaps pull runes down");
+Require(fallBoardWithGaps.EmptyCellCount == 3, "dropping runes does not mutate the gapped source board");
 Require(board.FindMatches() is not null, "match scan returns a set");
 
 Console.WriteLine("Core smoke checks passed.");
