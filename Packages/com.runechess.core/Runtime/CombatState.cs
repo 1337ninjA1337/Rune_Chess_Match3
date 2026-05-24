@@ -56,12 +56,12 @@ public sealed record CombatState(
         }
 
         var swapped = RuneBoard.SwapIfCreatesMatch(a, b);
-        var matches = swapped.FindMatches();
-        var matchedRunesCount = matches.Count;
+        var resolution = swapped.ResolveChainReactions(Match3MovesUsed + 1);
+        var matchedRunesCount = resolution.TotalMatchedRunesCount;
 
         return this with
         {
-            RuneBoard = swapped,
+            RuneBoard = resolution.Board,
             Match3MovesUsed = Match3MovesUsed + 1,
             LastMatchedRunesCount = matchedRunesCount,
             LastComboDepth = comboDepth,

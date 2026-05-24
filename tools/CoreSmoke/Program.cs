@@ -103,6 +103,7 @@ var swappedCombat = afterRuneSwap.Combat ?? throw new InvalidOperationException(
 Require(swappedCombat.Match3MovesUsed == 1, "rune swap counts as a match-3 combat move");
 Require(swappedCombat.LastMatchedRunesCount >= 3, "rune swap records matched runes");
 Require(swappedCombat.LastMatchPower == swappedCombat.LastMatchedRunesCount, "first swap uses matchPower = matchedRunesCount + comboDepth");
+Require(swappedCombat.RuneBoard.FindMatches().Count == 0, "rune swap resolves matches and chains before combat continues");
 
 var progressStore = new RunProgressStore();
 Require(!progressStore.HasSavedRun, "new progress store starts empty");
@@ -361,6 +362,27 @@ Require(droppedFallBoard.GetRuneOrEmpty(new BoardPoint(0, 0)).HasValue, "new run
 Require(droppedFallBoard.GetRuneOrEmpty(new BoardPoint(1, 0)).HasValue, "new runes fill every top gap");
 Require(droppedFallBoard[6, 1] == fallSourceBoard[5, 1], "bottom-column gaps pull runes down");
 Require(fallBoardWithGaps.EmptyCellCount == 3, "dropping runes does not mutate the gapped source board");
+var noChainResolution = noMatchSwapBoard.ResolveChainReactions(0);
+Require(noChainResolution.Steps.Count == 0, "chain resolution leaves a stable board untouched");
+Require(noChainResolution.ReactionCount == 0, "stable boards have no chain reactions");
+Require(noChainResolution.Board[0, 0] == noMatchSwapBoard[0, 0], "stable chain resolution preserves board contents");
+var chainResolution = horizontalMatchBoard.ResolveChainReactions(0);
+Require(chainResolution.Steps.Count == 2, "chain resolution continues after refill-created matches");
+Require(chainResolution.ReactionCount == 1, "second resolved match is counted as one chain reaction");
+Require(chainResolution.MaxComboDepth == 1, "chain resolution records the deepest combo depth");
+Require(chainResolution.TotalMatchedRunesCount == 6, "chain resolution totals matched runes across steps");
+Require(chainResolution.Steps[0].ComboDepth == 0, "initial match starts at combo depth zero");
+Require(chainResolution.Steps[0].ChainNumber == 1, "initial match is chain number one for effect bonuses");
+Require(chainResolution.Steps[1].ComboDepth == 1, "refill-created match increments combo depth");
+Require(chainResolution.Steps[1].ChainNumber == 2, "first chain reaction is chain number two for bonuses");
+Require(ContainsExactly(chainResolution.Steps[0].MatchedCells, horizontalMatchCells), "chain step records its matched cells");
+Require(chainResolution.Steps[0].BoardAfterRemoval.EmptyCellCount == horizontalMatchCells.Length, "chain step exposes the post-removal board");
+Require(chainResolution.Steps[0].BoardAfterDrop.EmptyCellCount == 0, "chain step exposes the post-drop board");
+Require(chainResolution.Steps[1].MatchedRunesCount == 3, "chain reaction records refill-created matches");
+Require(chainResolution.Board.EmptyCellCount == 0, "chain resolution ends on a filled board");
+Require(chainResolution.Board.FindMatches().Count == 0, "chain resolution ends on a stable board");
+RequireThrows(() => horizontalMatchBoard.ResolveChainReactions(0, 0), "chain resolution rejects a non-positive depth limit");
+RequireThrows(() => horizontalMatchBoard.ResolveChainReactions(0, 1), "chain resolution enforces the maximum chain depth");
 Require(board.FindMatches() is not null, "match scan returns a set");
 
 Console.WriteLine("Core smoke checks passed.");

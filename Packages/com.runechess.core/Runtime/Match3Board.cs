@@ -6,6 +6,27 @@ namespace RuneChess.Core;
 
 public readonly record struct BoardPoint(int Row, int Column);
 
+public sealed record Match3ChainStep(
+    int ComboDepth,
+    IReadOnlySet<BoardPoint> MatchedCells,
+    Match3Board BoardAfterRemoval,
+    Match3Board BoardAfterDrop
+)
+{
+    public int ChainNumber => ComboDepth + 1;
+    public int MatchedRunesCount => MatchedCells.Count;
+}
+
+public sealed record Match3ChainResolution(
+    Match3Board Board,
+    IReadOnlyList<Match3ChainStep> Steps
+)
+{
+    public int ReactionCount => Math.Max(0, Steps.Count - 1);
+    public int MaxComboDepth => Steps.Count == 0 ? 0 : Steps.Max(step => step.ComboDepth);
+    public int TotalMatchedRunesCount => Steps.Sum(step => step.MatchedRunesCount);
+}
+
 public sealed class Match3Board
 {
     public const int Rows = 7;
@@ -210,6 +231,46 @@ public sealed class Match3Board
         }
 
         return new Match3Board(dropped);
+    }
+
+    public Match3ChainResolution ResolveChainReactions(int seed, int maxChainSteps = 8)
+    {
+        if (maxChainSteps <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxChainSteps), "Chain resolution must allow at least one step.");
+        }
+
+        var current = this;
+        var steps = new List<Match3ChainStep>();
+
+        while (steps.Count < maxChainSteps)
+        {
+            var matches = current.FindMatches();
+            if (matches.Count == 0)
+            {
+                return new Match3ChainResolution(current, steps.ToList());
+            }
+
+            var matchedCells = matches.ToHashSet();
+            var removed = current.RemoveRunes(matchedCells);
+            var dropped = removed.DropRunesFromTop(unchecked(seed + steps.Count));
+
+            steps.Add(new Match3ChainStep(
+                ComboDepth: steps.Count,
+                MatchedCells: matchedCells,
+                BoardAfterRemoval: removed,
+                BoardAfterDrop: dropped
+            ));
+
+            current = dropped;
+        }
+
+        if (current.FindMatches().Count > 0)
+        {
+            throw new InvalidOperationException("Match-3 chain resolution exceeded the maximum chain depth.");
+        }
+
+        return new Match3ChainResolution(current, steps.ToList());
     }
 
     public Match3Board SwapIfCreatesMatch(BoardPoint a, BoardPoint b)
