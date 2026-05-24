@@ -25,6 +25,7 @@ public sealed class Match3Board
     }
 
     public RuneType this[int row, int column] => cells[Index(row, column)];
+    public RuneType this[BoardPoint point] => this[point.Row, point.Column];
 
     public static Match3Board CreateDeterministic(int seed)
     {
@@ -45,6 +46,11 @@ public sealed class Match3Board
         var columnDistance = Math.Abs(a.Column - b.Column);
 
         return rowDistance + columnDistance == 1;
+    }
+
+    public static bool CanSwap(BoardPoint a, BoardPoint b)
+    {
+        return Contains(a) && Contains(b) && AreAdjacent(a, b);
     }
 
     public static bool Contains(BoardPoint point)
@@ -85,9 +91,9 @@ public sealed class Match3Board
 
     public Match3Board Swap(BoardPoint a, BoardPoint b)
     {
-        if (!AreAdjacent(a, b))
+        if (!CanSwap(a, b))
         {
-            throw new InvalidOperationException("Only adjacent runes can be swapped.");
+            throw new InvalidOperationException("Only adjacent in-board runes can be swapped.");
         }
 
         var swapped = cells.ToArray();
@@ -99,7 +105,7 @@ public sealed class Match3Board
 
     public bool IsLegalSwap(BoardPoint a, BoardPoint b)
     {
-        return AreAdjacent(a, b) && Swap(a, b).FindMatches().Count > 0;
+        return CanSwap(a, b) && Swap(a, b).FindMatches().Count > 0;
     }
 
     private void AddLineMatches(HashSet<BoardPoint> matches, IEnumerable<BoardPoint> line)

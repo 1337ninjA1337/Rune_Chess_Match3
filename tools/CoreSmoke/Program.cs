@@ -245,7 +245,27 @@ RequireThrows(
     "match-3 board rejects index access outside the board"
 );
 Require(Match3Board.AreAdjacent(new BoardPoint(0, 0), new BoardPoint(0, 1)), "horizontal neighbors are adjacent");
+Require(Match3Board.AreAdjacent(new BoardPoint(0, 0), new BoardPoint(1, 0)), "vertical neighbors are adjacent");
 Require(!Match3Board.AreAdjacent(new BoardPoint(0, 0), new BoardPoint(1, 1)), "diagonal cells are not adjacent");
+Require(Match3Board.CanSwap(new BoardPoint(0, 0), new BoardPoint(0, 1)), "adjacent in-board runes can be swapped");
+Require(!Match3Board.CanSwap(new BoardPoint(0, 0), new BoardPoint(1, 1)), "diagonal runes cannot be swapped");
+Require(!Match3Board.CanSwap(new BoardPoint(-1, 0), new BoardPoint(0, 0)), "out-of-board runes cannot be swapped");
+var swapFixture = new Match3Board(Match3Board.CreateCells()
+    .Select((_, index) => RuneTypes.All[index % RuneTypes.All.Count])
+    .ToList());
+var swapA = new BoardPoint(0, 0);
+var swapB = new BoardPoint(0, 1);
+var swapC = new BoardPoint(0, 2);
+var swappedBoard = swapFixture.Swap(swapA, swapB);
+Require(swapFixture[swapA] == RuneType.Red, "swap fixture starts with red in the first cell");
+Require(swapFixture[swapB] == RuneType.Blue, "swap fixture starts with blue in the second cell");
+Require(swappedBoard[swapA] == RuneType.Blue, "swap moves the second rune into the first cell");
+Require(swappedBoard[swapB] == RuneType.Red, "swap moves the first rune into the second cell");
+Require(swappedBoard[swapC] == swapFixture[swapC], "swap keeps unrelated cells unchanged");
+Require(swapFixture[swapA] == RuneType.Red, "swap does not mutate the original board");
+RequireThrows(() => swapFixture.Swap(swapA, new BoardPoint(1, 1)), "swap rejects diagonal runes");
+RequireThrows(() => swapFixture.Swap(swapA, swapA), "swap rejects the same rune");
+RequireThrows(() => swapFixture.Swap(new BoardPoint(-1, 0), swapA), "swap rejects out-of-board runes");
 Require(board.FindMatches() is not null, "match scan returns a set");
 
 Console.WriteLine("Core smoke checks passed.");
