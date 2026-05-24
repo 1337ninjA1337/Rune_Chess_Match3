@@ -35,6 +35,12 @@ var boughtHeroId = afterBuy.Bench[0].InstanceId;
 var afterPlace = afterBuy.PlaceHeroFromBench(boughtHeroId, new TacticalPosition(2, 1));
 Require(afterPlace.Bench.Count == 0, "placing removes hero from bench");
 Require(afterPlace.Team.Count == 1, "placing adds hero to team");
+var afterMoveToBench = afterPlace.MoveHeroToBench(boughtHeroId);
+Require(afterMoveToBench.Team.Count == 0, "moving to bench removes hero from team");
+Require(afterMoveToBench.Bench.Count == 1, "moving to bench restores hero to bench");
+var afterRePlace = afterMoveToBench.PlaceHeroFromBench(boughtHeroId, new TacticalPosition(3, 1));
+Require(afterRePlace.Bench.Count == 0, "re-placing removes hero from bench again");
+Require(afterRePlace.Team.Count == 1, "re-placing returns hero to field");
 RequireThrows(
     () => afterBuy.PlaceHeroFromBench(boughtHeroId, new TacticalPosition(4, 0)),
     "placing rejects positions outside the MVP tactical field"
@@ -43,6 +49,7 @@ RequireThrows(
     () => afterBuy.PlaceHeroFromBench(boughtHeroId, new TacticalPosition(1, 0)),
     "placing rejects the enemy side during preparation"
 );
+RequireThrows(() => afterPlace.StartCombat().MoveHeroToBench(boughtHeroId), "moving to bench is blocked during combat");
 
 RequireThrows(() => state.StartCombat(), "combat cannot start before placement");
 
