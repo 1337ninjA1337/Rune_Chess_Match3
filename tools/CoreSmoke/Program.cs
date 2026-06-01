@@ -729,6 +729,22 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
+Require(HeroCatalog.All.Count == 1, "hero catalog starts with iron guard");
+var catalogIronGuard = HeroCatalog.Get("iron_guard");
+Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
+Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
+Require(catalogIronGuard.Rarity == HeroRarity.Common && catalogIronGuard.Cost == 1, "iron guard is a one-cost common hero");
+Require(catalogIronGuard.Faction == "Империя" && catalogIronGuard.Class == "Защитник", "iron guard belongs to the Empire Defender line");
+Require(catalogIronGuard.RuneAffinity == RuneType.Yellow && catalogIronGuard.Role == HeroRole.Tank, "iron guard is a yellow-rune tank");
+Require(catalogIronGuard.AttackType == "melee" && catalogIronGuard.Targeting == "nearest", "iron guard uses melee nearest targeting");
+Require(Math.Abs(catalogIronGuard.BaseStats.BaseHealth - 750.0) < 1e-9, "iron guard base health comes from the GDD");
+Require(Math.Abs(catalogIronGuard.BaseStats.Attack - 45.0) < 1e-9, "iron guard base attack comes from the GDD");
+Require(Math.Abs(catalogIronGuard.BaseStats.Armor - 8.0) < 1e-9, "iron guard base armor comes from the GDD");
+Require(Math.Abs(catalogIronGuard.BaseStats.MagicResist - 3.0) < 1e-9, "iron guard magic resist comes from the GDD");
+Require(Math.Abs(catalogIronGuard.BaseStats.BaseAttackSpeed - 0.75) < 1e-9, "iron guard attack speed comes from the GDD");
+Require(Math.Abs(catalogIronGuard.BaseStats.ManaMax - 80.0) < 1e-9, "iron guard mana max comes from the GDD");
+RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
