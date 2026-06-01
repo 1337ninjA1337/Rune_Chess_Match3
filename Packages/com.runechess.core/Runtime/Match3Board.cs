@@ -299,7 +299,12 @@ namespace RuneChess.Core
                     }
                 }
 
-                groups.Add(new RuneMatchGroup(rune, component, IsBentShape(component)));
+                groups.Add(new RuneMatchGroup(
+                    Rune: rune,
+                    Cells: component,
+                    IsTOrLShaped: IsBentShape(component),
+                    ContainsGreatRune: component.Any(IsGreatRune)
+                ));
             }
 
             return groups;

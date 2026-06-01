@@ -34,7 +34,8 @@ public enum RuneMatchTier
 public sealed record RuneMatchGroup(
     RuneType Rune,
     IReadOnlyCollection<BoardPoint> Cells,
-    bool IsTOrLShaped
+    bool IsTOrLShaped,
+    bool ContainsGreatRune
 )
 {
     public int Size => Cells.Count;
@@ -42,6 +43,9 @@ public sealed record RuneMatchGroup(
 
     /// <summary>T/L combos count as mass effects per the GDD.</summary>
     public bool IsMassEffect => IsTOrLShaped;
+
+    /// <summary>A stored great rune activates when its cell is included in a later match.</summary>
+    public bool ActivatesGreatRune => ContainsGreatRune;
 }
 
 /// <summary>
@@ -154,8 +158,9 @@ public static class RuneEffectResolver
         var comboDepth = chainNumber - 1;
         var baseMatchPower = Match3Scoring.CalculateMatchPower(group.Size, comboDepth)
             + (isMass ? RuneEffects.TShapeMatchPowerBonus : 0);
+        var activatesGreatRune = greatRuneActivated || group.ActivatesGreatRune;
         var multiplier = RuneEffects.GetChainMultiplier(chainNumber)
-            * (greatRuneActivated ? RuneEffects.GreatRuneMultiplier : 1.0);
+            * (activatesGreatRune ? RuneEffects.GreatRuneMultiplier : 1.0);
 
         return new RuneEffect(
             Rune: group.Rune,
@@ -166,7 +171,7 @@ public static class RuneEffectResolver
             IsMassEffect: isMass,
             ChargesHero: tier != RuneMatchTier.Match3,
             CreatesGreatRune: tier == RuneMatchTier.Match5,
-            IsGreatRuneActivation: greatRuneActivated,
+            IsGreatRuneActivation: activatesGreatRune,
             CommanderEnergy: isMass ? RuneEffects.TShapeCommanderEnergy : 0,
             Power: baseMatchPower * multiplier
         );

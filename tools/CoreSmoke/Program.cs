@@ -505,6 +505,8 @@ var redMatch3Group = redMatch3Groups[0];
 Require(redMatch3Group.Rune == RuneType.Red, "horizontal red match group reports its color");
 Require(redMatch3Group.Size == 3, "horizontal red match group has three runes");
 Require(!redMatch3Group.IsTOrLShaped, "a straight match is not T/L shaped");
+Require(!redMatch3Group.ContainsGreatRune, "a normal match group does not contain a great rune");
+Require(!redMatch3Group.ActivatesGreatRune, "a normal match group does not activate a great rune");
 Require(redMatch3Group.Tier == RuneMatchTier.Match3, "three matched runes are a match-3 group");
 Require(ContainsExactly(redMatch3Group.Cells, horizontalMatchCells), "match group reports its matched cells");
 
@@ -546,6 +548,15 @@ var greatRuneAnchor = new BoardPoint(0, 0);
 Require(match5CreationResolution.Steps[0].CreatedGreatRunes.Contains(greatRuneAnchor), "match-5 chain step records the created great rune anchor");
 Require(match5CreationResolution.Steps[0].BoardAfterDrop.IsGreatRune(greatRuneAnchor), "match-5 creates a great rune on the board");
 Require(match5CreationResolution.Steps[0].BoardAfterDrop[greatRuneAnchor] == RuneType.Red, "created great rune keeps the matched color");
+var greatRuneMatchBoard = new Match3Board(Match3Board.CreateCells()
+    .Select(point => new RuneCell(horizontalMatchBoard[point], point == horizontalMatchCells[1]))
+    .ToList());
+var greatRuneMatchGroup = greatRuneMatchBoard.FindMatchGroups().Single();
+Require(greatRuneMatchGroup.ContainsGreatRune, "a match group detects a stored great-rune cell");
+Require(greatRuneMatchGroup.ActivatesGreatRune, "matching a stored great-rune cell activates it");
+var activatedGreatRuneEffect = RuneEffectResolver.ResolveStep(greatRuneMatchBoard, 1).Single();
+Require(activatedGreatRuneEffect.IsGreatRuneActivation, "resolving a match with a stored great rune flags the activation");
+Require(Math.Abs(activatedGreatRuneEffect.Power - 7.5) < 1e-9, "stored great-rune activation applies the x2.5 multiplier");
 
 var chain2Effect = RuneEffectResolver.Resolve(redMatch3Group, 2);
 Require(chain2Effect.ChainNumber == 2, "chain effect records its chain number");
