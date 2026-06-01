@@ -115,18 +115,20 @@ public sealed record BattleState(
                 target.ManaMax,
                 target.CurrentMana + CombatFormulas.CalculateManaFromDamageTaken(absorbed, target.MaxHealth));
 
-            units[targetIndex] = MaybeCastAbility(target with
+            units[targetIndex] = target with
             {
                 CurrentHealth = newHealth,
                 Shield = remainingShield,
                 CurrentMana = targetMana
-            });
+            };
+            TryCastAbility(units, targetIndex);
 
-            units[attackerIndex] = MaybeCastAbility(attacker with
+            units[attackerIndex] = attacker with
             {
                 CurrentMana = Math.Min(attacker.ManaMax, attacker.CurrentMana + CombatFormulas.ManaFromAttack),
                 AttackCooldownRemaining = attacker.AttackInterval
-            });
+            };
+            TryCastAbility(units, attackerIndex);
         }
 
         var elapsed = Math.Min(DurationSeconds, ElapsedSeconds + deltaSeconds);
@@ -236,26 +238,77 @@ public sealed record BattleState(
         }
 
         var unit = units[targetIndex];
-        units[targetIndex] = MaybeCastAbility(unit with
+        units[targetIndex] = unit with
         {
             CurrentMana = Math.Min(unit.ManaMax, unit.CurrentMana + mana)
-        });
+        };
+        TryCastAbility(units, targetIndex);
 
-        return this with { Units = units };
+        return this with { Units = units, Outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds) };
     }
 
-    private static BattleUnit MaybeCastAbility(BattleUnit unit)
+    private static void TryCastAbility(List<BattleUnit> units, int casterIndex)
     {
-        if (unit.ManaMax > 0.0 && unit.CurrentMana >= unit.ManaMax)
+        var caster = units[casterIndex];
+        if (!caster.IsAlive || caster.ManaMax <= 0.0 || !CombatFormulas.IsAbilityReady(caster.CurrentMana, caster.ManaMax))
         {
-            return unit with
-            {
-                CurrentMana = 0.0,
-                AbilitiesCast = unit.AbilitiesCast + 1
-            };
+            return;
         }
 
-        return unit;
+        caster = caster with
+        {
+            CurrentMana = 0.0,
+            AbilitiesCast = caster.AbilitiesCast + 1
+        };
+        units[casterIndex] = caster;
+
+        if (caster.ActiveAbility.HasEffect)
+        {
+            ApplyHeroAbility(units, caster);
+        }
+    }
+
+    private static void ApplyHeroAbility(List<BattleUnit> units, BattleUnit caster)
+    {
+        var enemySide = caster.Side == TacticalSide.Player ? TacticalSide.Enemy : TacticalSide.Player;
+        var ability = caster.ActiveAbility;
+
+        switch (ability.Kind)
+        {
+            case HeroAbilityKind.None:
+                return;
+            case HeroAbilityKind.PhysicalDamage:
+                ApplyDamage(units, enemySide, AbilityEffect(RuneEffectKind.PhysicalDamage, ability.Power), physical: true);
+                return;
+            case HeroAbilityKind.MagicDamage:
+                ApplyDamage(units, enemySide, AbilityEffect(RuneEffectKind.MagicDamage, ability.Power), physical: false);
+                return;
+            case HeroAbilityKind.Healing:
+                ApplyRuneHealing(units, caster.Side, AbilityEffect(RuneEffectKind.Healing, ability.Power));
+                return;
+            case HeroAbilityKind.Shield:
+                ApplyRuneShield(units, caster.Side, AbilityEffect(RuneEffectKind.Shield, ability.Power));
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(caster), ability.Kind, "Unknown hero ability kind.");
+        }
+    }
+
+    private static RuneEffect AbilityEffect(RuneEffectKind kind, double power)
+    {
+        return new RuneEffect(
+            Rune: RuneType.White,
+            Kind: kind,
+            Tier: RuneMatchTier.Match3,
+            MatchedRunesCount: 3,
+            ChainNumber: 1,
+            IsMassEffect: false,
+            ChargesHero: false,
+            CreatesGreatRune: false,
+            IsGreatRuneActivation: false,
+            CommanderEnergy: 0,
+            Power: power
+        );
     }
 
     private static int SelectTargetIndex(IReadOnlyList<BattleUnit> units, BattleUnit attacker)
@@ -379,12 +432,13 @@ public sealed record BattleState(
                 target.ManaMax,
                 target.CurrentMana + CombatFormulas.CalculateManaFromDamageTaken(absorbed, target.MaxHealth));
 
-            units[index] = MaybeCastAbility(target with
+            units[index] = target with
             {
                 CurrentHealth = newHealth,
                 Shield = remainingShield,
                 CurrentMana = mana
-            });
+            };
+            TryCastAbility(units, index);
         }
     }
 
@@ -430,10 +484,11 @@ public sealed record BattleState(
         foreach (var index in targets)
         {
             var unit = units[index];
-            units[index] = MaybeCastAbility(unit with
+            units[index] = unit with
             {
                 CurrentMana = Math.Min(unit.ManaMax, unit.CurrentMana + amount)
-            });
+            };
+            TryCastAbility(units, index);
         }
     }
 

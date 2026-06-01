@@ -20,6 +20,11 @@ namespace RuneChess.Core
         /// <summary>Match-3 effect category linked to the hero's preferred rune color.</summary>
         public RuneEffectKind PreferredEffectKind => RuneEffects.GetEffectKind(RuneAffinity);
 
+        public HeroAbility AbilityForStars(int stars)
+        {
+            return HeroAbilities.ForHero(this, StatsForStars(stars));
+        }
+
         public HeroStats StatsForStars(int stars)
         {
             return BaseStats.ScaledByStars(stars);

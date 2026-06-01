@@ -661,11 +661,15 @@ var ironGuardDefinition = new HeroDefinition(
 Require(ironGuardDefinition.PreferredEffectKind == RuneEffectKind.Shield, "a yellow hero prefers shield rune effects");
 Require(Enum.IsDefined(typeof(HeroRole), ironGuardDefinition.Role), "hero role uses the role enum");
 Require(ironGuardDefinition.Cost == 1, "common hero cost matches the rarity price");
+var ironGuardAbility = ironGuardDefinition.AbilityForStars(1);
+Require(ironGuardAbility.Kind == HeroAbilityKind.Shield, "tank heroes get an active shield ability");
+Require(Math.Abs(ironGuardAbility.Power - 20.0) < 1e-9, "tank shield ability scales from max health");
 var twoStarStats = ironGuardDefinition.StatsForStars(2);
 Require(Math.Abs(twoStarStats.BaseHealth - 200.0) < 1e-9, "two-star hero doubles base health");
 Require(Math.Abs(twoStarStats.Attack - 20.0) < 1e-9, "two-star hero doubles attack");
 Require(Math.Abs(twoStarStats.Armor - ironGuardDefinition.BaseStats.Armor) < 1e-9, "star scaling leaves armor unchanged in the MVP");
 RequireThrows(() => ironGuardDefinition.StatsForStars(0), "star scaling rejects invalid star counts");
+RequireThrows(() => new HeroAbility(HeroAbilityKind.Healing, -1.0), "hero ability rejects negative power");
 
 // Autobattle (GDD "Автобой").
 var ironGuardUnit = BattleUnit.FromHero(ironGuardDefinition, 2, "ig_1", TacticalSide.Player, new TacticalPosition(2, 1));
@@ -673,6 +677,7 @@ Require(Math.Abs(ironGuardUnit.MaxHealth - 200.0) < 1e-9, "a two-star hero unit 
 Require(Math.Abs(ironGuardUnit.Attack - 20.0) < 1e-9, "a two-star hero unit uses scaled attack");
 Require(ironGuardUnit.AttackType == BattleAttackType.Melee && !ironGuardUnit.IsRanged, "a melee hero builds a melee unit");
 Require(Math.Abs(ironGuardUnit.AttackInterval - 1.25) < 1e-9, "attack interval matches the hero attack speed");
+Require(ironGuardUnit.ActiveAbility.Kind == HeroAbilityKind.Shield, "battle units carry their hero active ability");
 Require(ironGuardUnit.CurrentHealth == ironGuardUnit.MaxHealth && ironGuardUnit.AbilitiesCast == 0, "a new hero unit starts at full health");
 
 var battleVictory = BattleState.Create(new[]
@@ -749,6 +754,42 @@ var runeCastBattle = BattleState.Create(new[]
 });
 var runeCaster = runeCastBattle.AddManaFromBlueRunes(TacticalSide.Player, 3).Units.First(unit => unit.UnitId == "ally_h");
 Require(runeCaster.AbilitiesCast == 1 && Math.Abs(runeCaster.CurrentMana) < 1e-9, "blue-rune mana that fills the bar triggers a cast");
+
+var mageDefinition = ironGuardDefinition with
+{
+    Id = "rune_apprentice",
+    Name = "Rune Apprentice",
+    Role = HeroRole.Caster,
+    RuneAffinity = RuneType.Blue,
+    AttackType = "ranged",
+    BaseStats = new HeroStats(BaseHealth: 80, Attack: 20, Armor: 0, MagicResist: 0, BaseAttackSpeed: 1.0, ManaMax: 10)
+};
+var mageUnit = BattleUnit.FromHero(mageDefinition, 1, "mage_active", TacticalSide.Player, new TacticalPosition(2, 0))
+    with { CurrentMana = 8.0 };
+Require(mageUnit.ActiveAbility.Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
+Require(Math.Abs(mageUnit.ActiveAbility.Power - 40.0) < 1e-9, "caster ability scales from attack");
+var activeDamageBattle = BattleState.Create(new[]
+{
+    mageUnit,
+    MakeUnit("ability_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var afterActiveDamage = activeDamageBattle.AddManaFromBlueRunes(TacticalSide.Player, 1);
+var activeMage = afterActiveDamage.Units.First(unit => unit.UnitId == "mage_active");
+var activeEnemy = afterActiveDamage.Units.First(unit => unit.UnitId == "ability_enemy");
+Require(activeMage.AbilitiesCast == 1 && Math.Abs(activeMage.CurrentMana) < 1e-9, "active ability casts when blue mana fills the bar");
+Require(Math.Abs(activeEnemy.CurrentHealth - 60.0) < 1e-9, "active caster ability deals magic damage to an enemy");
+
+var shieldCaster = BattleUnit.FromHero(ironGuardDefinition, 1, "shield_active", TacticalSide.Player, new TacticalPosition(2, 0))
+    with { CurrentMana = 56.0 };
+var activeShieldBattle = BattleState.Create(new[]
+{
+    shieldCaster,
+    MakeUnit("shield_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var afterActiveShield = activeShieldBattle.AddManaFromBlueRunes(TacticalSide.Player, 1);
+var shieldedCaster = afterActiveShield.Units.First(unit => unit.UnitId == "shield_active");
+Require(shieldedCaster.AbilitiesCast == 1, "shield active ability casts when mana is full");
+Require(Math.Abs(shieldedCaster.Shield - 20.0) < 1e-9, "tank active ability applies a shield");
 
 var rangedBattle = BattleState.Create(new[]
 {

@@ -22,7 +22,8 @@ public sealed record BattleUnit(
     double Shield,
     BattleAttackType AttackType,
     double AttackCooldownRemaining,
-    int AbilitiesCast
+    int AbilitiesCast,
+    HeroAbility ActiveAbility = default
 )
 {
     public bool IsAlive => CurrentHealth > 0.0;
@@ -66,7 +67,8 @@ public sealed record BattleUnit(
             Shield: 0.0,
             AttackType: BattleAttackTypes.FromId(definition.AttackType),
             AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
-            AbilitiesCast: 0
+            AbilitiesCast: 0,
+            ActiveAbility: definition.AbilityForStars(stars)
         );
     }
 }
