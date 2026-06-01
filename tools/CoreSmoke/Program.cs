@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 3, "hero catalog starts with the first three MVP heroes");
+Require(HeroCatalog.All.Count == 4, "hero catalog starts with the first four MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -758,6 +758,13 @@ Require(catalogFieldMedic.RuneAffinity == RuneType.Green && catalogFieldMedic.Ro
 Require(catalogFieldMedic.AttackType == "ranged" && catalogFieldMedic.Targeting == "lowest_health_ally", "field medic targets the lowest-health ally");
 Require(Math.Abs(catalogFieldMedic.BaseStats.ManaMax - 70.0) < 1e-9, "field medic has healer mana stats");
 Require(ShopState.StartingShop.Offers.All(offer => HeroCatalog.TryGet(offer.HeroId, out _)), "starting shop offers reference catalog heroes");
+var catalogWildClaw = HeroCatalog.Get("wild_claw");
+Require(catalogWildClaw.Name == "Дикий Коготь", "wild claw uses the GDD display name");
+Require(catalogWildClaw.Rarity == HeroRarity.Common && catalogWildClaw.Cost == 1, "wild claw is a one-cost common hero");
+Require(catalogWildClaw.Faction == "Дикие" && catalogWildClaw.Class == "Берсерк", "wild claw belongs to the Wild Berserker line");
+Require(catalogWildClaw.RuneAffinity == RuneType.Red && catalogWildClaw.Role == HeroRole.Bruiser, "wild claw is a red-rune bruiser");
+Require(catalogWildClaw.AttackType == "melee" && catalogWildClaw.Targeting == "nearest", "wild claw uses melee nearest targeting");
+Require(Math.Abs(catalogWildClaw.BaseStats.BaseHealth - 700.0) < 1e-9, "wild claw has bruiser health stats");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

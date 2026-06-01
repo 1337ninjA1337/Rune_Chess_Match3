@@ -75,11 +75,35 @@ namespace RuneChess.Core
                 ManaMax: 70)
         );
 
+        public static HeroDefinition WildClaw { get; } = new(
+            Id: "wild_claw",
+            Name: "Дикий Коготь",
+            Rarity: HeroRarity.Common,
+            Cost: 1,
+            Faction: "Дикие",
+            Class: "Берсерк",
+            RuneAffinity: RuneType.Red,
+            Role: HeroRole.Bruiser,
+            AttackType: "melee",
+            Targeting: "nearest",
+            Stars: 1,
+            Ability: "Получает скорость атаки и вампиризм.",
+            Passive: "Живучесть берсерка: получает дополнительное здоровье.",
+            BaseStats: new HeroStats(
+                BaseHealth: 700,
+                Attack: 55,
+                Armor: 5,
+                MagicResist: 3,
+                BaseAttackSpeed: 0.9,
+                ManaMax: 65)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
             OathArcher,
-            FieldMedic
+            FieldMedic,
+            WildClaw
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
