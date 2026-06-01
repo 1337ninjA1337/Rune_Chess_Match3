@@ -816,7 +816,7 @@ static void RequireThrows(Action action, string message)
     throw new InvalidOperationException($"Smoke check failed: {message}");
 }
 
-static bool ContainsExactly(IReadOnlySet<BoardPoint> actual, IReadOnlyList<BoardPoint> expected)
+static bool ContainsExactly(IReadOnlyCollection<BoardPoint> actual, IReadOnlyList<BoardPoint> expected)
 {
     return actual.Count == expected.Count && expected.All(actual.Contains);
 }
@@ -871,7 +871,7 @@ static BattleUnit MakeUnit(
 static Match3Board CreatePatternBoard(params (BoardPoint Point, RuneType Rune)[] overrides)
 {
     var runes = Match3Board.CreateCells()
-        .Select(point => RuneTypes.All[((point.Row * 2) + point.Column) % RuneTypes.All.Count])
+        .Select(point => RuneTypes.All[((point.Row * 3) + point.Column) % RuneTypes.All.Count])
         .ToList();
 
     foreach (var (point, rune) in overrides)

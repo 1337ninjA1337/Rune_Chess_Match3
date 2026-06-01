@@ -1,8 +1,9 @@
-namespace RuneChess.Core;
-
-public enum BattleOutcome
+namespace RuneChess.Core
 {
-    Ongoing,
-    PlayerVictory,
-    PlayerDefeat
+    public enum BattleOutcome
+    {
+        Ongoing,
+        PlayerVictory,
+        PlayerDefeat
+    }
 }

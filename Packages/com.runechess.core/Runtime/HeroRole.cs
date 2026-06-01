@@ -1,13 +1,14 @@
-namespace RuneChess.Core;
-
-public enum HeroRole
+namespace RuneChess.Core
 {
-    Tank,
-    Bruiser,
-    Carry,
-    Assassin,
-    Caster,
-    Healer,
-    Summoner,
-    Support
+    public enum HeroRole
+    {
+        Tank,
+        Bruiser,
+        Carry,
+        Assassin,
+        Caster,
+        Healer,
+        Summoner,
+        Support
+    }
 }

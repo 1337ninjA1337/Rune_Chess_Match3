@@ -1,21 +1,22 @@
 using System;
 
-namespace RuneChess.Core;
-
-public static class Match3Scoring
+namespace RuneChess.Core
 {
-    public static int CalculateMatchPower(int matchedRunesCount, int comboDepth)
+    public static class Match3Scoring
     {
-        if (matchedRunesCount < 0)
+        public static int CalculateMatchPower(int matchedRunesCount, int comboDepth)
         {
-            throw new ArgumentOutOfRangeException(nameof(matchedRunesCount), "Matched rune count cannot be negative.");
-        }
+            if (matchedRunesCount < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(matchedRunesCount), "Matched rune count cannot be negative.");
+            }
 
-        if (comboDepth < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(comboDepth), "Combo depth cannot be negative.");
-        }
+            if (comboDepth < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(comboDepth), "Combo depth cannot be negative.");
+            }
 
-        return matchedRunesCount + comboDepth;
+            return matchedRunesCount + comboDepth;
+        }
     }
 }

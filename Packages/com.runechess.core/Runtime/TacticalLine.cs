@@ -1,7 +1,8 @@
-namespace RuneChess.Core;
-
-public enum TacticalLine
+namespace RuneChess.Core
 {
-    Backline,
-    Frontline
+    public enum TacticalLine
+    {
+        Backline,
+        Frontline
+    }
 }

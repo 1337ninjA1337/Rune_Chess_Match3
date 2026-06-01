@@ -1,7 +1,15 @@
-namespace RuneChess.Core;
+namespace System.Runtime.CompilerServices
+{
+    internal static class IsExternalInit
+    {
+    }
+}
 
-public sealed record ShopOffer(
-    string OfferId,
-    string HeroId,
-    int Cost
-);
+namespace RuneChess.Core
+{
+    public sealed record ShopOffer(
+        string OfferId,
+        string HeroId,
+        int Cost
+    );
+}

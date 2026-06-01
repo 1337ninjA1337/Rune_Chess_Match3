@@ -2,518 +2,568 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace RuneChess.Core;
-
-public readonly record struct BoardPoint(int Row, int Column);
-
-public sealed record Match3MoveHint(
-    BoardPoint From,
-    BoardPoint To,
-    IReadOnlySet<BoardPoint> MatchedCells
-)
+namespace RuneChess.Core
 {
-    public IReadOnlySet<BoardPoint> HighlightedCells
+    public readonly struct BoardPoint : IEquatable<BoardPoint>
     {
-        get
+        public BoardPoint(int row, int column)
         {
-            var highlighted = MatchedCells.ToHashSet();
-            highlighted.Add(From);
-            highlighted.Add(To);
-            return highlighted;
-        }
-    }
-}
-
-public sealed record Match3ChainStep(
-    int ComboDepth,
-    IReadOnlySet<BoardPoint> MatchedCells,
-    Match3Board BoardAfterRemoval,
-    Match3Board BoardAfterDrop
-)
-{
-    public int ChainNumber => ComboDepth + 1;
-    public int MatchedRunesCount => MatchedCells.Count;
-    public int MatchPower => GetMatchPower();
-
-    public int GetMatchPower(int comboDepthOffset = 0)
-    {
-        if (comboDepthOffset < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(comboDepthOffset), "Combo depth offset cannot be negative.");
+            Row = row;
+            Column = column;
         }
 
-        return Match3Scoring.CalculateMatchPower(MatchedRunesCount, ComboDepth + comboDepthOffset);
-    }
-}
+        public int Row { get; }
+        public int Column { get; }
 
-public sealed record Match3ChainResolution(
-    Match3Board Board,
-    IReadOnlyList<Match3ChainStep> Steps
-)
-{
-    public int ReactionCount => Math.Max(0, Steps.Count - 1);
-    public int MaxComboDepth => Steps.Count == 0 ? 0 : Steps.Max(step => step.ComboDepth);
-    public int TotalMatchedRunesCount => Steps.Sum(step => step.MatchedRunesCount);
-    public int TotalMatchPower => GetTotalMatchPower();
-
-    public int GetTotalMatchPower(int comboDepthOffset = 0)
-    {
-        if (comboDepthOffset < 0)
+        public void Deconstruct(out int row, out int column)
         {
-            throw new ArgumentOutOfRangeException(nameof(comboDepthOffset), "Combo depth offset cannot be negative.");
+            row = Row;
+            column = Column;
         }
 
-        return Steps.Sum(step => step.GetMatchPower(comboDepthOffset));
-    }
-}
-
-public sealed class Match3Board
-{
-    public const int Rows = 7;
-    public const int Columns = 7;
-    public const int CellCount = Rows * Columns;
-
-    private readonly RuneType?[] cells;
-
-    public Match3Board(IReadOnlyList<RuneType> runes)
-    {
-        if (runes.Count != CellCount)
+        public bool Equals(BoardPoint other)
         {
-            throw new ArgumentException($"A match-3 board needs {CellCount} runes.", nameof(runes));
+            return Row == other.Row && Column == other.Column;
         }
 
-        cells = runes.Select(rune => (RuneType?)rune).ToArray();
-    }
-
-    private Match3Board(IReadOnlyList<RuneType?> runes)
-    {
-        if (runes.Count != CellCount)
+        public override bool Equals(object? obj)
         {
-            throw new ArgumentException($"A match-3 board needs {CellCount} cells.", nameof(runes));
+            return obj is BoardPoint other && Equals(other);
         }
 
-        cells = runes.ToArray();
-    }
-
-    public RuneType this[int row, int column]
-    {
-        get
+        public override int GetHashCode()
         {
-            var rune = GetRuneOrEmpty(row, column);
-            if (!rune.HasValue)
+            unchecked
             {
-                throw new InvalidOperationException("Board cell is empty.");
-            }
-
-            return rune.Value;
-        }
-    }
-
-    public RuneType this[BoardPoint point] => this[point.Row, point.Column];
-    public int EmptyCellCount => cells.Count(rune => !rune.HasValue);
-
-    public static Match3Board CreateDeterministic(int seed)
-    {
-        var random = new Random(seed);
-        var runes = new RuneType[CellCount];
-
-        for (var index = 0; index < runes.Length; index += 1)
-        {
-            runes[index] = RuneTypes.All[random.Next(RuneTypes.All.Count)];
-        }
-
-        return new Match3Board(runes);
-    }
-
-    public static bool AreAdjacent(BoardPoint a, BoardPoint b)
-    {
-        var rowDistance = Math.Abs(a.Row - b.Row);
-        var columnDistance = Math.Abs(a.Column - b.Column);
-
-        return rowDistance + columnDistance == 1;
-    }
-
-    public static bool CanSwap(BoardPoint a, BoardPoint b)
-    {
-        return Contains(a) && Contains(b) && AreAdjacent(a, b);
-    }
-
-    public static bool Contains(BoardPoint point)
-    {
-        return point.Row >= 0 && point.Row < Rows && point.Column >= 0 && point.Column < Columns;
-    }
-
-    public static IReadOnlyList<BoardPoint> CreateCells()
-    {
-        var points = new List<BoardPoint>(CellCount);
-        for (var row = 0; row < Rows; row += 1)
-        {
-            for (var column = 0; column < Columns; column += 1)
-            {
-                points.Add(new BoardPoint(row, column));
+                return (Row * 397) ^ Column;
             }
         }
 
-        return points;
-    }
-
-    public IReadOnlySet<BoardPoint> FindMatches()
-    {
-        var matches = new HashSet<BoardPoint>(FindHorizontalMatches());
-        matches.UnionWith(FindVerticalMatches());
-        return matches;
-    }
-
-    public IReadOnlySet<BoardPoint> FindHorizontalMatches()
-    {
-        var matches = new HashSet<BoardPoint>();
-
-        for (var row = 0; row < Rows; row += 1)
+        public override string ToString()
         {
-            AddLineMatches(matches, Enumerable.Range(0, Columns).Select(column => new BoardPoint(row, column)));
+            return $"{nameof(BoardPoint)} {{ {nameof(Row)} = {Row}, {nameof(Column)} = {Column} }}";
         }
 
-        return matches;
-    }
-
-    public IReadOnlySet<BoardPoint> FindVerticalMatches()
-    {
-        var matches = new HashSet<BoardPoint>();
-
-        for (var column = 0; column < Columns; column += 1)
+        public static bool operator ==(BoardPoint left, BoardPoint right)
         {
-            AddLineMatches(matches, Enumerable.Range(0, Rows).Select(row => new BoardPoint(row, column)));
+            return left.Equals(right);
         }
 
-        return matches;
+        public static bool operator !=(BoardPoint left, BoardPoint right)
+        {
+            return !left.Equals(right);
+        }
     }
 
-    /// <summary>
-    /// Groups matched cells into discrete rune matches. Each group is a connected,
-    /// same-color component, so crossing matches of different colors stay separate and
-    /// a single bent T/L match is reported as one group. Groups are ordered deterministically
-    /// by their top-left cell so callers and tests see a stable sequence.
-    /// </summary>
-    public IReadOnlyList<RuneMatchGroup> FindMatchGroups()
+    public sealed record Match3MoveHint(
+        BoardPoint From,
+        BoardPoint To,
+        IReadOnlyCollection<BoardPoint> MatchedCells
+    )
     {
-        var matched = FindMatches();
-        var visited = new HashSet<BoardPoint>();
-        var groups = new List<RuneMatchGroup>();
-
-        var orderedMatched = matched
-            .OrderBy(point => point.Row)
-            .ThenBy(point => point.Column);
-
-        foreach (var start in orderedMatched)
+        public IReadOnlyCollection<BoardPoint> HighlightedCells
         {
-            if (visited.Contains(start))
+            get
             {
-                continue;
+                var highlighted = MatchedCells.ToHashSet();
+                highlighted.Add(From);
+                highlighted.Add(To);
+                return highlighted;
+            }
+        }
+    }
+
+    public sealed record Match3ChainStep(
+        int ComboDepth,
+        IReadOnlyCollection<BoardPoint> MatchedCells,
+        Match3Board BoardAfterRemoval,
+        Match3Board BoardAfterDrop
+    )
+    {
+        public int ChainNumber => ComboDepth + 1;
+        public int MatchedRunesCount => MatchedCells.Count;
+        public int MatchPower => GetMatchPower();
+
+        public int GetMatchPower(int comboDepthOffset = 0)
+        {
+            if (comboDepthOffset < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(comboDepthOffset), "Combo depth offset cannot be negative.");
             }
 
-            var rune = this[start];
-            var component = new HashSet<BoardPoint>();
-            var queue = new Queue<BoardPoint>();
-            queue.Enqueue(start);
-            visited.Add(start);
+            return Match3Scoring.CalculateMatchPower(MatchedRunesCount, ComboDepth + comboDepthOffset);
+        }
+    }
 
-            while (queue.Count > 0)
+    public sealed record Match3ChainResolution(
+        Match3Board Board,
+        IReadOnlyList<Match3ChainStep> Steps
+    )
+    {
+        public int ReactionCount => Math.Max(0, Steps.Count - 1);
+        public int MaxComboDepth => Steps.Count == 0 ? 0 : Steps.Max(step => step.ComboDepth);
+        public int TotalMatchedRunesCount => Steps.Sum(step => step.MatchedRunesCount);
+        public int TotalMatchPower => GetTotalMatchPower();
+
+        public int GetTotalMatchPower(int comboDepthOffset = 0)
+        {
+            if (comboDepthOffset < 0)
             {
-                var point = queue.Dequeue();
-                component.Add(point);
+                throw new ArgumentOutOfRangeException(nameof(comboDepthOffset), "Combo depth offset cannot be negative.");
+            }
 
-                foreach (var neighbor in OrthogonalNeighbors(point))
+            return Steps.Sum(step => step.GetMatchPower(comboDepthOffset));
+        }
+    }
+
+    public sealed class Match3Board
+    {
+        public const int Rows = 7;
+        public const int Columns = 7;
+        public const int CellCount = Rows * Columns;
+
+        private readonly RuneType?[] cells;
+
+        public Match3Board(IReadOnlyList<RuneType> runes)
+        {
+            if (runes.Count != CellCount)
+            {
+                throw new ArgumentException($"A match-3 board needs {CellCount} runes.", nameof(runes));
+            }
+
+            cells = runes.Select(rune => (RuneType?)rune).ToArray();
+        }
+
+        private Match3Board(IReadOnlyList<RuneType?> runes)
+        {
+            if (runes.Count != CellCount)
+            {
+                throw new ArgumentException($"A match-3 board needs {CellCount} cells.", nameof(runes));
+            }
+
+            cells = runes.ToArray();
+        }
+
+        public RuneType this[int row, int column]
+        {
+            get
+            {
+                var rune = GetRuneOrEmpty(row, column);
+                if (!rune.HasValue)
                 {
-                    if (visited.Contains(neighbor) || !matched.Contains(neighbor))
-                    {
-                        continue;
-                    }
+                    throw new InvalidOperationException("Board cell is empty.");
+                }
 
-                    if (GetRuneOrEmpty(neighbor) != rune)
-                    {
-                        continue;
-                    }
+                return rune.Value;
+            }
+        }
 
-                    visited.Add(neighbor);
-                    queue.Enqueue(neighbor);
+        public RuneType this[BoardPoint point] => this[point.Row, point.Column];
+        public int EmptyCellCount => cells.Count(rune => !rune.HasValue);
+
+        public static Match3Board CreateDeterministic(int seed)
+        {
+            var random = new Random(seed);
+            var runes = new RuneType[CellCount];
+
+            for (var index = 0; index < runes.Length; index += 1)
+            {
+                runes[index] = RuneTypes.All[random.Next(RuneTypes.All.Count)];
+            }
+
+            return new Match3Board(runes);
+        }
+
+        public static bool AreAdjacent(BoardPoint a, BoardPoint b)
+        {
+            var rowDistance = Math.Abs(a.Row - b.Row);
+            var columnDistance = Math.Abs(a.Column - b.Column);
+
+            return rowDistance + columnDistance == 1;
+        }
+
+        public static bool CanSwap(BoardPoint a, BoardPoint b)
+        {
+            return Contains(a) && Contains(b) && AreAdjacent(a, b);
+        }
+
+        public static bool Contains(BoardPoint point)
+        {
+            return point.Row >= 0 && point.Row < Rows && point.Column >= 0 && point.Column < Columns;
+        }
+
+        public static IReadOnlyList<BoardPoint> CreateCells()
+        {
+            var points = new List<BoardPoint>(CellCount);
+            for (var row = 0; row < Rows; row += 1)
+            {
+                for (var column = 0; column < Columns; column += 1)
+                {
+                    points.Add(new BoardPoint(row, column));
                 }
             }
 
-            groups.Add(new RuneMatchGroup(rune, component, IsBentShape(component)));
+            return points;
         }
 
-        return groups;
-    }
-
-    public RuneType? GetRuneOrEmpty(int row, int column)
-    {
-        return cells[Index(row, column)];
-    }
-
-    public RuneType? GetRuneOrEmpty(BoardPoint point)
-    {
-        return GetRuneOrEmpty(point.Row, point.Column);
-    }
-
-    public bool IsEmpty(BoardPoint point)
-    {
-        return !GetRuneOrEmpty(point).HasValue;
-    }
-
-    public Match3Board Swap(BoardPoint a, BoardPoint b)
-    {
-        if (!CanSwap(a, b))
+        public IReadOnlyCollection<BoardPoint> FindMatches()
         {
-            throw new InvalidOperationException("Only adjacent in-board runes can be swapped.");
+            var matches = new HashSet<BoardPoint>(FindHorizontalMatches());
+            matches.UnionWith(FindVerticalMatches());
+            return matches;
         }
 
-        var aIndex = Index(a.Row, a.Column);
-        var bIndex = Index(b.Row, b.Column);
-        if (!cells[aIndex].HasValue || !cells[bIndex].HasValue)
+        public IReadOnlyCollection<BoardPoint> FindHorizontalMatches()
         {
-            throw new InvalidOperationException("Only filled rune cells can be swapped.");
-        }
+            var matches = new HashSet<BoardPoint>();
 
-        var swapped = cells.ToArray();
-        (swapped[aIndex], swapped[bIndex]) = (swapped[bIndex], swapped[aIndex]);
-
-        return new Match3Board(swapped);
-    }
-
-    public Match3Board RemoveMatches()
-    {
-        return RemoveRunes(FindMatches());
-    }
-
-    public Match3Board RemoveRunes(IReadOnlySet<BoardPoint> points)
-    {
-        if (points is null)
-        {
-            throw new ArgumentNullException(nameof(points));
-        }
-
-        var removed = cells.ToArray();
-        foreach (var point in points)
-        {
-            removed[Index(point.Row, point.Column)] = null;
-        }
-
-        return new Match3Board(removed);
-    }
-
-    public Match3Board DropRunesFromTop(int seed)
-    {
-        var random = new Random(seed);
-        var dropped = new RuneType?[CellCount];
-
-        for (var column = 0; column < Columns; column += 1)
-        {
-            var writeRow = Rows - 1;
-            for (var readRow = Rows - 1; readRow >= 0; readRow -= 1)
+            for (var row = 0; row < Rows; row += 1)
             {
-                var rune = GetRuneOrEmpty(readRow, column);
-                if (!rune.HasValue)
+                AddLineMatches(matches, Enumerable.Range(0, Columns).Select(column => new BoardPoint(row, column)));
+            }
+
+            return matches;
+        }
+
+        public IReadOnlyCollection<BoardPoint> FindVerticalMatches()
+        {
+            var matches = new HashSet<BoardPoint>();
+
+            for (var column = 0; column < Columns; column += 1)
+            {
+                AddLineMatches(matches, Enumerable.Range(0, Rows).Select(row => new BoardPoint(row, column)));
+            }
+
+            return matches;
+        }
+
+        /// <summary>
+        /// Groups matched cells into discrete rune matches. Each group is a connected,
+        /// same-color component, so crossing matches of different colors stay separate and
+        /// a single bent T/L match is reported as one group. Groups are ordered deterministically
+        /// by their top-left cell so callers and tests see a stable sequence.
+        /// </summary>
+        public IReadOnlyList<RuneMatchGroup> FindMatchGroups()
+        {
+            var matched = FindMatches();
+            var visited = new HashSet<BoardPoint>();
+            var groups = new List<RuneMatchGroup>();
+
+            var orderedMatched = matched
+                .OrderBy(point => point.Row)
+                .ThenBy(point => point.Column);
+
+            foreach (var start in orderedMatched)
+            {
+                if (visited.Contains(start))
                 {
                     continue;
                 }
 
-                dropped[Index(writeRow, column)] = rune.Value;
-                writeRow -= 1;
+                var rune = this[start];
+                var component = new HashSet<BoardPoint>();
+                var queue = new Queue<BoardPoint>();
+                queue.Enqueue(start);
+                visited.Add(start);
+
+                while (queue.Count > 0)
+                {
+                    var point = queue.Dequeue();
+                    component.Add(point);
+
+                    foreach (var neighbor in OrthogonalNeighbors(point))
+                    {
+                        if (visited.Contains(neighbor) || !matched.Contains(neighbor))
+                        {
+                            continue;
+                        }
+
+                        if (GetRuneOrEmpty(neighbor) != rune)
+                        {
+                            continue;
+                        }
+
+                        visited.Add(neighbor);
+                        queue.Enqueue(neighbor);
+                    }
+                }
+
+                groups.Add(new RuneMatchGroup(rune, component, IsBentShape(component)));
             }
 
-            for (; writeRow >= 0; writeRow -= 1)
+            return groups;
+        }
+
+        public RuneType? GetRuneOrEmpty(int row, int column)
+        {
+            return cells[Index(row, column)];
+        }
+
+        public RuneType? GetRuneOrEmpty(BoardPoint point)
+        {
+            return GetRuneOrEmpty(point.Row, point.Column);
+        }
+
+        public bool IsEmpty(BoardPoint point)
+        {
+            return !GetRuneOrEmpty(point).HasValue;
+        }
+
+        public Match3Board Swap(BoardPoint a, BoardPoint b)
+        {
+            if (!CanSwap(a, b))
             {
-                dropped[Index(writeRow, column)] = RuneTypes.All[random.Next(RuneTypes.All.Count)];
+                throw new InvalidOperationException("Only adjacent in-board runes can be swapped.");
             }
-        }
 
-        return new Match3Board(dropped);
-    }
-
-    public Match3ChainResolution ResolveChainReactions(int seed, int maxChainSteps = 8)
-    {
-        if (maxChainSteps <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maxChainSteps), "Chain resolution must allow at least one step.");
-        }
-
-        var current = this;
-        var steps = new List<Match3ChainStep>();
-
-        while (steps.Count < maxChainSteps)
-        {
-            var matches = current.FindMatches();
-            if (matches.Count == 0)
+            var aIndex = Index(a.Row, a.Column);
+            var bIndex = Index(b.Row, b.Column);
+            if (!cells[aIndex].HasValue || !cells[bIndex].HasValue)
             {
-                return new Match3ChainResolution(current, steps.ToList());
+                throw new InvalidOperationException("Only filled rune cells can be swapped.");
             }
 
-            var matchedCells = matches.ToHashSet();
-            var removed = current.RemoveRunes(matchedCells);
-            var dropped = removed.DropRunesFromTop(unchecked(seed + steps.Count));
+            var swapped = cells.ToArray();
+            (swapped[aIndex], swapped[bIndex]) = (swapped[bIndex], swapped[aIndex]);
 
-            steps.Add(new Match3ChainStep(
-                ComboDepth: steps.Count,
-                MatchedCells: matchedCells,
-                BoardAfterRemoval: removed,
-                BoardAfterDrop: dropped
-            ));
-
-            current = dropped;
+            return new Match3Board(swapped);
         }
 
-        if (current.FindMatches().Count > 0)
+        public Match3Board RemoveMatches()
         {
-            throw new InvalidOperationException("Match-3 chain resolution exceeded the maximum chain depth.");
+            return RemoveRunes(FindMatches());
         }
 
-        return new Match3ChainResolution(current, steps.ToList());
-    }
-
-    public Match3Board SwapIfCreatesMatch(BoardPoint a, BoardPoint b)
-    {
-        var swapped = Swap(a, b);
-        var matches = swapped.FindMatches();
-        if (!ContainsSwappedRuneMatch(matches, a, b))
+        public Match3Board RemoveRunes(IReadOnlyCollection<BoardPoint> points)
         {
-            throw new InvalidOperationException("Rune swap must create a match-3 or higher.");
+            if (points is null)
+            {
+                throw new ArgumentNullException(nameof(points));
+            }
+
+            var removed = cells.ToArray();
+            foreach (var point in points)
+            {
+                removed[Index(point.Row, point.Column)] = null;
+            }
+
+            return new Match3Board(removed);
         }
 
-        return swapped;
-    }
-
-    public Match3MoveHint? FindFirstLegalMoveHint()
-    {
-        for (var row = 0; row < Rows; row += 1)
+        public Match3Board DropRunesFromTop(int seed)
         {
+            var random = new Random(seed);
+            var dropped = new RuneType?[CellCount];
+
             for (var column = 0; column < Columns; column += 1)
             {
-                var current = new BoardPoint(row, column);
-                if (column + 1 < Columns)
+                var writeRow = Rows - 1;
+                for (var readRow = Rows - 1; readRow >= 0; readRow -= 1)
                 {
-                    var right = new BoardPoint(row, column + 1);
-                    if (TryCreateMoveHint(current, right, out var horizontalHint))
+                    var rune = GetRuneOrEmpty(readRow, column);
+                    if (!rune.HasValue)
                     {
-                        return horizontalHint;
+                        continue;
                     }
+
+                    dropped[Index(writeRow, column)] = rune.Value;
+                    writeRow -= 1;
                 }
 
-                if (row + 1 < Rows)
+                for (; writeRow >= 0; writeRow -= 1)
                 {
-                    var down = new BoardPoint(row + 1, column);
-                    if (TryCreateMoveHint(current, down, out var verticalHint))
+                    dropped[Index(writeRow, column)] = RuneTypes.All[random.Next(RuneTypes.All.Count)];
+                }
+            }
+
+            return new Match3Board(dropped);
+        }
+
+        public Match3ChainResolution ResolveChainReactions(int seed, int maxChainSteps = 8)
+        {
+            if (maxChainSteps <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxChainSteps), "Chain resolution must allow at least one step.");
+            }
+
+            var current = this;
+            var steps = new List<Match3ChainStep>();
+
+            while (steps.Count < maxChainSteps)
+            {
+                var matches = current.FindMatches();
+                if (matches.Count == 0)
+                {
+                    return new Match3ChainResolution(current, steps.ToList());
+                }
+
+                var matchedCells = matches.ToHashSet();
+                var removed = current.RemoveRunes(matchedCells);
+                var dropped = removed.DropRunesFromTop(unchecked(seed + steps.Count));
+
+                steps.Add(new Match3ChainStep(
+                    ComboDepth: steps.Count,
+                    MatchedCells: matchedCells,
+                    BoardAfterRemoval: removed,
+                    BoardAfterDrop: dropped
+                ));
+
+                current = dropped;
+            }
+
+            if (current.FindMatches().Count > 0)
+            {
+                throw new InvalidOperationException("Match-3 chain resolution exceeded the maximum chain depth.");
+            }
+
+            return new Match3ChainResolution(current, steps.ToList());
+        }
+
+        public Match3Board SwapIfCreatesMatch(BoardPoint a, BoardPoint b)
+        {
+            var swapped = Swap(a, b);
+            var matches = swapped.FindMatches();
+            if (!ContainsSwappedRuneMatch(matches, a, b))
+            {
+                throw new InvalidOperationException("Rune swap must create a match-3 or higher.");
+            }
+
+            return swapped;
+        }
+
+        public Match3MoveHint? FindFirstLegalMoveHint()
+        {
+            for (var row = 0; row < Rows; row += 1)
+            {
+                for (var column = 0; column < Columns; column += 1)
+                {
+                    var current = new BoardPoint(row, column);
+                    if (column + 1 < Columns)
                     {
-                        return verticalHint;
+                        var right = new BoardPoint(row, column + 1);
+                        if (TryCreateMoveHint(current, right, out var horizontalHint))
+                        {
+                            return horizontalHint;
+                        }
+                    }
+
+                    if (row + 1 < Rows)
+                    {
+                        var down = new BoardPoint(row + 1, column);
+                        if (TryCreateMoveHint(current, down, out var verticalHint))
+                        {
+                            return verticalHint;
+                        }
                     }
                 }
             }
+
+            return null;
         }
 
-        return null;
-    }
-
-    public bool TryCreateMoveHint(BoardPoint a, BoardPoint b, out Match3MoveHint? hint)
-    {
-        hint = null;
-        if (!CanSwap(a, b) || IsEmpty(a) || IsEmpty(b))
+        public bool TryCreateMoveHint(BoardPoint a, BoardPoint b, out Match3MoveHint? hint)
         {
-            return false;
-        }
-
-        var swapped = Swap(a, b);
-        var matches = swapped.FindMatches();
-        if (!ContainsSwappedRuneMatch(matches, a, b))
-        {
-            return false;
-        }
-
-        hint = new Match3MoveHint(a, b, matches.ToHashSet());
-        return true;
-    }
-
-    public bool CreatesMatchAfterSwap(BoardPoint a, BoardPoint b)
-    {
-        return TryCreateMoveHint(a, b, out _);
-    }
-
-    public bool IsLegalSwap(BoardPoint a, BoardPoint b)
-    {
-        return CreatesMatchAfterSwap(a, b);
-    }
-
-    private void AddLineMatches(HashSet<BoardPoint> matches, IEnumerable<BoardPoint> line)
-    {
-        var run = new List<BoardPoint>();
-        RuneType? currentRune = null;
-
-        foreach (var point in line)
-        {
-            var rune = GetRuneOrEmpty(point);
-            if (!rune.HasValue)
+            hint = null;
+            if (!CanSwap(a, b) || IsEmpty(a) || IsEmpty(b))
             {
+                return false;
+            }
+
+            var swapped = Swap(a, b);
+            var matches = swapped.FindMatches();
+            if (!ContainsSwappedRuneMatch(matches, a, b))
+            {
+                return false;
+            }
+
+            hint = new Match3MoveHint(a, b, matches.ToHashSet());
+            return true;
+        }
+
+        public bool CreatesMatchAfterSwap(BoardPoint a, BoardPoint b)
+        {
+            return TryCreateMoveHint(a, b, out _);
+        }
+
+        public bool IsLegalSwap(BoardPoint a, BoardPoint b)
+        {
+            return CreatesMatchAfterSwap(a, b);
+        }
+
+        private void AddLineMatches(HashSet<BoardPoint> matches, IEnumerable<BoardPoint> line)
+        {
+            var run = new List<BoardPoint>();
+            RuneType? currentRune = null;
+
+            foreach (var point in line)
+            {
+                var rune = GetRuneOrEmpty(point);
+                if (!rune.HasValue)
+                {
+                    FlushRun(matches, run);
+                    run.Clear();
+                    currentRune = null;
+                    continue;
+                }
+
+                if (currentRune == rune.Value)
+                {
+                    run.Add(point);
+                    continue;
+                }
+
                 FlushRun(matches, run);
                 run.Clear();
-                currentRune = null;
-                continue;
-            }
-
-            if (currentRune == rune.Value)
-            {
                 run.Add(point);
-                continue;
+                currentRune = rune.Value;
             }
 
             FlushRun(matches, run);
-            run.Clear();
-            run.Add(point);
-            currentRune = rune.Value;
         }
 
-        FlushRun(matches, run);
-    }
-
-    private static void FlushRun(HashSet<BoardPoint> matches, IReadOnlyList<BoardPoint> run)
-    {
-        if (run.Count < 3)
+        private static void FlushRun(HashSet<BoardPoint> matches, IReadOnlyList<BoardPoint> run)
         {
-            return;
+            if (run.Count < 3)
+            {
+                return;
+            }
+
+            foreach (var point in run)
+            {
+                matches.Add(point);
+            }
         }
 
-        foreach (var point in run)
+        private static bool ContainsSwappedRuneMatch(IReadOnlyCollection<BoardPoint> matches, BoardPoint a, BoardPoint b)
         {
-            matches.Add(point);
+            return matches.Contains(a) || matches.Contains(b);
         }
-    }
 
-    private static bool ContainsSwappedRuneMatch(IReadOnlySet<BoardPoint> matches, BoardPoint a, BoardPoint b)
-    {
-        return matches.Contains(a) || matches.Contains(b);
-    }
-
-    private static IEnumerable<BoardPoint> OrthogonalNeighbors(BoardPoint point)
-    {
-        yield return new BoardPoint(point.Row - 1, point.Column);
-        yield return new BoardPoint(point.Row + 1, point.Column);
-        yield return new BoardPoint(point.Row, point.Column - 1);
-        yield return new BoardPoint(point.Row, point.Column + 1);
-    }
-
-    private static bool IsBentShape(IReadOnlySet<BoardPoint> cells)
-    {
-        // A straight horizontal match spans a single row; a straight vertical match spans a
-        // single column. A bent T/L match spans more than one row and more than one column.
-        var distinctRows = cells.Select(point => point.Row).Distinct().Count();
-        var distinctColumns = cells.Select(point => point.Column).Distinct().Count();
-        return distinctRows > 1 && distinctColumns > 1;
-    }
-
-    private static int Index(int row, int column)
-    {
-        if (!Contains(new BoardPoint(row, column)))
+        private static IEnumerable<BoardPoint> OrthogonalNeighbors(BoardPoint point)
         {
-            throw new ArgumentOutOfRangeException(nameof(row), "Board coordinates are outside the 7x7 board.");
+            yield return new BoardPoint(point.Row - 1, point.Column);
+            yield return new BoardPoint(point.Row + 1, point.Column);
+            yield return new BoardPoint(point.Row, point.Column - 1);
+            yield return new BoardPoint(point.Row, point.Column + 1);
         }
 
-        return row * Columns + column;
+        private static bool IsBentShape(IReadOnlyCollection<BoardPoint> cells)
+        {
+            // A straight horizontal match spans a single row; a straight vertical match spans a
+            // single column. A bent T/L match spans more than one row and more than one column.
+            var distinctRows = cells.Select(point => point.Row).Distinct().Count();
+            var distinctColumns = cells.Select(point => point.Column).Distinct().Count();
+            return distinctRows > 1 && distinctColumns > 1;
+        }
+
+        private static int Index(int row, int column)
+        {
+            if (!Contains(new BoardPoint(row, column)))
+            {
+                throw new ArgumentOutOfRangeException(nameof(row), "Board coordinates are outside the 7x7 board.");
+            }
+
+            return row * Columns + column;
+        }
     }
 }

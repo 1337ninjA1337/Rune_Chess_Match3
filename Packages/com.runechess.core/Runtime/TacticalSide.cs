@@ -1,7 +1,8 @@
-namespace RuneChess.Core;
-
-public enum TacticalSide
+namespace RuneChess.Core
 {
-    Enemy,
-    Player
+    public enum TacticalSide
+    {
+        Enemy,
+        Player
+    }
 }

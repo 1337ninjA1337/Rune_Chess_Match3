@@ -1,6 +1,7 @@
 using System;
 
-namespace RuneChess.Core;
+namespace RuneChess.Core
+{
 
 /// <summary>
 /// Simple, readable MVP combat formulas from the GDD "Формулы боя" section.
@@ -227,4 +228,5 @@ public static class CombatFormulas
             throw new ArgumentOutOfRangeException(parameterName, value, "Combat values cannot be negative.");
         }
     }
+}
 }

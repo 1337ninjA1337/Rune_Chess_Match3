@@ -1,10 +1,11 @@
-namespace RuneChess.Core;
-
-public enum TacticalCellState
+namespace RuneChess.Core
 {
-    Free,
-    OccupiedAlly,
-    OccupiedEnemy,
-    AvailableForPlacement,
-    Unavailable
+    public enum TacticalCellState
+    {
+        Free,
+        OccupiedAlly,
+        OccupiedEnemy,
+        AvailableForPlacement,
+        Unavailable
+    }
 }

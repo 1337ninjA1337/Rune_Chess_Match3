@@ -1,11 +1,12 @@
-namespace RuneChess.Core;
-
-public enum RunPhase
+namespace RuneChess.Core
 {
-    Preparation,
-    Combat,
-    Reward,
-    Event,
-    Victory,
-    Defeat
+    public enum RunPhase
+    {
+        Preparation,
+        Combat,
+        Reward,
+        Event,
+        Victory,
+        Defeat
+    }
 }

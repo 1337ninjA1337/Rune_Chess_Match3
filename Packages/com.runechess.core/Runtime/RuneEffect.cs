@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace RuneChess.Core;
+namespace RuneChess.Core
+{
 
 /// <summary>
 /// Combat effect category produced by collecting a colored rune match.
@@ -32,7 +33,7 @@ public enum RuneMatchTier
 /// </summary>
 public sealed record RuneMatchGroup(
     RuneType Rune,
-    IReadOnlySet<BoardPoint> Cells,
+    IReadOnlyCollection<BoardPoint> Cells,
     bool IsTOrLShaped
 )
 {
@@ -184,4 +185,5 @@ public static class RuneEffectResolver
             .Select(group => Resolve(group, chainNumber, greatRuneActivated))
             .ToList();
     }
+}
 }

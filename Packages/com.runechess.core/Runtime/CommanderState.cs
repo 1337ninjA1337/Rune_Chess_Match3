@@ -1,16 +1,17 @@
-namespace RuneChess.Core;
-
-public sealed record CommanderState(
-    string Id,
-    string Name,
-    int Energy,
-    int MaxEnergy
-)
+namespace RuneChess.Core
 {
-    public static CommanderState StoneOath { get; } = new(
-        Id: "stone_oath",
-        Name: "Stone Oath",
-        Energy: 0,
-        MaxEnergy: 100
-    );
+    public sealed record CommanderState(
+        string Id,
+        string Name,
+        int Energy,
+        int MaxEnergy
+    )
+    {
+        public static CommanderState StoneOath { get; } = new(
+            Id: "stone_oath",
+            Name: "Stone Oath",
+            Energy: 0,
+            MaxEnergy: 100
+        );
+    }
 }

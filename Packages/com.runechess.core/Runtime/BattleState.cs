@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace RuneChess.Core;
+namespace RuneChess.Core
+{
 
 /// <summary>
 /// Deterministic MVP autobattle. A <see cref="Tick"/> advances the fight by a time
@@ -493,4 +494,5 @@ public sealed record BattleState(
     {
         return a.Row != b.Row ? a.Row.CompareTo(b.Row) : a.Column.CompareTo(b.Column);
     }
+}
 }

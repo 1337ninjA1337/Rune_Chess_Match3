@@ -1,6 +1,7 @@
 using System;
 
-namespace RuneChess.Core;
+namespace RuneChess.Core
+{
 
 /// <summary>
 /// A unit participating in the autobattle. Immutable: combat updates produce new
@@ -68,4 +69,5 @@ public sealed record BattleUnit(
             AbilitiesCast: 0
         );
     }
+}
 }
