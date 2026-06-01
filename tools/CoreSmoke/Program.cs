@@ -664,21 +664,30 @@ Require(ironGuardDefinition.Cost == 1, "common hero cost matches the rarity pric
 var ironGuardAbility = ironGuardDefinition.AbilityForStars(1);
 Require(ironGuardAbility.Kind == HeroAbilityKind.Shield, "tank heroes get an active shield ability");
 Require(Math.Abs(ironGuardAbility.Power - 20.0) < 1e-9, "tank shield ability scales from max health");
+var ironGuardPassive = ironGuardDefinition.PassiveForStars(1);
+Require(ironGuardPassive.Kind == HeroPassiveKind.FrontlineGuard, "tank heroes get a frontline passive");
+Require(Math.Abs(ironGuardPassive.Power - HeroPassives.FrontlineGuardBonus) < 1e-9, "tank passive uses the frontline guard bonus");
 var twoStarStats = ironGuardDefinition.StatsForStars(2);
 Require(Math.Abs(twoStarStats.BaseHealth - 200.0) < 1e-9, "two-star hero doubles base health");
 Require(Math.Abs(twoStarStats.Attack - 20.0) < 1e-9, "two-star hero doubles attack");
 Require(Math.Abs(twoStarStats.Armor - ironGuardDefinition.BaseStats.Armor) < 1e-9, "star scaling leaves armor unchanged in the MVP");
 RequireThrows(() => ironGuardDefinition.StatsForStars(0), "star scaling rejects invalid star counts");
 RequireThrows(() => new HeroAbility(HeroAbilityKind.Healing, -1.0), "hero ability rejects negative power");
+RequireThrows(() => new HeroPassive(HeroPassiveKind.BonusAttack, -1.0), "hero passive rejects negative power");
 
 // Autobattle (GDD "Автобой").
 var ironGuardUnit = BattleUnit.FromHero(ironGuardDefinition, 2, "ig_1", TacticalSide.Player, new TacticalPosition(2, 1));
 Require(Math.Abs(ironGuardUnit.MaxHealth - 200.0) < 1e-9, "a two-star hero unit uses scaled health");
 Require(Math.Abs(ironGuardUnit.Attack - 20.0) < 1e-9, "a two-star hero unit uses scaled attack");
+Require(Math.Abs(ironGuardUnit.Armor - 31.25) < 1e-9, "a frontline tank passive increases armor");
+Require(Math.Abs(ironGuardUnit.MagicResist - 18.75) < 1e-9, "a frontline tank passive increases magic resist");
 Require(ironGuardUnit.AttackType == BattleAttackType.Melee && !ironGuardUnit.IsRanged, "a melee hero builds a melee unit");
 Require(Math.Abs(ironGuardUnit.AttackInterval - 1.25) < 1e-9, "attack interval matches the hero attack speed");
 Require(ironGuardUnit.ActiveAbility.Kind == HeroAbilityKind.Shield, "battle units carry their hero active ability");
+Require(ironGuardUnit.PassiveEffect.Kind == HeroPassiveKind.FrontlineGuard, "battle units carry their hero passive effect");
 Require(ironGuardUnit.CurrentHealth == ironGuardUnit.MaxHealth && ironGuardUnit.AbilitiesCast == 0, "a new hero unit starts at full health");
+var backlineGuardUnit = BattleUnit.FromHero(ironGuardDefinition, 1, "ig_back", TacticalSide.Player, new TacticalPosition(3, 1));
+Require(Math.Abs(backlineGuardUnit.Armor - 25.0) < 1e-9, "frontline guard does not modify backline armor");
 
 var battleVictory = BattleState.Create(new[]
 {
@@ -768,6 +777,9 @@ var mageUnit = BattleUnit.FromHero(mageDefinition, 1, "mage_active", TacticalSid
     with { CurrentMana = 8.0 };
 Require(mageUnit.ActiveAbility.Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
 Require(Math.Abs(mageUnit.ActiveAbility.Power - 40.0) < 1e-9, "caster ability scales from attack");
+var openingManaMage = BattleUnit.FromHero(mageDefinition, 1, "mage_passive", TacticalSide.Player, new TacticalPosition(2, 1));
+Require(openingManaMage.PassiveEffect.Kind == HeroPassiveKind.OpeningMana, "caster heroes get an opening mana passive");
+Require(Math.Abs(openingManaMage.CurrentMana - 2.0) < 1e-9, "caster opening mana scales from mana max");
 var activeDamageBattle = BattleState.Create(new[]
 {
     mageUnit,
@@ -790,6 +802,18 @@ var afterActiveShield = activeShieldBattle.AddManaFromBlueRunes(TacticalSide.Pla
 var shieldedCaster = afterActiveShield.Units.First(unit => unit.UnitId == "shield_active");
 Require(shieldedCaster.AbilitiesCast == 1, "shield active ability casts when mana is full");
 Require(Math.Abs(shieldedCaster.Shield - 20.0) < 1e-9, "tank active ability applies a shield");
+
+var carryDefinition = ironGuardDefinition with
+{
+    Id = "oath_archer",
+    Name = "Oath Archer",
+    Role = HeroRole.Carry,
+    AttackType = "ranged",
+    BaseStats = new HeroStats(BaseHealth: 70, Attack: 20, Armor: 0, MagicResist: 0, BaseAttackSpeed: 1.0, ManaMax: 40)
+};
+var carryUnit = BattleUnit.FromHero(carryDefinition, 1, "carry_passive", TacticalSide.Player, new TacticalPosition(3, 0));
+Require(carryUnit.PassiveEffect.Kind == HeroPassiveKind.BonusAttack, "carry heroes get an attack passive");
+Require(Math.Abs(carryUnit.Attack - 23.0) < 1e-9, "carry attack passive increases attack");
 
 var rangedBattle = BattleState.Create(new[]
 {

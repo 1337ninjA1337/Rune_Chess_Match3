@@ -23,7 +23,8 @@ public sealed record BattleUnit(
     BattleAttackType AttackType,
     double AttackCooldownRemaining,
     int AbilitiesCast,
-    HeroAbility ActiveAbility = default
+    HeroAbility ActiveAbility = default,
+    HeroPassive PassiveEffect = default
 )
 {
     public bool IsAlive => CurrentHealth > 0.0;
@@ -49,8 +50,11 @@ public sealed record BattleUnit(
             throw new ArgumentException("Unit id is required.", nameof(unitId));
         }
 
-        var stats = definition.StatsForStars(stars);
+        var baseStats = definition.StatsForStars(stars);
+        var passive = definition.PassiveForStars(stars);
+        var stats = HeroPassives.ApplyToStats(baseStats, passive, position);
         var attacksPerSecond = CombatFormulas.CalculateAttacksPerSecond(stats.BaseAttackSpeed);
+        var startingMana = HeroPassives.CalculateStartingMana(stats, passive);
 
         return new BattleUnit(
             UnitId: unitId,
@@ -62,13 +66,14 @@ public sealed record BattleUnit(
             Armor: stats.Armor,
             MagicResist: stats.MagicResist,
             AttacksPerSecond: attacksPerSecond,
-            CurrentMana: 0.0,
+            CurrentMana: startingMana,
             ManaMax: stats.ManaMax,
             Shield: 0.0,
             AttackType: BattleAttackTypes.FromId(definition.AttackType),
             AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
             AbilitiesCast: 0,
-            ActiveAbility: definition.AbilityForStars(stars)
+            ActiveAbility: definition.AbilityForStars(stars),
+            PassiveEffect: passive
         );
     }
 }

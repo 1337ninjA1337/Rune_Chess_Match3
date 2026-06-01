@@ -25,6 +25,12 @@ namespace RuneChess.Core
             return HeroAbilities.ForHero(this, StatsForStars(stars));
         }
 
+        public HeroPassive PassiveForStars(int stars)
+        {
+            _ = StatsForStars(stars);
+            return HeroPassives.ForHero(this);
+        }
+
         public HeroStats StatsForStars(int stars)
         {
             return BaseStats.ScaledByStars(stars);
