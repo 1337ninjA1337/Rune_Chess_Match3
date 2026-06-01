@@ -21,7 +21,7 @@ namespace RuneChess.Core
         string? DefeatReason
     )
     {
-        private const int MergeCopiesRequired = 3;
+        private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
 
         public PveRoundDefinition CurrentRoundDefinition => PveRunSchedule.GetRound(Round);
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
@@ -164,6 +164,48 @@ namespace RuneChess.Core
         public RunState MergeTwoStarHeroes(string heroId)
         {
             return MergeHeroes(heroId, sourceStars: 2, resultStars: 3, copiesRequired: MergeCopiesRequired);
+        }
+
+        public RunState SellHero(string instanceId, int baseCost)
+        {
+            EnsurePreparationPhase();
+
+            if (string.IsNullOrWhiteSpace(instanceId))
+            {
+                throw new ArgumentException("Hero instance id is required.", nameof(instanceId));
+            }
+
+            var bench = Bench.ToList();
+            var benchIndex = bench.FindIndex(hero => hero.InstanceId == instanceId);
+            if (benchIndex >= 0)
+            {
+                var hero = bench[benchIndex];
+                var sellValue = HeroEconomy.CalculateSellValue(baseCost, hero.Stars);
+                bench.RemoveAt(benchIndex);
+
+                return this with
+                {
+                    Gold = Gold + sellValue,
+                    Bench = bench
+                };
+            }
+
+            var team = Team.ToList();
+            var teamIndex = team.FindIndex(slot => slot.Hero.InstanceId == instanceId);
+            if (teamIndex >= 0)
+            {
+                var hero = team[teamIndex].Hero;
+                var sellValue = HeroEconomy.CalculateSellValue(baseCost, hero.Stars);
+                team.RemoveAt(teamIndex);
+
+                return this with
+                {
+                    Gold = Gold + sellValue,
+                    Team = team
+                };
+            }
+
+            throw new InvalidOperationException("Hero instance was not found on the bench or board.");
         }
 
         public RunState BuyXp(EconomyConfig? economy = null)

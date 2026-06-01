@@ -133,6 +133,32 @@ Require(mergedThreeStar.Bench[0].InstanceId == "merge_2s_ig_1", "two-star merge 
 Require(mergedThreeStar.Bench[0].HeroId == "iron_guard" && mergedThreeStar.Bench[0].Stars == 3, "two-star merge creates a three-star hero");
 RequireThrows(() => twoStarMergeBench.MergeTwoStarHeroes("oath_archer"), "two-star merge requires three matching copies");
 
+var sellBenchState = state with
+{
+    Gold = 2,
+    Bench = new List<HeroInstance>
+    {
+        new("sell_bench_ig", "iron_guard", 1)
+    }
+};
+var soldBenchHero = sellBenchState.SellHero("sell_bench_ig", baseCost: 1);
+Require(soldBenchHero.Gold == 3 && soldBenchHero.Bench.Count == 0, "selling a one-star bench hero refunds its base cost");
+RequireThrows(() => sellBenchState.SellHero("missing_hero", baseCost: 1), "selling requires an existing hero instance");
+RequireThrows(() => sellBenchState.SellHero("sell_bench_ig", baseCost: 0), "selling validates the hero base cost");
+RequireThrows(() => (sellBenchState with { Phase = RunPhase.Combat }).SellHero("sell_bench_ig", baseCost: 1), "selling is blocked outside preparation");
+
+var sellFieldState = state with
+{
+    Gold = 4,
+    Team = new List<BoardHero>
+    {
+        new(new HeroInstance("sell_field_ig", "iron_guard", 2), new TacticalPosition(2, 0))
+    }
+};
+var soldFieldHero = sellFieldState.SellHero("sell_field_ig", baseCost: 2);
+Require(soldFieldHero.Gold == 10 && soldFieldHero.Team.Count == 0, "selling a two-star field hero refunds three base copies");
+Require(HeroEconomy.CalculateSellValue(baseCost: 1, stars: 3) == 9, "three-star sell value counts nine base copies");
+
 RequireThrows(() => state.StartCombat(), "combat cannot start before placement");
 
 var afterXp = afterPlace.BuyXp();
