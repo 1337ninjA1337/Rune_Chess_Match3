@@ -21,6 +21,8 @@ namespace RuneChess.Core
         string? DefeatReason
     )
     {
+        private const int MergeCopiesRequired = 3;
+
         public PveRoundDefinition CurrentRoundDefinition => PveRunSchedule.GetRound(Round);
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
         public bool IsRunWon => Phase == RunPhase.Victory;
@@ -152,6 +154,11 @@ namespace RuneChess.Core
                 Team = team,
                 Bench = bench
             };
+        }
+
+        public RunState MergeOneStarHeroes(string heroId)
+        {
+            return MergeHeroes(heroId, sourceStars: 1, resultStars: 2);
         }
 
         public RunState BuyXp(EconomyConfig? economy = null)
@@ -389,11 +396,99 @@ namespace RuneChess.Core
             }
         }
 
+        private RunState MergeHeroes(string heroId, int sourceStars, int resultStars)
+        {
+            EnsurePreparationPhase();
+
+            if (string.IsNullOrWhiteSpace(heroId))
+            {
+                throw new ArgumentException("Hero id is required.", nameof(heroId));
+            }
+
+            var bench = Bench.ToList();
+            var team = Team.ToList();
+            var benchIndices = Enumerable.Range(0, bench.Count)
+                .Where(index => IsMergeCandidate(bench[index], heroId, sourceStars))
+                .ToList();
+            var teamIndices = Enumerable.Range(0, team.Count)
+                .Where(index => IsMergeCandidate(team[index].Hero, heroId, sourceStars))
+                .ToList();
+
+            if (benchIndices.Count + teamIndices.Count < MergeCopiesRequired)
+            {
+                throw new InvalidOperationException($"Three matching {sourceStars}-star copies are required to merge.");
+            }
+
+            if (teamIndices.Count > 0)
+            {
+                var survivorTeamIndex = teamIndices[0];
+                var benchIndicesToRemove = new List<int>();
+                var teamIndicesToRemove = new List<int>();
+                var consumedCopies = 1;
+
+                foreach (var index in benchIndices)
+                {
+                    if (consumedCopies >= MergeCopiesRequired)
+                    {
+                        break;
+                    }
+
+                    benchIndicesToRemove.Add(index);
+                    consumedCopies += 1;
+                }
+
+                foreach (var index in teamIndices.Skip(1))
+                {
+                    if (consumedCopies >= MergeCopiesRequired)
+                    {
+                        break;
+                    }
+
+                    teamIndicesToRemove.Add(index);
+                    consumedCopies += 1;
+                }
+
+                team[survivorTeamIndex] = team[survivorTeamIndex] with
+                {
+                    Hero = team[survivorTeamIndex].Hero with { Stars = resultStars }
+                };
+
+                RemoveAtDescending(bench, benchIndicesToRemove);
+                RemoveAtDescending(team, teamIndicesToRemove);
+
+                return this with
+                {
+                    Bench = bench,
+                    Team = team
+                };
+            }
+
+            var selectedBenchIndices = benchIndices.Take(MergeCopiesRequired).ToList();
+            var survivorBenchIndex = selectedBenchIndices[0];
+            bench[survivorBenchIndex] = bench[survivorBenchIndex] with { Stars = resultStars };
+            RemoveAtDescending(bench, selectedBenchIndices.Skip(1));
+
+            return this with { Bench = bench };
+        }
+
         private static void ValidateHealthPercent(int value, string paramName)
         {
             if (value is < 0 or > 100)
             {
                 throw new ArgumentOutOfRangeException(paramName, "Health percent must be between 0 and 100.");
+            }
+        }
+
+        private static bool IsMergeCandidate(HeroInstance hero, string heroId, int stars)
+        {
+            return hero.HeroId == heroId && hero.Stars == stars;
+        }
+
+        private static void RemoveAtDescending<T>(List<T> items, IEnumerable<int> indices)
+        {
+            foreach (var index in indices.OrderByDescending(index => index))
+            {
+                items.RemoveAt(index);
             }
         }
 
