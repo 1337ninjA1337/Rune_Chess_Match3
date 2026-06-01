@@ -544,6 +544,54 @@ Require(Math.Abs(greatRuneEffect.Power - 7.5) < 1e-9, "great rune activation mul
 Require(RuneEffectResolver.ResolveStep(crossMatchBoard, 1).Count == redTLGroups.Count, "resolving a step covers every match group");
 RequireThrows(() => RuneEffectResolver.Resolve(redMatch3Group, 0), "resolving rejects chain numbers below one");
 
+// Combat formulas (GDD "Формулы боя").
+Require(Math.Abs(CombatFormulas.GetStarMultiplier(1) - 1.0) < 1e-9, "one star keeps base stats");
+Require(Math.Abs(CombatFormulas.GetStarMultiplier(2) - 2.0) < 1e-9, "two stars double stats");
+Require(Math.Abs(CombatFormulas.GetStarMultiplier(3) - 4.0) < 1e-9, "three stars quadruple stats");
+RequireThrows(() => CombatFormulas.GetStarMultiplier(0), "star multiplier rejects zero stars");
+RequireThrows(() => CombatFormulas.GetStarMultiplier(4), "star multiplier rejects four stars");
+Require(Math.Abs(CombatFormulas.CalculateFinalHealth(100, CombatFormulas.GetStarMultiplier(2)) - 200.0) < 1e-9, "final health scales base health by star multiplier");
+Require(Math.Abs(CombatFormulas.CalculateFinalHealth(100, 2.0, 1.5, 2.0) - 600.0) < 1e-9, "final health multiplies star, synergy, and artifact bonuses");
+RequireThrows(() => CombatFormulas.CalculateFinalHealth(-1, 1.0), "final health rejects negative base health");
+Require(Math.Abs(CombatFormulas.DamageReduction(25) - 0.2) < 1e-9, "armor 25 reduces damage by 20 percent");
+Require(Math.Abs(CombatFormulas.DamageReduction(0) - 0.0) < 1e-9, "zero defense gives no reduction");
+RequireThrows(() => CombatFormulas.DamageReduction(-1), "damage reduction rejects negative defense");
+Require(Math.Abs(CombatFormulas.CalculatePhysicalDamage(100, 25) - 80.0) < 1e-9, "physical damage applies armor reduction");
+Require(Math.Abs(CombatFormulas.CalculateMagicDamage(100, 25) - 80.0) < 1e-9, "magic damage applies resist reduction");
+Require(Math.Abs(CombatFormulas.CalculateAttacksPerSecond(1.0, 1.0) - 1.0) < 1e-9, "attack speed multiplies base by bonus");
+Require(Math.Abs(CombatFormulas.CalculateAttacksPerSecond(1.0, 1.5) - 1.5) < 1e-9, "attack speed bonus increases attacks per second");
+Require(Math.Abs(CombatFormulas.CalculateAttacksPerSecond(0.1, 1.0) - 0.4) < 1e-9, "attack speed clamps to the 0.4 minimum");
+Require(Math.Abs(CombatFormulas.CalculateAttacksPerSecond(2.0, 2.0) - 3.0) < 1e-9, "attack speed clamps to the 3.0 maximum");
+Require(Math.Abs(CombatFormulas.CalculateAttackInterval(2.0) - 0.5) < 1e-9, "attack interval is the inverse of attacks per second");
+RequireThrows(() => CombatFormulas.CalculateAttackInterval(0), "attack interval rejects non-positive attack speed");
+Require(Math.Abs(CombatFormulas.ManaFromAttack - 10.0) < 1e-9, "an attack grants ten mana");
+Require(Math.Abs(CombatFormulas.CalculateManaFromDamageTaken(50, 100) - 20.0) < 1e-9, "mana from damage taken caps at twenty");
+Require(Math.Abs(CombatFormulas.CalculateManaFromDamageTaken(10, 100) - 5.0) < 1e-9, "mana from damage taken scales with damage fraction");
+RequireThrows(() => CombatFormulas.CalculateManaFromDamageTaken(10, 0), "mana from damage taken rejects non-positive max health");
+Require(Math.Abs(CombatFormulas.CalculateManaFromBlueRunes(3) - 24.0) < 1e-9, "blue runes grant eight mana each");
+RequireThrows(() => CombatFormulas.CalculateManaFromBlueRunes(-1), "blue rune mana rejects negative counts");
+Require(CombatFormulas.IsAbilityReady(100, 100), "ability casts when mana reaches the maximum");
+Require(!CombatFormulas.IsAbilityReady(99, 100), "ability waits below the mana maximum");
+Require(Math.Abs(CombatFormulas.BaseCritChance - 0.05) < 1e-9, "base crit chance is five percent");
+Require(Math.Abs(CombatFormulas.BaseCritMultiplier - 1.5) < 1e-9, "base crit multiplier is 1.5x");
+Require(CombatFormulas.WouldCrit(0.04), "a roll below the crit chance crits");
+Require(!CombatFormulas.WouldCrit(0.05), "a roll at the crit chance does not crit");
+RequireThrows(() => CombatFormulas.WouldCrit(1.0), "crit roll rejects values outside [0, 1)");
+Require(Math.Abs(CombatFormulas.ApplyCrit(80) - 120.0) < 1e-9, "crit applies the base 1.5x multiplier");
+RequireThrows(() => CombatFormulas.ApplyCrit(80, 0.9), "crit multiplier cannot reduce damage");
+Require(Math.Abs(CombatFormulas.DamageAfterShield(30, 50) - 0.0) < 1e-9, "a shield fully absorbs smaller hits");
+Require(Math.Abs(CombatFormulas.DamageAfterShield(60, 50) - 10.0) < 1e-9, "damage past the shield reaches health");
+Require(Math.Abs(CombatFormulas.ShieldAfterDamage(50, 30) - 20.0) < 1e-9, "a shield is reduced by absorbed damage");
+Require(Math.Abs(CombatFormulas.ShieldAfterDamage(50, 60) - 0.0) < 1e-9, "an overwhelmed shield drops to zero");
+Require(Math.Abs(CombatFormulas.CapShield(100, 100) - 60.0) < 1e-9, "total shield caps at 60 percent of max health");
+Require(Math.Abs(CombatFormulas.CapShield(40, 100) - 40.0) < 1e-9, "shields below the cap are unchanged");
+Require(Math.Abs(CombatFormulas.CalculateFinalHealing(50, 2.0) - 100.0) < 1e-9, "healing scales with the healing multiplier");
+Require(Math.Abs(CombatFormulas.CalculateFinalHealing(50, 1.0, 0.5) - 25.0) < 1e-9, "anti-healing reduces final healing");
+RequireThrows(() => CombatFormulas.CalculateFinalHealing(50, 1.0, 1.5), "anti-healing rejects values above one");
+Require(Math.Abs(CombatFormulas.ApplyHealing(80, 50, 100) - 100.0) < 1e-9, "healing never overfills max health");
+Require(Math.Abs(CombatFormulas.ApplyHealing(40, 30, 100) - 70.0) < 1e-9, "healing adds to current health below the cap");
+RequireThrows(() => CombatFormulas.ApplyHealing(40, 30, 0), "healing rejects non-positive max health");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
