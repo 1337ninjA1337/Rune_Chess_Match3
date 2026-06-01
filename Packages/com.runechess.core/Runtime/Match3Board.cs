@@ -188,6 +188,63 @@ public sealed class Match3Board
         return matches;
     }
 
+    /// <summary>
+    /// Groups matched cells into discrete rune matches. Each group is a connected,
+    /// same-color component, so crossing matches of different colors stay separate and
+    /// a single bent T/L match is reported as one group. Groups are ordered deterministically
+    /// by their top-left cell so callers and tests see a stable sequence.
+    /// </summary>
+    public IReadOnlyList<RuneMatchGroup> FindMatchGroups()
+    {
+        var matched = FindMatches();
+        var visited = new HashSet<BoardPoint>();
+        var groups = new List<RuneMatchGroup>();
+
+        var orderedMatched = matched
+            .OrderBy(point => point.Row)
+            .ThenBy(point => point.Column);
+
+        foreach (var start in orderedMatched)
+        {
+            if (visited.Contains(start))
+            {
+                continue;
+            }
+
+            var rune = this[start];
+            var component = new HashSet<BoardPoint>();
+            var queue = new Queue<BoardPoint>();
+            queue.Enqueue(start);
+            visited.Add(start);
+
+            while (queue.Count > 0)
+            {
+                var point = queue.Dequeue();
+                component.Add(point);
+
+                foreach (var neighbor in OrthogonalNeighbors(point))
+                {
+                    if (visited.Contains(neighbor) || !matched.Contains(neighbor))
+                    {
+                        continue;
+                    }
+
+                    if (GetRuneOrEmpty(neighbor) != rune)
+                    {
+                        continue;
+                    }
+
+                    visited.Add(neighbor);
+                    queue.Enqueue(neighbor);
+                }
+            }
+
+            groups.Add(new RuneMatchGroup(rune, component, IsBentShape(component)));
+        }
+
+        return groups;
+    }
+
     public RuneType? GetRuneOrEmpty(int row, int column)
     {
         return cells[Index(row, column)];
@@ -431,6 +488,23 @@ public sealed class Match3Board
     private static bool ContainsSwappedRuneMatch(IReadOnlySet<BoardPoint> matches, BoardPoint a, BoardPoint b)
     {
         return matches.Contains(a) || matches.Contains(b);
+    }
+
+    private static IEnumerable<BoardPoint> OrthogonalNeighbors(BoardPoint point)
+    {
+        yield return new BoardPoint(point.Row - 1, point.Column);
+        yield return new BoardPoint(point.Row + 1, point.Column);
+        yield return new BoardPoint(point.Row, point.Column - 1);
+        yield return new BoardPoint(point.Row, point.Column + 1);
+    }
+
+    private static bool IsBentShape(IReadOnlySet<BoardPoint> cells)
+    {
+        // A straight horizontal match spans a single row; a straight vertical match spans a
+        // single column. A bent T/L match spans more than one row and more than one column.
+        var distinctRows = cells.Select(point => point.Row).Distinct().Count();
+        var distinctColumns = cells.Select(point => point.Column).Distinct().Count();
+        return distinctRows > 1 && distinctColumns > 1;
     }
 
     private static int Index(int row, int column)

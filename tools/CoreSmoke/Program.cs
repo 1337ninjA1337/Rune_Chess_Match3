@@ -467,6 +467,83 @@ RequireThrows(() => chainResolution.Steps[0].GetMatchPower(-1), "chain step reje
 RequireThrows(() => chainResolution.GetTotalMatchPower(-1), "chain resolution rejects negative combo depth offsets");
 Require(board.FindMatches() is not null, "match scan returns a set");
 
+// Rune effects (GDD "Эффекты по цветам", "Великие руны", "Цепные реакции").
+Require(RuneEffects.GetEffectKind(RuneType.Red) == RuneEffectKind.PhysicalDamage, "red runes deal physical damage");
+Require(RuneEffects.GetEffectKind(RuneType.Blue) == RuneEffectKind.Mana, "blue runes grant mana");
+Require(RuneEffects.GetEffectKind(RuneType.Green) == RuneEffectKind.Healing, "green runes heal");
+Require(RuneEffects.GetEffectKind(RuneType.Yellow) == RuneEffectKind.Shield, "yellow runes grant shields");
+Require(RuneEffects.GetEffectKind(RuneType.Purple) == RuneEffectKind.MagicDamage, "purple runes deal magic damage");
+Require(RuneEffects.GetEffectKind(RuneType.White) == RuneEffectKind.CommanderEnergy, "white runes charge the commander");
+Require(RuneEffects.GetTier(3) == RuneMatchTier.Match3, "three runes form a match-3 tier");
+Require(RuneEffects.GetTier(4) == RuneMatchTier.Match4, "four runes form a match-4 tier");
+Require(RuneEffects.GetTier(5) == RuneMatchTier.Match5, "five runes form a match-5 tier");
+Require(RuneEffects.GetTier(6) == RuneMatchTier.Match5, "six runes still form the match-5 tier");
+RequireThrows(() => RuneEffects.GetTier(2), "rune tier rejects sub-match groups");
+Require(Math.Abs(RuneEffects.GetChainMultiplier(1) - 1.0) < 1e-9, "chain 1 keeps base effect strength");
+Require(Math.Abs(RuneEffects.GetChainMultiplier(2) - 1.25) < 1e-9, "chain 2 adds 25 percent");
+Require(Math.Abs(RuneEffects.GetChainMultiplier(3) - 1.5) < 1e-9, "chain 3 adds 50 percent");
+Require(Math.Abs(RuneEffects.GetChainMultiplier(4) - 2.0) < 1e-9, "chain 4+ doubles effect strength");
+Require(Math.Abs(RuneEffects.GetChainMultiplier(7) - 2.0) < 1e-9, "deep chains stay at the chain 4+ bonus");
+RequireThrows(() => RuneEffects.GetChainMultiplier(0), "chain multiplier rejects chain numbers below one");
+
+var redMatch3Groups = horizontalMatchBoard.FindMatchGroups();
+Require(redMatch3Groups.Count == 1, "a single horizontal match yields one rune group");
+var redMatch3Group = redMatch3Groups[0];
+Require(redMatch3Group.Rune == RuneType.Red, "horizontal red match group reports its color");
+Require(redMatch3Group.Size == 3, "horizontal red match group has three runes");
+Require(!redMatch3Group.IsTOrLShaped, "a straight match is not T/L shaped");
+Require(redMatch3Group.Tier == RuneMatchTier.Match3, "three matched runes are a match-3 group");
+Require(ContainsExactly(redMatch3Group.Cells, horizontalMatchCells), "match group reports its matched cells");
+
+var match3Effect = RuneEffectResolver.Resolve(redMatch3Group, 1);
+Require(match3Effect.Kind == RuneEffectKind.PhysicalDamage, "red match-3 resolves into physical damage");
+Require(match3Effect.Tier == RuneMatchTier.Match3, "red match-3 effect keeps the match-3 tier");
+Require(!match3Effect.ChargesHero, "match-3 does not charge a hero");
+Require(!match3Effect.CreatesGreatRune, "match-3 does not create a great rune");
+Require(!match3Effect.IsMassEffect, "a straight match-3 is not a mass effect");
+Require(match3Effect.CommanderEnergy == 0, "a straight match-3 grants no commander energy");
+Require(Math.Abs(match3Effect.Power - 3.0) < 1e-9, "match-3 base power equals its matchPower");
+
+var redMatch4Board = CreatePatternBoard(
+    (new BoardPoint(0, 1), RuneType.Red),
+    (new BoardPoint(0, 2), RuneType.Red),
+    (new BoardPoint(0, 3), RuneType.Red)
+);
+var redMatch4Group = redMatch4Board.FindMatchGroups().Single();
+Require(redMatch4Group.Size == 4, "four in a row is a single four-rune group");
+Require(redMatch4Group.Tier == RuneMatchTier.Match4, "four matched runes are a match-4 group");
+var match4Effect = RuneEffectResolver.Resolve(redMatch4Group, 1);
+Require(match4Effect.ChargesHero, "match-4 charges a suitable hero");
+Require(!match4Effect.CreatesGreatRune, "match-4 does not create a great rune");
+Require(Math.Abs(match4Effect.Power - 4.0) < 1e-9, "match-4 base power equals its matchPower");
+
+var redTLGroups = crossMatchBoard.FindMatchGroups();
+Require(redTLGroups.Count == 1, "a crossing same-color match is one connected group");
+var redTLGroup = redTLGroups[0];
+Require(redTLGroup.Size == 5, "the L-shaped red match has five runes");
+Require(redTLGroup.IsTOrLShaped, "a bent match is detected as T/L shaped");
+Require(redTLGroup.Tier == RuneMatchTier.Match5, "five matched runes are a match-5 group");
+var tlEffect = RuneEffectResolver.Resolve(redTLGroup, 1);
+Require(tlEffect.IsMassEffect, "T/L combos resolve into mass effects");
+Require(tlEffect.CreatesGreatRune, "match-5 creates a great rune");
+Require(tlEffect.CommanderEnergy == RuneEffects.TShapeCommanderEnergy, "T/L combos grant commander energy");
+Require(Math.Abs(tlEffect.Power - 7.0) < 1e-9, "T/L combo adds its matchPower bonus before chain scaling");
+
+var chain2Effect = RuneEffectResolver.Resolve(redMatch3Group, 2);
+Require(chain2Effect.ChainNumber == 2, "chain effect records its chain number");
+Require(Math.Abs(chain2Effect.Power - 5.0) < 1e-9, "chain 2 adds combo depth and a 25 percent bonus");
+var chain3Effect = RuneEffectResolver.Resolve(redMatch3Group, 3);
+Require(Math.Abs(chain3Effect.Power - 7.5) < 1e-9, "chain 3 applies the 50 percent bonus");
+var chain4Effect = RuneEffectResolver.Resolve(redMatch3Group, 4);
+Require(Math.Abs(chain4Effect.Power - 12.0) < 1e-9, "chain 4+ doubles the chain matchPower");
+
+var greatRuneEffect = RuneEffectResolver.Resolve(redMatch3Group, 1, greatRuneActivated: true);
+Require(greatRuneEffect.IsGreatRuneActivation, "great rune activation is flagged on the effect");
+Require(Math.Abs(greatRuneEffect.Power - 7.5) < 1e-9, "great rune activation multiplies effect power by 2.5");
+
+Require(RuneEffectResolver.ResolveStep(crossMatchBoard, 1).Count == redTLGroups.Count, "resolving a step covers every match group");
+RequireThrows(() => RuneEffectResolver.Resolve(redMatch3Group, 0), "resolving rejects chain numbers below one");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
