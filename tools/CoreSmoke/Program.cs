@@ -467,6 +467,297 @@ RequireThrows(() => chainResolution.Steps[0].GetMatchPower(-1), "chain step reje
 RequireThrows(() => chainResolution.GetTotalMatchPower(-1), "chain resolution rejects negative combo depth offsets");
 Require(board.FindMatches() is not null, "match scan returns a set");
 
+// Rune effects (GDD "Эффекты по цветам", "Великие руны", "Цепные реакции").
+Require(RuneEffects.GetEffectKind(RuneType.Red) == RuneEffectKind.PhysicalDamage, "red runes deal physical damage");
+Require(RuneEffects.GetEffectKind(RuneType.Blue) == RuneEffectKind.Mana, "blue runes grant mana");
+Require(RuneEffects.GetEffectKind(RuneType.Green) == RuneEffectKind.Healing, "green runes heal");
+Require(RuneEffects.GetEffectKind(RuneType.Yellow) == RuneEffectKind.Shield, "yellow runes grant shields");
+Require(RuneEffects.GetEffectKind(RuneType.Purple) == RuneEffectKind.MagicDamage, "purple runes deal magic damage");
+Require(RuneEffects.GetEffectKind(RuneType.White) == RuneEffectKind.CommanderEnergy, "white runes charge the commander");
+Require(RuneEffects.GetTier(3) == RuneMatchTier.Match3, "three runes form a match-3 tier");
+Require(RuneEffects.GetTier(4) == RuneMatchTier.Match4, "four runes form a match-4 tier");
+Require(RuneEffects.GetTier(5) == RuneMatchTier.Match5, "five runes form a match-5 tier");
+Require(RuneEffects.GetTier(6) == RuneMatchTier.Match5, "six runes still form the match-5 tier");
+RequireThrows(() => RuneEffects.GetTier(2), "rune tier rejects sub-match groups");
+Require(Math.Abs(RuneEffects.GetChainMultiplier(1) - 1.0) < 1e-9, "chain 1 keeps base effect strength");
+Require(Math.Abs(RuneEffects.GetChainMultiplier(2) - 1.25) < 1e-9, "chain 2 adds 25 percent");
+Require(Math.Abs(RuneEffects.GetChainMultiplier(3) - 1.5) < 1e-9, "chain 3 adds 50 percent");
+Require(Math.Abs(RuneEffects.GetChainMultiplier(4) - 2.0) < 1e-9, "chain 4+ doubles effect strength");
+Require(Math.Abs(RuneEffects.GetChainMultiplier(7) - 2.0) < 1e-9, "deep chains stay at the chain 4+ bonus");
+RequireThrows(() => RuneEffects.GetChainMultiplier(0), "chain multiplier rejects chain numbers below one");
+
+var redMatch3Groups = horizontalMatchBoard.FindMatchGroups();
+Require(redMatch3Groups.Count == 1, "a single horizontal match yields one rune group");
+var redMatch3Group = redMatch3Groups[0];
+Require(redMatch3Group.Rune == RuneType.Red, "horizontal red match group reports its color");
+Require(redMatch3Group.Size == 3, "horizontal red match group has three runes");
+Require(!redMatch3Group.IsTOrLShaped, "a straight match is not T/L shaped");
+Require(redMatch3Group.Tier == RuneMatchTier.Match3, "three matched runes are a match-3 group");
+Require(ContainsExactly(redMatch3Group.Cells, horizontalMatchCells), "match group reports its matched cells");
+
+var match3Effect = RuneEffectResolver.Resolve(redMatch3Group, 1);
+Require(match3Effect.Kind == RuneEffectKind.PhysicalDamage, "red match-3 resolves into physical damage");
+Require(match3Effect.Tier == RuneMatchTier.Match3, "red match-3 effect keeps the match-3 tier");
+Require(!match3Effect.ChargesHero, "match-3 does not charge a hero");
+Require(!match3Effect.CreatesGreatRune, "match-3 does not create a great rune");
+Require(!match3Effect.IsMassEffect, "a straight match-3 is not a mass effect");
+Require(match3Effect.CommanderEnergy == 0, "a straight match-3 grants no commander energy");
+Require(Math.Abs(match3Effect.Power - 3.0) < 1e-9, "match-3 base power equals its matchPower");
+
+var redMatch4Board = CreatePatternBoard(
+    (new BoardPoint(0, 1), RuneType.Red),
+    (new BoardPoint(0, 2), RuneType.Red),
+    (new BoardPoint(0, 3), RuneType.Red)
+);
+var redMatch4Group = redMatch4Board.FindMatchGroups().Single();
+Require(redMatch4Group.Size == 4, "four in a row is a single four-rune group");
+Require(redMatch4Group.Tier == RuneMatchTier.Match4, "four matched runes are a match-4 group");
+var match4Effect = RuneEffectResolver.Resolve(redMatch4Group, 1);
+Require(match4Effect.ChargesHero, "match-4 charges a suitable hero");
+Require(!match4Effect.CreatesGreatRune, "match-4 does not create a great rune");
+Require(Math.Abs(match4Effect.Power - 4.0) < 1e-9, "match-4 base power equals its matchPower");
+
+var redTLGroups = crossMatchBoard.FindMatchGroups();
+Require(redTLGroups.Count == 1, "a crossing same-color match is one connected group");
+var redTLGroup = redTLGroups[0];
+Require(redTLGroup.Size == 5, "the L-shaped red match has five runes");
+Require(redTLGroup.IsTOrLShaped, "a bent match is detected as T/L shaped");
+Require(redTLGroup.Tier == RuneMatchTier.Match5, "five matched runes are a match-5 group");
+var tlEffect = RuneEffectResolver.Resolve(redTLGroup, 1);
+Require(tlEffect.IsMassEffect, "T/L combos resolve into mass effects");
+Require(tlEffect.CreatesGreatRune, "match-5 creates a great rune");
+Require(tlEffect.CommanderEnergy == RuneEffects.TShapeCommanderEnergy, "T/L combos grant commander energy");
+Require(Math.Abs(tlEffect.Power - 7.0) < 1e-9, "T/L combo adds its matchPower bonus before chain scaling");
+
+var chain2Effect = RuneEffectResolver.Resolve(redMatch3Group, 2);
+Require(chain2Effect.ChainNumber == 2, "chain effect records its chain number");
+Require(Math.Abs(chain2Effect.Power - 5.0) < 1e-9, "chain 2 adds combo depth and a 25 percent bonus");
+var chain3Effect = RuneEffectResolver.Resolve(redMatch3Group, 3);
+Require(Math.Abs(chain3Effect.Power - 7.5) < 1e-9, "chain 3 applies the 50 percent bonus");
+var chain4Effect = RuneEffectResolver.Resolve(redMatch3Group, 4);
+Require(Math.Abs(chain4Effect.Power - 12.0) < 1e-9, "chain 4+ doubles the chain matchPower");
+
+var greatRuneEffect = RuneEffectResolver.Resolve(redMatch3Group, 1, greatRuneActivated: true);
+Require(greatRuneEffect.IsGreatRuneActivation, "great rune activation is flagged on the effect");
+Require(Math.Abs(greatRuneEffect.Power - 7.5) < 1e-9, "great rune activation multiplies effect power by 2.5");
+
+Require(RuneEffectResolver.ResolveStep(crossMatchBoard, 1).Count == redTLGroups.Count, "resolving a step covers every match group");
+RequireThrows(() => RuneEffectResolver.Resolve(redMatch3Group, 0), "resolving rejects chain numbers below one");
+
+// Combat formulas (GDD "Формулы боя").
+Require(Math.Abs(CombatFormulas.GetStarMultiplier(1) - 1.0) < 1e-9, "one star keeps base stats");
+Require(Math.Abs(CombatFormulas.GetStarMultiplier(2) - 2.0) < 1e-9, "two stars double stats");
+Require(Math.Abs(CombatFormulas.GetStarMultiplier(3) - 4.0) < 1e-9, "three stars quadruple stats");
+RequireThrows(() => CombatFormulas.GetStarMultiplier(0), "star multiplier rejects zero stars");
+RequireThrows(() => CombatFormulas.GetStarMultiplier(4), "star multiplier rejects four stars");
+Require(Math.Abs(CombatFormulas.CalculateFinalHealth(100, CombatFormulas.GetStarMultiplier(2)) - 200.0) < 1e-9, "final health scales base health by star multiplier");
+Require(Math.Abs(CombatFormulas.CalculateFinalHealth(100, 2.0, 1.5, 2.0) - 600.0) < 1e-9, "final health multiplies star, synergy, and artifact bonuses");
+RequireThrows(() => CombatFormulas.CalculateFinalHealth(-1, 1.0), "final health rejects negative base health");
+Require(Math.Abs(CombatFormulas.DamageReduction(25) - 0.2) < 1e-9, "armor 25 reduces damage by 20 percent");
+Require(Math.Abs(CombatFormulas.DamageReduction(0) - 0.0) < 1e-9, "zero defense gives no reduction");
+RequireThrows(() => CombatFormulas.DamageReduction(-1), "damage reduction rejects negative defense");
+Require(Math.Abs(CombatFormulas.CalculatePhysicalDamage(100, 25) - 80.0) < 1e-9, "physical damage applies armor reduction");
+Require(Math.Abs(CombatFormulas.CalculateMagicDamage(100, 25) - 80.0) < 1e-9, "magic damage applies resist reduction");
+Require(Math.Abs(CombatFormulas.CalculateAttacksPerSecond(1.0, 1.0) - 1.0) < 1e-9, "attack speed multiplies base by bonus");
+Require(Math.Abs(CombatFormulas.CalculateAttacksPerSecond(1.0, 1.5) - 1.5) < 1e-9, "attack speed bonus increases attacks per second");
+Require(Math.Abs(CombatFormulas.CalculateAttacksPerSecond(0.1, 1.0) - 0.4) < 1e-9, "attack speed clamps to the 0.4 minimum");
+Require(Math.Abs(CombatFormulas.CalculateAttacksPerSecond(2.0, 2.0) - 3.0) < 1e-9, "attack speed clamps to the 3.0 maximum");
+Require(Math.Abs(CombatFormulas.CalculateAttackInterval(2.0) - 0.5) < 1e-9, "attack interval is the inverse of attacks per second");
+RequireThrows(() => CombatFormulas.CalculateAttackInterval(0), "attack interval rejects non-positive attack speed");
+Require(Math.Abs(CombatFormulas.ManaFromAttack - 10.0) < 1e-9, "an attack grants ten mana");
+Require(Math.Abs(CombatFormulas.CalculateManaFromDamageTaken(50, 100) - 20.0) < 1e-9, "mana from damage taken caps at twenty");
+Require(Math.Abs(CombatFormulas.CalculateManaFromDamageTaken(10, 100) - 5.0) < 1e-9, "mana from damage taken scales with damage fraction");
+RequireThrows(() => CombatFormulas.CalculateManaFromDamageTaken(10, 0), "mana from damage taken rejects non-positive max health");
+Require(Math.Abs(CombatFormulas.CalculateManaFromBlueRunes(3) - 24.0) < 1e-9, "blue runes grant eight mana each");
+RequireThrows(() => CombatFormulas.CalculateManaFromBlueRunes(-1), "blue rune mana rejects negative counts");
+Require(CombatFormulas.IsAbilityReady(100, 100), "ability casts when mana reaches the maximum");
+Require(!CombatFormulas.IsAbilityReady(99, 100), "ability waits below the mana maximum");
+Require(Math.Abs(CombatFormulas.BaseCritChance - 0.05) < 1e-9, "base crit chance is five percent");
+Require(Math.Abs(CombatFormulas.BaseCritMultiplier - 1.5) < 1e-9, "base crit multiplier is 1.5x");
+Require(CombatFormulas.WouldCrit(0.04), "a roll below the crit chance crits");
+Require(!CombatFormulas.WouldCrit(0.05), "a roll at the crit chance does not crit");
+RequireThrows(() => CombatFormulas.WouldCrit(1.0), "crit roll rejects values outside [0, 1)");
+Require(Math.Abs(CombatFormulas.ApplyCrit(80) - 120.0) < 1e-9, "crit applies the base 1.5x multiplier");
+RequireThrows(() => CombatFormulas.ApplyCrit(80, 0.9), "crit multiplier cannot reduce damage");
+Require(Math.Abs(CombatFormulas.DamageAfterShield(30, 50) - 0.0) < 1e-9, "a shield fully absorbs smaller hits");
+Require(Math.Abs(CombatFormulas.DamageAfterShield(60, 50) - 10.0) < 1e-9, "damage past the shield reaches health");
+Require(Math.Abs(CombatFormulas.ShieldAfterDamage(50, 30) - 20.0) < 1e-9, "a shield is reduced by absorbed damage");
+Require(Math.Abs(CombatFormulas.ShieldAfterDamage(50, 60) - 0.0) < 1e-9, "an overwhelmed shield drops to zero");
+Require(Math.Abs(CombatFormulas.CapShield(100, 100) - 60.0) < 1e-9, "total shield caps at 60 percent of max health");
+Require(Math.Abs(CombatFormulas.CapShield(40, 100) - 40.0) < 1e-9, "shields below the cap are unchanged");
+Require(Math.Abs(CombatFormulas.CalculateFinalHealing(50, 2.0) - 100.0) < 1e-9, "healing scales with the healing multiplier");
+Require(Math.Abs(CombatFormulas.CalculateFinalHealing(50, 1.0, 0.5) - 25.0) < 1e-9, "anti-healing reduces final healing");
+RequireThrows(() => CombatFormulas.CalculateFinalHealing(50, 1.0, 1.5), "anti-healing rejects values above one");
+Require(Math.Abs(CombatFormulas.ApplyHealing(80, 50, 100) - 100.0) < 1e-9, "healing never overfills max health");
+Require(Math.Abs(CombatFormulas.ApplyHealing(40, 30, 100) - 70.0) < 1e-9, "healing adds to current health below the cap");
+RequireThrows(() => CombatFormulas.ApplyHealing(40, 30, 0), "healing rejects non-positive max health");
+
+// Hero data model (GDD "Структура героя", редкость и звезды).
+Require(HeroRarities.All.Count == 4, "rarity catalog exposes four rarities");
+Require(string.Join(",", HeroRarities.All.Select(HeroRarities.GetId)) == "common,rare,epic,legendary", "rarity catalog keeps canonical ids");
+Require(HeroRarities.GetCost(HeroRarity.Common) == 1, "common heroes cost one gold");
+Require(HeroRarities.GetCost(HeroRarity.Rare) == 2, "rare heroes cost two gold");
+Require(HeroRarities.GetCostRange(HeroRarity.Epic).Min == 3, "epic heroes start at three gold");
+Require(HeroRarities.GetCostRange(HeroRarity.Epic).Max == 4, "epic heroes cap at four gold");
+Require(HeroRarities.GetCost(HeroRarity.Legendary) == 5, "legendary heroes cost five gold");
+Require(HeroRarities.ParseId("legendary") == HeroRarity.Legendary, "rarity ids parse back to rarities");
+Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == HeroRarity.Epic, "rarity parsing is case-insensitive");
+Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
+RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
+
+var ironGuardDefinition = new HeroDefinition(
+    Id: "iron_guard",
+    Name: "Iron Guard",
+    Rarity: HeroRarity.Common,
+    Cost: HeroRarities.GetCost(HeroRarity.Common),
+    Faction: "Empire",
+    Class: "Defender",
+    RuneAffinity: RuneType.Yellow,
+    Role: HeroRole.Tank,
+    AttackType: "melee",
+    Targeting: "nearest",
+    Stars: 1,
+    Ability: "Shields itself and the nearest ally",
+    Passive: "Takes less damage on the front line",
+    BaseStats: new HeroStats(BaseHealth: 100, Attack: 10, Armor: 25, MagicResist: 15, BaseAttackSpeed: 0.8, ManaMax: 60)
+);
+Require(ironGuardDefinition.PreferredEffectKind == RuneEffectKind.Shield, "a yellow hero prefers shield rune effects");
+Require(Enum.IsDefined(typeof(HeroRole), ironGuardDefinition.Role), "hero role uses the role enum");
+Require(ironGuardDefinition.Cost == 1, "common hero cost matches the rarity price");
+var twoStarStats = ironGuardDefinition.StatsForStars(2);
+Require(Math.Abs(twoStarStats.BaseHealth - 200.0) < 1e-9, "two-star hero doubles base health");
+Require(Math.Abs(twoStarStats.Attack - 20.0) < 1e-9, "two-star hero doubles attack");
+Require(Math.Abs(twoStarStats.Armor - ironGuardDefinition.BaseStats.Armor) < 1e-9, "star scaling leaves armor unchanged in the MVP");
+RequireThrows(() => ironGuardDefinition.StatsForStars(0), "star scaling rejects invalid star counts");
+
+// Autobattle (GDD "Автобой").
+var ironGuardUnit = BattleUnit.FromHero(ironGuardDefinition, 2, "ig_1", TacticalSide.Player, new TacticalPosition(2, 1));
+Require(Math.Abs(ironGuardUnit.MaxHealth - 200.0) < 1e-9, "a two-star hero unit uses scaled health");
+Require(Math.Abs(ironGuardUnit.Attack - 20.0) < 1e-9, "a two-star hero unit uses scaled attack");
+Require(ironGuardUnit.AttackType == BattleAttackType.Melee && !ironGuardUnit.IsRanged, "a melee hero builds a melee unit");
+Require(Math.Abs(ironGuardUnit.AttackInterval - 1.25) < 1e-9, "attack interval matches the hero attack speed");
+Require(ironGuardUnit.CurrentHealth == ironGuardUnit.MaxHealth && ironGuardUnit.AbilitiesCast == 0, "a new hero unit starts at full health");
+
+var battleVictory = BattleState.Create(new[]
+{
+    MakeUnit("ally_a", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 100, 1.0, 0.0),
+    MakeUnit("enemy_a", TacticalSide.Enemy, new TacticalPosition(1, 0), 50, 50, 10, 1.0, 5.0)
+});
+Require(battleVictory.Outcome == BattleOutcome.Ongoing, "a fresh battle is ongoing");
+Require(Math.Abs(battleVictory.RemainingSeconds - BattleState.DefaultDurationSeconds) < 1e-9, "a fresh battle has the full timer");
+var afterVictory = battleVictory.Tick(0.5);
+Require(afterVictory.Outcome == BattleOutcome.PlayerVictory, "killing the last enemy wins the battle");
+Require(!afterVictory.AliveEnemies.Any(), "the defeated enemy leaves the fight");
+var attackingAlly = afterVictory.Units.First(unit => unit.UnitId == "ally_a");
+Require(Math.Abs(attackingAlly.CurrentHealth - 100.0) < 1e-9, "the unharmed ally keeps full health");
+Require(Math.Abs(attackingAlly.CurrentMana - CombatFormulas.ManaFromAttack) < 1e-9, "an attacking unit gains attack mana");
+Require(attackingAlly.AbilitiesCast == 0, "a unit below max mana does not cast");
+
+var battleDefeat = BattleState.Create(new[]
+{
+    MakeUnit("ally_b", TacticalSide.Player, new TacticalPosition(2, 0), 10, 10, 0, 1.0, 5.0),
+    MakeUnit("enemy_b", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 100, 1.0, 0.0)
+});
+var afterDefeat = battleDefeat.Tick(0.5);
+Require(afterDefeat.Outcome == BattleOutcome.PlayerDefeat, "losing every ally loses the battle");
+Require(!afterDefeat.AliveAllies.Any(), "defeated allies leave the field");
+
+var timerWin = BattleState.Create(new[]
+{
+    MakeUnit("ally_c", TacticalSide.Player, new TacticalPosition(2, 0), 100, 80, 0, 1.0, 100.0),
+    MakeUnit("enemy_c", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 50, 0, 1.0, 100.0)
+}, 1.0);
+Require(timerWin.Tick(1.0).Outcome == BattleOutcome.PlayerVictory, "on timeout the healthier side wins");
+var timerLoss = BattleState.Create(new[]
+{
+    MakeUnit("ally_d", TacticalSide.Player, new TacticalPosition(2, 0), 100, 40, 0, 1.0, 100.0),
+    MakeUnit("enemy_d", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 60, 0, 1.0, 100.0)
+}, 1.0);
+Require(timerLoss.Tick(1.0).Outcome == BattleOutcome.PlayerDefeat, "on timeout the less healthy side loses");
+
+var battleMove = BattleState.Create(new[]
+{
+    MakeUnit("mover", TacticalSide.Player, new TacticalPosition(3, 0), 100, 100, 50, 1.0, 0.0),
+    MakeUnit("enemy_e", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var movedUnit = battleMove.Tick(0.5).Units.First(unit => unit.UnitId == "mover");
+Require(movedUnit.Position.Equals(new TacticalPosition(2, 0)), "a melee unit steps toward a distant target");
+Require(Math.Abs(movedUnit.CurrentMana) < 1e-9, "moving instead of attacking grants no mana");
+
+var castBattle = BattleState.Create(new[]
+{
+    MakeUnit("caster", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 50, 1.0, 0.0, manaMax: 10),
+    MakeUnit("enemy_f", TacticalSide.Enemy, new TacticalPosition(1, 0), 1000, 1000, 0, 1.0, 100.0)
+});
+var afterCast = castBattle.Tick(0.5);
+var caster = afterCast.Units.First(unit => unit.UnitId == "caster");
+Require(caster.AbilitiesCast == 1, "a unit casts when mana reaches the maximum");
+Require(Math.Abs(caster.CurrentMana) < 1e-9, "casting resets mana to zero");
+Require(afterCast.Outcome == BattleOutcome.Ongoing, "the battle continues while both sides survive");
+
+var runeManaBattle = BattleState.Create(new[]
+{
+    MakeUnit("ally_g", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("enemy_g", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var afterRuneMana = runeManaBattle.AddManaFromBlueRunes(TacticalSide.Player, 3);
+var fedAlly = afterRuneMana.Units.First(unit => unit.UnitId == "ally_g");
+Require(Math.Abs(fedAlly.CurrentMana - 24.0) < 1e-9, "blue runes grant eight mana each to a living ally");
+RequireThrows(() => runeManaBattle.AddManaFromBlueRunes(TacticalSide.Player, -1), "blue rune mana rejects negative counts");
+
+var runeCastBattle = BattleState.Create(new[]
+{
+    MakeUnit("ally_h", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0, manaMax: 20),
+    MakeUnit("enemy_h", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var runeCaster = runeCastBattle.AddManaFromBlueRunes(TacticalSide.Player, 3).Units.First(unit => unit.UnitId == "ally_h");
+Require(runeCaster.AbilitiesCast == 1 && Math.Abs(runeCaster.CurrentMana) < 1e-9, "blue-rune mana that fills the bar triggers a cast");
+
+var rangedBattle = BattleState.Create(new[]
+{
+    MakeUnit("archer", TacticalSide.Player, new TacticalPosition(3, 0), 100, 100, 30, 1.0, 0.0, attackType: BattleAttackType.Ranged),
+    MakeUnit("enemy_r", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var afterRanged = rangedBattle.Tick(0.5);
+var archer = afterRanged.Units.First(unit => unit.UnitId == "archer");
+var rangedTarget = afterRanged.Units.First(unit => unit.UnitId == "enemy_r");
+Require(archer.Position.Equals(new TacticalPosition(3, 0)), "a ranged unit attacks without moving");
+Require(Math.Abs(rangedTarget.CurrentHealth - 70.0) < 1e-9, "a ranged unit hits a distant target");
+Require(Math.Abs(archer.CurrentMana - CombatFormulas.ManaFromAttack) < 1e-9, "a ranged attack also grants mana");
+
+RequireThrows(() => BattleState.Create(System.Array.Empty<BattleUnit>(), 0.0), "battle creation rejects a non-positive duration");
+RequireThrows(() => battleVictory.Tick(0.0), "battle tick rejects a non-positive delta");
+
+// Rune effects applied to the autobattle (match-3 ↔ combat link).
+var fxBattle = BattleState.Create(new[]
+{
+    MakeUnit("fx_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 50, 0, 1.0, 100.0),
+    MakeUnit("fx_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40)).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - 60.0) < 1e-9, "a red rune deals physical damage to an enemy");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Healing, 30)).Units.First(u => u.UnitId == "fx_ally").CurrentHealth - 80.0) < 1e-9, "a green rune heals the wounded ally");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 25)).Units.First(u => u.UnitId == "fx_ally").Shield - 25.0) < 1e-9, "a yellow rune shields the front ally");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 100)).Units.First(u => u.UnitId == "fx_ally").Shield - 60.0) < 1e-9, "rune shields respect the 60 percent cap");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Mana, 24)).Units.First(u => u.UnitId == "fx_ally").CurrentMana - 24.0) < 1e-9, "a blue rune grants mana to an ally");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.CommanderEnergy, 5)).CommanderEnergy - 5.0) < 1e-9, "a white rune accrues commander energy");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40, mass: true, commanderEnergy: 10)).CommanderEnergy - 10.0) < 1e-9, "T/L combos accrue commander energy alongside their effect");
+
+var massHealBattle = BattleState.Create(new[]
+{
+    MakeUnit("m1", TacticalSide.Player, new TacticalPosition(2, 0), 100, 40, 0, 1.0, 100.0),
+    MakeUnit("m2", TacticalSide.Player, new TacticalPosition(3, 0), 100, 40, 0, 1.0, 100.0),
+    MakeUnit("me", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+Require(massHealBattle.ApplyRuneEffect(Effect(RuneEffectKind.Healing, 20, mass: true)).AliveAllies.All(u => Math.Abs(u.CurrentHealth - 60.0) < 1e-9), "a mass heal restores every ally");
+
+var lethalRuneBattle = BattleState.Create(new[]
+{
+    MakeUnit("lb_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("lb_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 30, 30, 0, 1.0, 100.0)
+});
+Require(lethalRuneBattle.ApplyRuneEffects(new[] { Effect(RuneEffectKind.PhysicalDamage, 50) }).Outcome == BattleOutcome.PlayerVictory, "rune damage that kills the last enemy wins the battle");
+RequireThrows(() => fxBattle.ApplyRuneEffect(null!), "applying a rune effect rejects null");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
@@ -528,6 +819,53 @@ static void RequireThrows(Action action, string message)
 static bool ContainsExactly(IReadOnlySet<BoardPoint> actual, IReadOnlyList<BoardPoint> expected)
 {
     return actual.Count == expected.Count && expected.All(actual.Contains);
+}
+
+static RuneEffect Effect(RuneEffectKind kind, double power, bool mass = false, int commanderEnergy = 0)
+{
+    return new RuneEffect(
+        Rune: RuneType.Red,
+        Kind: kind,
+        Tier: RuneMatchTier.Match3,
+        MatchedRunesCount: 3,
+        ChainNumber: 1,
+        IsMassEffect: mass,
+        ChargesHero: false,
+        CreatesGreatRune: false,
+        IsGreatRuneActivation: false,
+        CommanderEnergy: commanderEnergy,
+        Power: power);
+}
+
+static BattleUnit MakeUnit(
+    string id,
+    TacticalSide side,
+    TacticalPosition position,
+    double maxHealth,
+    double currentHealth,
+    double attack,
+    double attacksPerSecond,
+    double cooldown,
+    double manaMax = 100.0,
+    double armor = 0.0,
+    BattleAttackType attackType = BattleAttackType.Melee)
+{
+    return new BattleUnit(
+        UnitId: id,
+        Side: side,
+        Position: position,
+        MaxHealth: maxHealth,
+        CurrentHealth: currentHealth,
+        Attack: attack,
+        Armor: armor,
+        MagicResist: 0.0,
+        AttacksPerSecond: attacksPerSecond,
+        CurrentMana: 0.0,
+        ManaMax: manaMax,
+        Shield: 0.0,
+        AttackType: attackType,
+        AttackCooldownRemaining: cooldown,
+        AbilitiesCast: 0);
 }
 
 static Match3Board CreatePatternBoard(params (BoardPoint Point, RuneType Rune)[] overrides)
