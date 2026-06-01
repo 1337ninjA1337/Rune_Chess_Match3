@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 2, "hero catalog starts with the first two MVP heroes");
+Require(HeroCatalog.All.Count == 3, "hero catalog starts with the first three MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -750,6 +750,14 @@ Require(catalogOathArcher.Faction == "Империя" && catalogOathArcher.Class
 Require(catalogOathArcher.RuneAffinity == RuneType.Red && catalogOathArcher.Role == HeroRole.Carry, "oath archer is a red-rune carry");
 Require(catalogOathArcher.AttackType == "ranged" && catalogOathArcher.Targeting == "current", "oath archer uses ranged current-target rules");
 Require(Math.Abs(catalogOathArcher.BaseStats.Attack - 65.0) < 1e-9, "oath archer has carry attack stats");
+var catalogFieldMedic = HeroCatalog.Get("field_medic");
+Require(catalogFieldMedic.Name == "Полевой Медик", "field medic uses the GDD display name");
+Require(catalogFieldMedic.Rarity == HeroRarity.Common && catalogFieldMedic.Cost == 1, "field medic is a one-cost common hero");
+Require(catalogFieldMedic.Faction == "Империя" && catalogFieldMedic.Class == "Целитель", "field medic belongs to the Empire Healer line");
+Require(catalogFieldMedic.RuneAffinity == RuneType.Green && catalogFieldMedic.Role == HeroRole.Healer, "field medic is a green-rune healer");
+Require(catalogFieldMedic.AttackType == "ranged" && catalogFieldMedic.Targeting == "lowest_health_ally", "field medic targets the lowest-health ally");
+Require(Math.Abs(catalogFieldMedic.BaseStats.ManaMax - 70.0) < 1e-9, "field medic has healer mana stats");
+Require(ShopState.StartingShop.Offers.All(offer => HeroCatalog.TryGet(offer.HeroId, out _)), "starting shop offers reference catalog heroes");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

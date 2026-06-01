@@ -52,10 +52,34 @@ namespace RuneChess.Core
                 ManaMax: 60)
         );
 
+        public static HeroDefinition FieldMedic { get; } = new(
+            Id: "field_medic",
+            Name: "Полевой Медик",
+            Rarity: HeroRarity.Common,
+            Cost: 1,
+            Faction: "Империя",
+            Class: "Целитель",
+            RuneAffinity: RuneType.Green,
+            Role: HeroRole.Healer,
+            AttackType: "ranged",
+            Targeting: "lowest_health_ally",
+            Stars: 1,
+            Ability: "Лечит самого раненого союзника.",
+            Passive: "Медицинская подготовка: лучше сопротивляется магическому урону.",
+            BaseStats: new HeroStats(
+                BaseHealth: 560,
+                Attack: 35,
+                Armor: 2,
+                MagicResist: 5,
+                BaseAttackSpeed: 0.85,
+                ManaMax: 70)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
-            OathArcher
+            OathArcher,
+            FieldMedic
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
