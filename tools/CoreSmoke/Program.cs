@@ -729,7 +729,8 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 5, "hero catalog starts with the first five MVP heroes");
+Require(HeroCatalog.All.Count == 20, "hero catalog holds all twenty MVP heroes");
+Require(HeroCatalog.All.Select(hero => hero.Id).Distinct().Count() == 20, "every MVP hero has a unique id");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -772,6 +773,33 @@ Require(catalogThornShaman.Faction == "Дикие" && catalogThornShaman.Class =
 Require(catalogThornShaman.RuneAffinity == RuneType.Green && catalogThornShaman.Role == HeroRole.Summoner, "thorn shaman is a green-rune summoner");
 Require(catalogThornShaman.AttackType == "ranged" && catalogThornShaman.Targeting == "summon_slot", "thorn shaman uses summon-slot targeting");
 Require(Math.Abs(catalogThornShaman.BaseStats.ManaMax - 75.0) < 1e-9, "thorn shaman has summoner mana stats");
+
+// Heroes 6-20 (GDD "Первые 20 героев"): spot-check representative rare/epic/legendary entries.
+var catalogMistCutthroat = HeroCatalog.Get("mist_cutthroat");
+Require(catalogMistCutthroat.Name == "Туманный Резчик", "mist cutthroat uses the GDD display name");
+Require(catalogMistCutthroat.Rarity == HeroRarity.Rare && catalogMistCutthroat.Cost == 2, "mist cutthroat is a two-cost rare hero");
+Require(catalogMistCutthroat.Faction == "Духи" && catalogMistCutthroat.Class == "Убийца", "mist cutthroat belongs to the Spirit Assassin line");
+Require(catalogMistCutthroat.RuneAffinity == RuneType.Purple && catalogMistCutthroat.Role == HeroRole.Assassin, "mist cutthroat is a purple-rune assassin");
+var catalogPhaseAssassin = HeroCatalog.Get("phase_assassin");
+Require(catalogPhaseAssassin.Rarity == HeroRarity.Epic && catalogPhaseAssassin.Cost == 3, "phase assassin is a three-cost epic hero");
+Require(catalogPhaseAssassin.RuneAffinity == RuneType.White && catalogPhaseAssassin.Role == HeroRole.Assassin, "phase assassin is a white-rune assassin");
+var catalogMagmaBrute = HeroCatalog.Get("magma_brute");
+Require(catalogMagmaBrute.Rarity == HeroRarity.Epic && catalogMagmaBrute.Cost == 4, "magma brute is a four-cost epic hero");
+var catalogAstralRegent = HeroCatalog.Get("astral_regent");
+Require(catalogAstralRegent.Name == "Астральный Регент", "astral regent uses the GDD display name");
+Require(catalogAstralRegent.Rarity == HeroRarity.Legendary && catalogAstralRegent.Cost == 5, "astral regent is a five-cost legendary hero");
+Require(catalogAstralRegent.Faction == "Духи" && catalogAstralRegent.RuneAffinity == RuneType.White, "astral regent is a white-rune Spirit caster");
+Require(HeroCatalog.All.All(hero => hero.Cost == HeroRarities.GetCostRange(hero.Rarity).Min || hero.Cost == HeroRarities.GetCostRange(hero.Rarity).Max), "every hero cost fits its rarity price range");
+
+// Faction distribution from the GDD hero table (authoritative): 5 Empire, 4 Wild, 4 Mechanist,
+// 4 Spirit, 3 Abyssal = 20. The GDD "Распределение" prose says 4 Abyssal, which would total 21
+// for only 20 heroes; the concrete table wins and the discrepancy is tracked in tasks/.tasks.md.
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Империя") == 5, "MVP roster has five Empire heroes");
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Дикие") == 4, "MVP roster has four Wild heroes");
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Механисты") == 4, "MVP roster has four Mechanist heroes");
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Духи") == 4, "MVP roster has four Spirit heroes");
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Бездонные") == 3, "MVP roster has three Abyssal heroes per the hero table");
+Require(HeroCatalog.All.All(hero => hero.AbilityForStars(hero.Stars).HasEffect), "every MVP hero resolves an active ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(
