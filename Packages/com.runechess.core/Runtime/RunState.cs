@@ -161,6 +161,11 @@ namespace RuneChess.Core
             return MergeHeroes(heroId, sourceStars: 1, resultStars: 2);
         }
 
+        public RunState MergeTwoStarHeroes(string heroId)
+        {
+            return MergeHeroes(heroId, sourceStars: 2, resultStars: 3);
+        }
+
         public RunState BuyXp(EconomyConfig? economy = null)
         {
             EnsurePreparationPhase();

@@ -104,6 +104,21 @@ var mergedField = mergeWithField.MergeOneStarHeroes("iron_guard");
 Require(mergedField.Team.Count == 1 && mergedField.Bench.Count == 0, "field merge keeps the upgraded hero on the board");
 Require(mergedField.Team[0].Hero.InstanceId == "field_ig_1" && mergedField.Team[0].Hero.Stars == 2, "field merge upgrades the placed survivor");
 
+var twoStarMergeBench = state with
+{
+    Bench = new List<HeroInstance>
+    {
+        new("merge_2s_ig_1", "iron_guard", 2),
+        new("merge_2s_ig_2", "iron_guard", 2),
+        new("merge_2s_ig_3", "iron_guard", 2)
+    }
+};
+var mergedThreeStar = twoStarMergeBench.MergeTwoStarHeroes("iron_guard");
+Require(mergedThreeStar.Bench.Count == 1, "merging three two-star bench copies leaves one hero");
+Require(mergedThreeStar.Bench[0].InstanceId == "merge_2s_ig_1", "two-star merge preserves the survivor instance id");
+Require(mergedThreeStar.Bench[0].HeroId == "iron_guard" && mergedThreeStar.Bench[0].Stars == 3, "two-star merge creates a three-star hero");
+RequireThrows(() => twoStarMergeBench.MergeTwoStarHeroes("oath_archer"), "two-star merge requires three matching copies");
+
 RequireThrows(() => state.StartCombat(), "combat cannot start before placement");
 
 var afterXp = afterPlace.BuyXp();
