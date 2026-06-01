@@ -728,6 +728,36 @@ Require(Math.Abs(archer.CurrentMana - CombatFormulas.ManaFromAttack) < 1e-9, "a 
 RequireThrows(() => BattleState.Create(System.Array.Empty<BattleUnit>(), 0.0), "battle creation rejects a non-positive duration");
 RequireThrows(() => battleVictory.Tick(0.0), "battle tick rejects a non-positive delta");
 
+// Rune effects applied to the autobattle (match-3 ↔ combat link).
+var fxBattle = BattleState.Create(new[]
+{
+    MakeUnit("fx_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 50, 0, 1.0, 100.0),
+    MakeUnit("fx_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40)).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - 60.0) < 1e-9, "a red rune deals physical damage to an enemy");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Healing, 30)).Units.First(u => u.UnitId == "fx_ally").CurrentHealth - 80.0) < 1e-9, "a green rune heals the wounded ally");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 25)).Units.First(u => u.UnitId == "fx_ally").Shield - 25.0) < 1e-9, "a yellow rune shields the front ally");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 100)).Units.First(u => u.UnitId == "fx_ally").Shield - 60.0) < 1e-9, "rune shields respect the 60 percent cap");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Mana, 24)).Units.First(u => u.UnitId == "fx_ally").CurrentMana - 24.0) < 1e-9, "a blue rune grants mana to an ally");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.CommanderEnergy, 5)).CommanderEnergy - 5.0) < 1e-9, "a white rune accrues commander energy");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40, mass: true, commanderEnergy: 10)).CommanderEnergy - 10.0) < 1e-9, "T/L combos accrue commander energy alongside their effect");
+
+var massHealBattle = BattleState.Create(new[]
+{
+    MakeUnit("m1", TacticalSide.Player, new TacticalPosition(2, 0), 100, 40, 0, 1.0, 100.0),
+    MakeUnit("m2", TacticalSide.Player, new TacticalPosition(3, 0), 100, 40, 0, 1.0, 100.0),
+    MakeUnit("me", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+Require(massHealBattle.ApplyRuneEffect(Effect(RuneEffectKind.Healing, 20, mass: true)).AliveAllies.All(u => Math.Abs(u.CurrentHealth - 60.0) < 1e-9), "a mass heal restores every ally");
+
+var lethalRuneBattle = BattleState.Create(new[]
+{
+    MakeUnit("lb_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("lb_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 30, 30, 0, 1.0, 100.0)
+});
+Require(lethalRuneBattle.ApplyRuneEffects(new[] { Effect(RuneEffectKind.PhysicalDamage, 50) }).Outcome == BattleOutcome.PlayerVictory, "rune damage that kills the last enemy wins the battle");
+RequireThrows(() => fxBattle.ApplyRuneEffect(null!), "applying a rune effect rejects null");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
@@ -789,6 +819,22 @@ static void RequireThrows(Action action, string message)
 static bool ContainsExactly(IReadOnlySet<BoardPoint> actual, IReadOnlyList<BoardPoint> expected)
 {
     return actual.Count == expected.Count && expected.All(actual.Contains);
+}
+
+static RuneEffect Effect(RuneEffectKind kind, double power, bool mass = false, int commanderEnergy = 0)
+{
+    return new RuneEffect(
+        Rune: RuneType.Red,
+        Kind: kind,
+        Tier: RuneMatchTier.Match3,
+        MatchedRunesCount: 3,
+        ChainNumber: 1,
+        IsMassEffect: mass,
+        ChargesHero: false,
+        CreatesGreatRune: false,
+        IsGreatRuneActivation: false,
+        CommanderEnergy: commanderEnergy,
+        Power: power);
 }
 
 static BattleUnit MakeUnit(

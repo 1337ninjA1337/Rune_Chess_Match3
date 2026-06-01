@@ -15,7 +15,8 @@ public sealed record BattleState(
     IReadOnlyList<BattleUnit> Units,
     double ElapsedSeconds,
     double DurationSeconds,
-    BattleOutcome Outcome
+    BattleOutcome Outcome,
+    double CommanderEnergy = 0.0
 )
 {
     public const double DefaultDurationSeconds = 60.0;
@@ -128,7 +129,74 @@ public sealed record BattleState(
         }
 
         var elapsed = Math.Min(DurationSeconds, ElapsedSeconds + deltaSeconds);
-        return new BattleState(units, elapsed, DurationSeconds, ResolveOutcome(units, elapsed, DurationSeconds));
+        return new BattleState(units, elapsed, DurationSeconds, ResolveOutcome(units, elapsed, DurationSeconds), CommanderEnergy);
+    }
+
+    /// <summary>
+    /// Applies resolved rune effects (from <see cref="RuneEffectResolver"/>) to the battle:
+    /// damage hits the opposing side, healing/shield/mana support the casting side, and
+    /// white runes plus T/L bonuses accrue commander energy. The casting side is the player
+    /// by default. Mass effects (T/L combos) hit every relevant unit; otherwise a single
+    /// focused target is chosen.
+    /// </summary>
+    public BattleState ApplyRuneEffects(IEnumerable<RuneEffect> effects, TacticalSide casterSide = TacticalSide.Player)
+    {
+        if (effects is null)
+        {
+            throw new ArgumentNullException(nameof(effects));
+        }
+
+        var state = this;
+        foreach (var effect in effects)
+        {
+            state = state.ApplyRuneEffect(effect, casterSide);
+        }
+
+        return state;
+    }
+
+    public BattleState ApplyRuneEffect(RuneEffect effect, TacticalSide casterSide = TacticalSide.Player)
+    {
+        if (effect is null)
+        {
+            throw new ArgumentNullException(nameof(effect));
+        }
+
+        if (IsResolved)
+        {
+            return this;
+        }
+
+        var units = Units.ToList();
+        var enemySide = casterSide == TacticalSide.Player ? TacticalSide.Enemy : TacticalSide.Player;
+        var commanderGain = (double)effect.CommanderEnergy;
+
+        switch (effect.Kind)
+        {
+            case RuneEffectKind.PhysicalDamage:
+                ApplyDamage(units, enemySide, effect, physical: true);
+                break;
+            case RuneEffectKind.MagicDamage:
+                ApplyDamage(units, enemySide, effect, physical: false);
+                break;
+            case RuneEffectKind.Healing:
+                ApplyRuneHealing(units, casterSide, effect);
+                break;
+            case RuneEffectKind.Shield:
+                ApplyRuneShield(units, casterSide, effect);
+                break;
+            case RuneEffectKind.Mana:
+                ApplyRuneMana(units, casterSide, effect.Power, effect.IsMassEffect);
+                break;
+            case RuneEffectKind.CommanderEnergy:
+                commanderGain += effect.Power;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(effect), effect.Kind, "Unknown rune effect kind.");
+        }
+
+        var outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds);
+        return new BattleState(units, ElapsedSeconds, DurationSeconds, outcome, CommanderEnergy + commanderGain);
     }
 
     /// <summary>Grants blue-rune mana (matchedBlueRunes * 8) to a side's frontmost living unit.</summary>
@@ -289,6 +357,126 @@ public sealed record BattleState(
     private static double SumHealthPercent(IReadOnlyList<BattleUnit> units, TacticalSide side)
     {
         return units.Where(unit => unit.Side == side).Sum(unit => unit.HealthPercent);
+    }
+
+    private static void ApplyDamage(List<BattleUnit> units, TacticalSide enemySide, RuneEffect effect, bool physical)
+    {
+        var targets = effect.IsMassEffect
+            ? AliveIndices(units, enemySide)
+            : SingleBy(units, enemySide, unit => unit.CurrentHealth);
+
+        foreach (var index in targets)
+        {
+            var target = units[index];
+            var rawDamage = physical
+                ? CombatFormulas.CalculatePhysicalDamage(effect.Power, target.Armor)
+                : CombatFormulas.CalculateMagicDamage(effect.Power, target.MagicResist);
+            var absorbed = CombatFormulas.DamageAfterShield(rawDamage, target.Shield);
+            var remainingShield = CombatFormulas.ShieldAfterDamage(target.Shield, rawDamage);
+            var newHealth = Math.Max(0.0, target.CurrentHealth - absorbed);
+            var mana = Math.Min(
+                target.ManaMax,
+                target.CurrentMana + CombatFormulas.CalculateManaFromDamageTaken(absorbed, target.MaxHealth));
+
+            units[index] = MaybeCastAbility(target with
+            {
+                CurrentHealth = newHealth,
+                Shield = remainingShield,
+                CurrentMana = mana
+            });
+        }
+    }
+
+    private static void ApplyRuneHealing(List<BattleUnit> units, TacticalSide side, RuneEffect effect)
+    {
+        var targets = effect.IsMassEffect
+            ? AliveIndices(units, side)
+            : SingleBy(units, side, unit => unit.HealthPercent, unit => unit.HealthPercent < 1.0);
+
+        foreach (var index in targets)
+        {
+            var unit = units[index];
+            var healing = CombatFormulas.CalculateFinalHealing(effect.Power);
+            units[index] = unit with
+            {
+                CurrentHealth = CombatFormulas.ApplyHealing(unit.CurrentHealth, healing, unit.MaxHealth)
+            };
+        }
+    }
+
+    private static void ApplyRuneShield(List<BattleUnit> units, TacticalSide side, RuneEffect effect)
+    {
+        var targets = effect.IsMassEffect
+            ? AliveIndices(units, side)
+            : SingleBy(units, side, unit => side == TacticalSide.Player ? unit.Position.Row : -unit.Position.Row);
+
+        foreach (var index in targets)
+        {
+            var unit = units[index];
+            units[index] = unit with
+            {
+                Shield = CombatFormulas.CapShield(unit.Shield + effect.Power, unit.MaxHealth)
+            };
+        }
+    }
+
+    private static void ApplyRuneMana(List<BattleUnit> units, TacticalSide side, double amount, bool mass)
+    {
+        var targets = mass
+            ? AliveIndices(units, side)
+            : SingleBy(units, side, unit => unit.CurrentMana);
+
+        foreach (var index in targets)
+        {
+            var unit = units[index];
+            units[index] = MaybeCastAbility(unit with
+            {
+                CurrentMana = Math.Min(unit.ManaMax, unit.CurrentMana + amount)
+            });
+        }
+    }
+
+    private static List<int> AliveIndices(List<BattleUnit> units, TacticalSide side)
+    {
+        var indices = new List<int>();
+        for (var i = 0; i < units.Count; i += 1)
+        {
+            if (units[i].IsAlive && units[i].Side == side)
+            {
+                indices.Add(i);
+            }
+        }
+
+        return indices;
+    }
+
+    private static List<int> SingleBy(
+        List<BattleUnit> units,
+        TacticalSide side,
+        Func<BattleUnit, double> key,
+        Func<BattleUnit, bool>? filter = null)
+    {
+        var best = -1;
+        var bestKey = double.MaxValue;
+
+        for (var i = 0; i < units.Count; i += 1)
+        {
+            var unit = units[i];
+            if (!unit.IsAlive || unit.Side != side || (filter != null && !filter(unit)))
+            {
+                continue;
+            }
+
+            var candidateKey = key(unit);
+            if (candidateKey < bestKey
+                || (candidateKey == bestKey && best >= 0 && ComparePosition(unit.Position, units[best].Position) < 0))
+            {
+                best = i;
+                bestKey = candidateKey;
+            }
+        }
+
+        return best >= 0 ? new List<int> { best } : new List<int>();
     }
 
     private static int ManhattanDistance(TacticalPosition a, TacticalPosition b)
