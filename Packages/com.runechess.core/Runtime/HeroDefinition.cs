@@ -3,7 +3,7 @@ namespace RuneChess.Core;
 public sealed record HeroDefinition(
     string Id,
     string Name,
-    string Rarity,
+    HeroRarity Rarity,
     int Cost,
     string Faction,
     string Class,
@@ -13,5 +13,15 @@ public sealed record HeroDefinition(
     string Targeting,
     int Stars,
     string Ability,
-    string Passive
-);
+    string Passive,
+    HeroStats BaseStats
+)
+{
+    /// <summary>Match-3 effect category linked to the hero's preferred rune color.</summary>
+    public RuneEffectKind PreferredEffectKind => RuneEffects.GetEffectKind(RuneAffinity);
+
+    public HeroStats StatsForStars(int stars)
+    {
+        return BaseStats.ScaledByStars(stars);
+    }
+}

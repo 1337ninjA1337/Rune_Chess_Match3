@@ -592,6 +592,44 @@ Require(Math.Abs(CombatFormulas.ApplyHealing(80, 50, 100) - 100.0) < 1e-9, "heal
 Require(Math.Abs(CombatFormulas.ApplyHealing(40, 30, 100) - 70.0) < 1e-9, "healing adds to current health below the cap");
 RequireThrows(() => CombatFormulas.ApplyHealing(40, 30, 0), "healing rejects non-positive max health");
 
+// Hero data model (GDD "Структура героя", редкость и звезды).
+Require(HeroRarities.All.Count == 4, "rarity catalog exposes four rarities");
+Require(string.Join(",", HeroRarities.All.Select(HeroRarities.GetId)) == "common,rare,epic,legendary", "rarity catalog keeps canonical ids");
+Require(HeroRarities.GetCost(HeroRarity.Common) == 1, "common heroes cost one gold");
+Require(HeroRarities.GetCost(HeroRarity.Rare) == 2, "rare heroes cost two gold");
+Require(HeroRarities.GetCostRange(HeroRarity.Epic).Min == 3, "epic heroes start at three gold");
+Require(HeroRarities.GetCostRange(HeroRarity.Epic).Max == 4, "epic heroes cap at four gold");
+Require(HeroRarities.GetCost(HeroRarity.Legendary) == 5, "legendary heroes cost five gold");
+Require(HeroRarities.ParseId("legendary") == HeroRarity.Legendary, "rarity ids parse back to rarities");
+Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == HeroRarity.Epic, "rarity parsing is case-insensitive");
+Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
+RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
+
+var ironGuardDefinition = new HeroDefinition(
+    Id: "iron_guard",
+    Name: "Iron Guard",
+    Rarity: HeroRarity.Common,
+    Cost: HeroRarities.GetCost(HeroRarity.Common),
+    Faction: "Empire",
+    Class: "Defender",
+    RuneAffinity: RuneType.Yellow,
+    Role: HeroRole.Tank,
+    AttackType: "melee",
+    Targeting: "nearest",
+    Stars: 1,
+    Ability: "Shields itself and the nearest ally",
+    Passive: "Takes less damage on the front line",
+    BaseStats: new HeroStats(BaseHealth: 100, Attack: 10, Armor: 25, MagicResist: 15, BaseAttackSpeed: 0.8, ManaMax: 60)
+);
+Require(ironGuardDefinition.PreferredEffectKind == RuneEffectKind.Shield, "a yellow hero prefers shield rune effects");
+Require(Enum.IsDefined(typeof(HeroRole), ironGuardDefinition.Role), "hero role uses the role enum");
+Require(ironGuardDefinition.Cost == 1, "common hero cost matches the rarity price");
+var twoStarStats = ironGuardDefinition.StatsForStars(2);
+Require(Math.Abs(twoStarStats.BaseHealth - 200.0) < 1e-9, "two-star hero doubles base health");
+Require(Math.Abs(twoStarStats.Attack - 20.0) < 1e-9, "two-star hero doubles attack");
+Require(Math.Abs(twoStarStats.Armor - ironGuardDefinition.BaseStats.Armor) < 1e-9, "star scaling leaves armor unchanged in the MVP");
+RequireThrows(() => ironGuardDefinition.StatsForStars(0), "star scaling rejects invalid star counts");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
