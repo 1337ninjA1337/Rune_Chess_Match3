@@ -27,3 +27,7 @@ MemoryCaptures/
 sysinfo.txt
 .vs/
 .idea/
+
+# .NET build output from the CoreSmoke verifier
+tools/**/bin/
+tools/**/obj/
