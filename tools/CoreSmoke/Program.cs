@@ -149,6 +149,19 @@ Require(restoredCombat.GlobalCooldownMillisecondsRemaining == savedCombat.Global
 Require(restoredCombat.SecondsSinceLastRuneSwap == savedCombat.SecondsSinceLastRuneSwap, "restored progress preserves match hint idle timer");
 Require(restoredCombat.SlowdownMillisecondsRemaining == savedCombat.SlowdownMillisecondsRemaining, "restored progress preserves combat slowdown");
 Require(restoredCombat.RuneBoard[0, 0] == savedCombat.RuneBoard[0, 0], "restored progress preserves rune board");
+var greatSnapshotPoint = new BoardPoint(2, 3);
+var greatSnapshotBoard = new Match3Board(Match3Board.CreateCells()
+    .Select(point => new RuneCell(savedCombat.RuneBoard[point], point == greatSnapshotPoint))
+    .ToList());
+var greatSnapshotCombat = savedCombat with { RuneBoard = greatSnapshotBoard };
+var greatSnapshot = CombatProgressSnapshot.Capture(greatSnapshotCombat);
+Require(
+    greatSnapshot.GreatRuneFlags[(greatSnapshotPoint.Row * Match3Board.Columns) + greatSnapshotPoint.Column],
+    "combat snapshot records great-rune cells"
+);
+var restoredGreatSnapshot = greatSnapshot.Restore();
+Require(restoredGreatSnapshot.RuneBoard.IsGreatRune(greatSnapshotPoint), "combat snapshot restores great-rune cells");
+Require(restoredGreatSnapshot.RuneBoard[greatSnapshotPoint] == savedCombat.RuneBoard[greatSnapshotPoint], "great-rune snapshot preserves rune color");
 var unsupportedSnapshot = progressStore.Snapshot ?? throw new InvalidOperationException("Smoke check failed: snapshot missing");
 RequireThrows(() => (unsupportedSnapshot with { Version = 0 }).Restore(), "unsupported progress version is rejected");
 progressStore.Clear();
@@ -528,6 +541,11 @@ Require(tlEffect.IsMassEffect, "T/L combos resolve into mass effects");
 Require(tlEffect.CreatesGreatRune, "match-5 creates a great rune");
 Require(tlEffect.CommanderEnergy == RuneEffects.TShapeCommanderEnergy, "T/L combos grant commander energy");
 Require(Math.Abs(tlEffect.Power - 7.0) < 1e-9, "T/L combo adds its matchPower bonus before chain scaling");
+var match5CreationResolution = crossMatchBoard.ResolveChainReactions(99);
+var greatRuneAnchor = new BoardPoint(0, 0);
+Require(match5CreationResolution.Steps[0].CreatedGreatRunes.Contains(greatRuneAnchor), "match-5 chain step records the created great rune anchor");
+Require(match5CreationResolution.Steps[0].BoardAfterDrop.IsGreatRune(greatRuneAnchor), "match-5 creates a great rune on the board");
+Require(match5CreationResolution.Steps[0].BoardAfterDrop[greatRuneAnchor] == RuneType.Red, "created great rune keeps the matched color");
 
 var chain2Effect = RuneEffectResolver.Resolve(redMatch3Group, 2);
 Require(chain2Effect.ChainNumber == 2, "chain effect records its chain number");

@@ -22,7 +22,7 @@ namespace RuneChess.Core
         string? DefeatReason
     )
     {
-        public const int CurrentVersion = 4;
+        public const int CurrentVersion = 5;
 
         public static RunProgressSnapshot Capture(RunState state)
         {
@@ -84,6 +84,7 @@ namespace RuneChess.Core
 
     public sealed record CombatProgressSnapshot(
         IReadOnlyList<RuneType> Runes,
+        IReadOnlyList<bool> GreatRuneFlags,
         int Match3MovesUsed,
         int LastMatchedRunesCount,
         int LastComboDepth,
@@ -98,16 +99,20 @@ namespace RuneChess.Core
         public static CombatProgressSnapshot Capture(CombatState state)
         {
             var runes = new List<RuneType>(Match3Board.Rows * Match3Board.Columns);
+            var greatRuneFlags = new List<bool>(Match3Board.Rows * Match3Board.Columns);
             for (var row = 0; row < Match3Board.Rows; row += 1)
             {
                 for (var column = 0; column < Match3Board.Columns; column += 1)
                 {
-                    runes.Add(state.RuneBoard[row, column]);
+                    var point = new BoardPoint(row, column);
+                    runes.Add(state.RuneBoard[point]);
+                    greatRuneFlags.Add(state.RuneBoard.IsGreatRune(point));
                 }
             }
 
             return new CombatProgressSnapshot(
                 Runes: runes,
+                GreatRuneFlags: greatRuneFlags,
                 Match3MovesUsed: state.Match3MovesUsed,
                 LastMatchedRunesCount: state.LastMatchedRunesCount,
                 LastComboDepth: state.LastComboDepth,
@@ -122,6 +127,11 @@ namespace RuneChess.Core
 
         public CombatState Restore()
         {
+            if (Runes.Count != Match3Board.CellCount || GreatRuneFlags.Count != Match3Board.CellCount)
+            {
+                throw new InvalidOperationException("Combat progress rune board has an invalid cell count.");
+            }
+
             if (DurationSeconds <= 0)
             {
                 throw new InvalidOperationException("Combat progress duration must be positive.");
@@ -148,7 +158,9 @@ namespace RuneChess.Core
             }
 
             return new CombatState(
-                RuneBoard: new Match3Board(Runes.ToList()),
+                RuneBoard: new Match3Board(Runes
+                    .Select((rune, index) => new RuneCell(rune, GreatRuneFlags[index]))
+                    .ToList()),
                 Match3MovesUsed: Match3MovesUsed,
                 LastMatchedRunesCount: LastMatchedRunesCount,
                 LastComboDepth: LastComboDepth,

@@ -76,6 +76,7 @@ namespace RuneChess.Core
     public sealed record Match3ChainStep(
         int ComboDepth,
         IReadOnlyCollection<BoardPoint> MatchedCells,
+        IReadOnlyCollection<BoardPoint> CreatedGreatRunes,
         Match3Board BoardAfterRemoval,
         Match3Board BoardAfterDrop
     )
@@ -122,7 +123,7 @@ namespace RuneChess.Core
         public const int Columns = 7;
         public const int CellCount = Rows * Columns;
 
-        private readonly RuneType?[] cells;
+        private readonly RuneCell?[] cells;
 
         public Match3Board(IReadOnlyList<RuneType> runes)
         {
@@ -131,17 +132,27 @@ namespace RuneChess.Core
                 throw new ArgumentException($"A match-3 board needs {CellCount} runes.", nameof(runes));
             }
 
-            cells = runes.Select(rune => (RuneType?)rune).ToArray();
+            cells = runes.Select(rune => (RuneCell?)new RuneCell(rune)).ToArray();
         }
 
-        private Match3Board(IReadOnlyList<RuneType?> runes)
+        public Match3Board(IReadOnlyList<RuneCell> runes)
         {
             if (runes.Count != CellCount)
             {
                 throw new ArgumentException($"A match-3 board needs {CellCount} cells.", nameof(runes));
             }
 
-            cells = runes.ToArray();
+            cells = runes.Select(rune => (RuneCell?)rune).ToArray();
+        }
+
+        private Match3Board(IReadOnlyList<RuneCell?> cells)
+        {
+            if (cells.Count != CellCount)
+            {
+                throw new ArgumentException($"A match-3 board needs {CellCount} cells.", nameof(cells));
+            }
+
+            this.cells = cells.ToArray();
         }
 
         public RuneType this[int row, int column]
@@ -294,14 +305,29 @@ namespace RuneChess.Core
             return groups;
         }
 
-        public RuneType? GetRuneOrEmpty(int row, int column)
+        public RuneCell? GetCellOrEmpty(int row, int column)
         {
             return cells[Index(row, column)];
+        }
+
+        public RuneCell? GetCellOrEmpty(BoardPoint point)
+        {
+            return GetCellOrEmpty(point.Row, point.Column);
+        }
+
+        public RuneType? GetRuneOrEmpty(int row, int column)
+        {
+            return GetCellOrEmpty(row, column)?.Rune;
         }
 
         public RuneType? GetRuneOrEmpty(BoardPoint point)
         {
             return GetRuneOrEmpty(point.Row, point.Column);
+        }
+
+        public bool IsGreatRune(BoardPoint point)
+        {
+            return GetCellOrEmpty(point)?.IsGreatRune ?? false;
         }
 
         public bool IsEmpty(BoardPoint point)
@@ -353,26 +379,26 @@ namespace RuneChess.Core
         public Match3Board DropRunesFromTop(int seed)
         {
             var random = new Random(seed);
-            var dropped = new RuneType?[CellCount];
+            var dropped = new RuneCell?[CellCount];
 
             for (var column = 0; column < Columns; column += 1)
             {
                 var writeRow = Rows - 1;
                 for (var readRow = Rows - 1; readRow >= 0; readRow -= 1)
                 {
-                    var rune = GetRuneOrEmpty(readRow, column);
-                    if (!rune.HasValue)
+                    var cell = GetCellOrEmpty(readRow, column);
+                    if (!cell.HasValue)
                     {
                         continue;
                     }
 
-                    dropped[Index(writeRow, column)] = rune.Value;
+                    dropped[Index(writeRow, column)] = cell.Value;
                     writeRow -= 1;
                 }
 
                 for (; writeRow >= 0; writeRow -= 1)
                 {
-                    dropped[Index(writeRow, column)] = RuneTypes.All[random.Next(RuneTypes.All.Count)];
+                    dropped[Index(writeRow, column)] = new RuneCell(RuneTypes.All[random.Next(RuneTypes.All.Count)]);
                 }
             }
 
@@ -391,19 +417,23 @@ namespace RuneChess.Core
 
             while (steps.Count < maxChainSteps)
             {
-                var matches = current.FindMatches();
-                if (matches.Count == 0)
+                var matchGroups = current.FindMatchGroups();
+                if (matchGroups.Count == 0)
                 {
                     return new Match3ChainResolution(current, steps.ToList());
                 }
 
-                var matchedCells = matches.ToHashSet();
+                var matchedCells = matchGroups.SelectMany(group => group.Cells).ToHashSet();
+                var greatRunes = GetGreatRuneCreationAnchors(matchGroups);
                 var removed = current.RemoveRunes(matchedCells);
-                var dropped = removed.DropRunesFromTop(unchecked(seed + steps.Count));
+                var dropped = removed
+                    .DropRunesFromTop(unchecked(seed + steps.Count))
+                    .PlaceGreatRunes(greatRunes);
 
                 steps.Add(new Match3ChainStep(
                     ComboDepth: steps.Count,
                     MatchedCells: matchedCells,
+                    CreatedGreatRunes: greatRunes.Keys.ToHashSet(),
                     BoardAfterRemoval: removed,
                     BoardAfterDrop: dropped
                 ));
@@ -539,6 +569,43 @@ namespace RuneChess.Core
             return matches.Contains(a) || matches.Contains(b);
         }
 
+        private Match3Board PlaceGreatRunes(IReadOnlyDictionary<BoardPoint, RuneType> greatRunes)
+        {
+            if (greatRunes.Count == 0)
+            {
+                return this;
+            }
+
+            var placed = cells.ToArray();
+            foreach (var (point, rune) in greatRunes)
+            {
+                placed[Index(point.Row, point.Column)] = new RuneCell(rune, isGreatRune: true);
+            }
+
+            return new Match3Board(placed);
+        }
+
+        private static IReadOnlyDictionary<BoardPoint, RuneType> GetGreatRuneCreationAnchors(
+            IReadOnlyList<RuneMatchGroup> groups)
+        {
+            var anchors = new Dictionary<BoardPoint, RuneType>();
+            foreach (var group in groups)
+            {
+                if (group.Tier != RuneMatchTier.Match5)
+                {
+                    continue;
+                }
+
+                var anchor = group.Cells
+                    .OrderBy(point => point.Row)
+                    .ThenBy(point => point.Column)
+                    .First();
+                anchors[anchor] = group.Rune;
+            }
+
+            return anchors;
+        }
+
         private static IEnumerable<BoardPoint> OrthogonalNeighbors(BoardPoint point)
         {
             yield return new BoardPoint(point.Row - 1, point.Column);
@@ -564,6 +631,46 @@ namespace RuneChess.Core
             }
 
             return row * Columns + column;
+        }
+    }
+
+    public readonly struct RuneCell : IEquatable<RuneCell>
+    {
+        public RuneCell(RuneType rune, bool isGreatRune = false)
+        {
+            Rune = rune;
+            IsGreatRune = isGreatRune;
+        }
+
+        public RuneType Rune { get; }
+        public bool IsGreatRune { get; }
+
+        public bool Equals(RuneCell other)
+        {
+            return Rune == other.Rune && IsGreatRune == other.IsGreatRune;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is RuneCell other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return ((int)Rune * 397) ^ IsGreatRune.GetHashCode();
+            }
+        }
+
+        public static bool operator ==(RuneCell left, RuneCell right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(RuneCell left, RuneCell right)
+        {
+            return !left.Equals(right);
         }
     }
 }
