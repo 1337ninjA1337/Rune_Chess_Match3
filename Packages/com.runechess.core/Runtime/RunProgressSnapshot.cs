@@ -22,7 +22,7 @@ namespace RuneChess.Core
         string? DefeatReason
     )
     {
-        public const int CurrentVersion = 5;
+        public const int CurrentVersion = 6;
 
         public static RunProgressSnapshot Capture(RunState state)
         {
@@ -93,7 +93,8 @@ namespace RuneChess.Core
         int ElapsedSeconds,
         int GlobalCooldownMillisecondsRemaining,
         int SecondsSinceLastRuneSwap,
-        int SlowdownMillisecondsRemaining
+        int SlowdownMillisecondsRemaining,
+        bool EarnedChainFourGoldBonus
     )
     {
         public static CombatProgressSnapshot Capture(CombatState state)
@@ -121,7 +122,8 @@ namespace RuneChess.Core
                 ElapsedSeconds: state.ElapsedSeconds,
                 GlobalCooldownMillisecondsRemaining: state.GlobalCooldownMillisecondsRemaining,
                 SecondsSinceLastRuneSwap: state.SecondsSinceLastRuneSwap,
-                SlowdownMillisecondsRemaining: state.SlowdownMillisecondsRemaining
+                SlowdownMillisecondsRemaining: state.SlowdownMillisecondsRemaining,
+                EarnedChainFourGoldBonus: state.EarnedChainFourGoldBonus
             );
         }
 
@@ -169,7 +171,8 @@ namespace RuneChess.Core
                 ElapsedSeconds: ElapsedSeconds,
                 GlobalCooldownMillisecondsRemaining: GlobalCooldownMillisecondsRemaining,
                 SecondsSinceLastRuneSwap: SecondsSinceLastRuneSwap,
-                SlowdownMillisecondsRemaining: SlowdownMillisecondsRemaining
+                SlowdownMillisecondsRemaining: SlowdownMillisecondsRemaining,
+                EarnedChainFourGoldBonus: EarnedChainFourGoldBonus
             );
         }
     }

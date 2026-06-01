@@ -89,6 +89,7 @@ Require(combat.GlobalCooldownMillisecondsRemaining == 0, "new combat starts with
 Require(!combat.IsSwapOnCooldown, "new combat allows an immediate rune swap");
 Require(combat.SecondsSinceLastRuneSwap == 0, "new combat starts with a fresh rune-swap idle timer");
 Require(combat.SlowdownMillisecondsRemaining == 0, "new combat starts without slowdown");
+Require(!combat.EarnedChainFourGoldBonus, "new combat starts without a chain 4+ gold bonus");
 Require(!combat.IsCombatSlowed, "new combat runs at normal speed");
 Require(combat.CombatSpeedPercent == CombatState.NormalCombatSpeedPercent, "normal combat speed is 100 percent");
 Require(!combat.ShouldShowMatchHint, "new combat does not show a match hint immediately");
@@ -148,6 +149,7 @@ Require(restoredCombat.Match3MovesUsed == savedCombat.Match3MovesUsed, "restored
 Require(restoredCombat.GlobalCooldownMillisecondsRemaining == savedCombat.GlobalCooldownMillisecondsRemaining, "restored progress preserves match-3 cooldown");
 Require(restoredCombat.SecondsSinceLastRuneSwap == savedCombat.SecondsSinceLastRuneSwap, "restored progress preserves match hint idle timer");
 Require(restoredCombat.SlowdownMillisecondsRemaining == savedCombat.SlowdownMillisecondsRemaining, "restored progress preserves combat slowdown");
+Require(restoredCombat.EarnedChainFourGoldBonus == savedCombat.EarnedChainFourGoldBonus, "restored progress preserves chain 4+ gold bonus state");
 Require(restoredCombat.RuneBoard[0, 0] == savedCombat.RuneBoard[0, 0], "restored progress preserves rune board");
 var greatSnapshotPoint = new BoardPoint(2, 3);
 var greatSnapshotBoard = new Match3Board(Match3Board.CreateCells()
@@ -171,6 +173,12 @@ var reward = afterRuneSwap.ClaimReward(2);
 Require(reward.Phase == RunPhase.Reward, "claiming reward exits combat into reward phase");
 Require(reward.Combat is null, "claiming reward clears combat state");
 Require(reward.Gold == 3, "claiming reward adds gold");
+var chainGoldReward = (inCombat with
+{
+    Combat = combat with { EarnedChainFourGoldBonus = true }
+}).ClaimReward(2);
+Require(chainGoldReward.Gold == inCombat.Gold + 2 + CombatState.ChainFourGoldBonus, "chain 4+ grants one bonus gold after combat");
+Require(chainGoldReward.Combat is null, "claiming a chain 4+ reward still clears combat state");
 
 var nextRound = reward.AdvanceRound("round_02_scouts");
 Require(nextRound.Round == 2, "advancing reward starts the next round");

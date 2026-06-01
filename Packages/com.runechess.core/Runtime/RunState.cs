@@ -340,6 +340,9 @@ namespace RuneChess.Core
             }
 
             var resolvedGoldReward = goldReward ?? CurrentRoundDefinition.BaseGoldReward;
+            var chainGoldBonus = Combat?.EarnedChainFourGoldBonus == true
+                ? CombatState.ChainFourGoldBonus
+                : 0;
             if (resolvedGoldReward < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(goldReward), "Gold reward cannot be negative.");
@@ -347,7 +350,7 @@ namespace RuneChess.Core
 
             return this with
             {
-                Gold = Gold + resolvedGoldReward,
+                Gold = Gold + resolvedGoldReward + chainGoldBonus,
                 Phase = IsFinalRound ? RunPhase.Victory : RunPhase.Reward,
                 Combat = null,
                 DefeatReason = null

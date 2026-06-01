@@ -12,7 +12,8 @@ namespace RuneChess.Core
         int ElapsedSeconds,
         int GlobalCooldownMillisecondsRemaining,
         int SecondsSinceLastRuneSwap,
-        int SlowdownMillisecondsRemaining
+        int SlowdownMillisecondsRemaining,
+        bool EarnedChainFourGoldBonus = false
     )
     {
         public const int DefaultDurationSeconds = 60;
@@ -23,6 +24,8 @@ namespace RuneChess.Core
         public const int LargeComboSlowdownMilliseconds = 1000;
         public const int LargeComboMatchedRunesThreshold = 4;
         public const int LargeComboComboDepthThreshold = 1;
+        public const int ChainFourGoldBonus = 1;
+        public const int ChainFourGoldBonusMinimumChainNumber = 4;
 
         public int RemainingSeconds => Math.Max(0, DurationSeconds - ElapsedSeconds);
         public bool IsTimerExpired => RemainingSeconds == 0;
@@ -108,6 +111,8 @@ namespace RuneChess.Core
             var matchedRunesCount = resolution.TotalMatchedRunesCount;
             var resolvedComboDepth = comboDepth + resolution.MaxComboDepth;
             var matchPower = resolution.GetTotalMatchPower(comboDepth);
+            var earnedChainFourBonus = resolution.Steps.Any(step =>
+                step.ChainNumber >= ChainFourGoldBonusMinimumChainNumber);
             var slowdownMilliseconds = ShouldTriggerLargeComboSlowdown(matchedRunesCount, resolvedComboDepth)
                 ? LargeComboSlowdownMilliseconds
                 : 0;
@@ -121,7 +126,8 @@ namespace RuneChess.Core
                 LastMatchPower = matchPower,
                 GlobalCooldownMillisecondsRemaining = SwapGlobalCooldownMilliseconds,
                 SecondsSinceLastRuneSwap = 0,
-                SlowdownMillisecondsRemaining = Math.Max(SlowdownMillisecondsRemaining, slowdownMilliseconds)
+                SlowdownMillisecondsRemaining = Math.Max(SlowdownMillisecondsRemaining, slowdownMilliseconds),
+                EarnedChainFourGoldBonus = EarnedChainFourGoldBonus || earnedChainFourBonus
             };
         }
 
