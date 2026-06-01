@@ -156,14 +156,14 @@ namespace RuneChess.Core
             };
         }
 
-        public RunState MergeOneStarHeroes(string heroId)
+        public RunState MergeOneStarHeroes(string heroId, int copiesRequired = MergeCopiesRequired)
         {
-            return MergeHeroes(heroId, sourceStars: 1, resultStars: 2);
+            return MergeHeroes(heroId, sourceStars: 1, resultStars: 2, copiesRequired);
         }
 
         public RunState MergeTwoStarHeroes(string heroId)
         {
-            return MergeHeroes(heroId, sourceStars: 2, resultStars: 3);
+            return MergeHeroes(heroId, sourceStars: 2, resultStars: 3, copiesRequired: MergeCopiesRequired);
         }
 
         public RunState BuyXp(EconomyConfig? economy = null)
@@ -401,13 +401,18 @@ namespace RuneChess.Core
             }
         }
 
-        private RunState MergeHeroes(string heroId, int sourceStars, int resultStars)
+        private RunState MergeHeroes(string heroId, int sourceStars, int resultStars, int copiesRequired)
         {
             EnsurePreparationPhase();
 
             if (string.IsNullOrWhiteSpace(heroId))
             {
                 throw new ArgumentException("Hero id is required.", nameof(heroId));
+            }
+
+            if (copiesRequired is < 2 or > MergeCopiesRequired)
+            {
+                throw new ArgumentOutOfRangeException(nameof(copiesRequired), "Hero merge copy count must be between two and three.");
             }
 
             var bench = Bench.ToList();
@@ -419,9 +424,9 @@ namespace RuneChess.Core
                 .Where(index => IsMergeCandidate(team[index].Hero, heroId, sourceStars))
                 .ToList();
 
-            if (benchIndices.Count + teamIndices.Count < MergeCopiesRequired)
+            if (benchIndices.Count + teamIndices.Count < copiesRequired)
             {
-                throw new InvalidOperationException($"Three matching {sourceStars}-star copies are required to merge.");
+                throw new InvalidOperationException($"{copiesRequired} matching {sourceStars}-star copies are required to merge.");
             }
 
             if (teamIndices.Count > 0)
@@ -433,7 +438,7 @@ namespace RuneChess.Core
 
                 foreach (var index in benchIndices)
                 {
-                    if (consumedCopies >= MergeCopiesRequired)
+                    if (consumedCopies >= copiesRequired)
                     {
                         break;
                     }
@@ -444,7 +449,7 @@ namespace RuneChess.Core
 
                 foreach (var index in teamIndices.Skip(1))
                 {
-                    if (consumedCopies >= MergeCopiesRequired)
+                    if (consumedCopies >= copiesRequired)
                     {
                         break;
                     }
@@ -468,7 +473,7 @@ namespace RuneChess.Core
                 };
             }
 
-            var selectedBenchIndices = benchIndices.Take(MergeCopiesRequired).ToList();
+            var selectedBenchIndices = benchIndices.Take(copiesRequired).ToList();
             var survivorBenchIndex = selectedBenchIndices[0];
             bench[survivorBenchIndex] = bench[survivorBenchIndex] with { Stars = resultStars };
             RemoveAtDescending(bench, selectedBenchIndices.Skip(1));

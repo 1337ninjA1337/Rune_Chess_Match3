@@ -88,6 +88,20 @@ Require(mergedBench.Bench[0].HeroId == "iron_guard" && mergedBench.Bench[0].Star
 RequireThrows(() => mergeBench.MergeOneStarHeroes("oath_archer"), "one-star merge requires three matching copies");
 RequireThrows(() => (mergeBench with { Phase = RunPhase.Combat }).MergeOneStarHeroes("iron_guard"), "hero merging is blocked outside preparation");
 
+var earlyMergeBench = state with
+{
+    Bench = new List<HeroInstance>
+    {
+        new("early_merge_ig_1", "iron_guard", 1),
+        new("early_merge_ig_2", "iron_guard", 1)
+    }
+};
+var earlyMergedBench = earlyMergeBench.MergeOneStarHeroes("iron_guard", copiesRequired: 2);
+Require(earlyMergedBench.Bench.Count == 1, "early test merge can use two one-star copies");
+Require(earlyMergedBench.Bench[0].InstanceId == "early_merge_ig_1" && earlyMergedBench.Bench[0].Stars == 2, "early test merge creates a two-star survivor");
+RequireThrows(() => earlyMergeBench.MergeOneStarHeroes("iron_guard"), "default one-star merge still requires three copies");
+RequireThrows(() => earlyMergeBench.MergeOneStarHeroes("iron_guard", copiesRequired: 1), "early merge copy count validates its lower bound");
+
 var mergeWithField = state with
 {
     Team = new List<BoardHero>
