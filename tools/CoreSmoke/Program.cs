@@ -630,6 +630,104 @@ Require(Math.Abs(twoStarStats.Attack - 20.0) < 1e-9, "two-star hero doubles atta
 Require(Math.Abs(twoStarStats.Armor - ironGuardDefinition.BaseStats.Armor) < 1e-9, "star scaling leaves armor unchanged in the MVP");
 RequireThrows(() => ironGuardDefinition.StatsForStars(0), "star scaling rejects invalid star counts");
 
+// Autobattle (GDD "Автобой").
+var ironGuardUnit = BattleUnit.FromHero(ironGuardDefinition, 2, "ig_1", TacticalSide.Player, new TacticalPosition(2, 1));
+Require(Math.Abs(ironGuardUnit.MaxHealth - 200.0) < 1e-9, "a two-star hero unit uses scaled health");
+Require(Math.Abs(ironGuardUnit.Attack - 20.0) < 1e-9, "a two-star hero unit uses scaled attack");
+Require(ironGuardUnit.AttackType == BattleAttackType.Melee && !ironGuardUnit.IsRanged, "a melee hero builds a melee unit");
+Require(Math.Abs(ironGuardUnit.AttackInterval - 1.25) < 1e-9, "attack interval matches the hero attack speed");
+Require(ironGuardUnit.CurrentHealth == ironGuardUnit.MaxHealth && ironGuardUnit.AbilitiesCast == 0, "a new hero unit starts at full health");
+
+var battleVictory = BattleState.Create(new[]
+{
+    MakeUnit("ally_a", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 100, 1.0, 0.0),
+    MakeUnit("enemy_a", TacticalSide.Enemy, new TacticalPosition(1, 0), 50, 50, 10, 1.0, 5.0)
+});
+Require(battleVictory.Outcome == BattleOutcome.Ongoing, "a fresh battle is ongoing");
+Require(Math.Abs(battleVictory.RemainingSeconds - BattleState.DefaultDurationSeconds) < 1e-9, "a fresh battle has the full timer");
+var afterVictory = battleVictory.Tick(0.5);
+Require(afterVictory.Outcome == BattleOutcome.PlayerVictory, "killing the last enemy wins the battle");
+Require(!afterVictory.AliveEnemies.Any(), "the defeated enemy leaves the fight");
+var attackingAlly = afterVictory.Units.First(unit => unit.UnitId == "ally_a");
+Require(Math.Abs(attackingAlly.CurrentHealth - 100.0) < 1e-9, "the unharmed ally keeps full health");
+Require(Math.Abs(attackingAlly.CurrentMana - CombatFormulas.ManaFromAttack) < 1e-9, "an attacking unit gains attack mana");
+Require(attackingAlly.AbilitiesCast == 0, "a unit below max mana does not cast");
+
+var battleDefeat = BattleState.Create(new[]
+{
+    MakeUnit("ally_b", TacticalSide.Player, new TacticalPosition(2, 0), 10, 10, 0, 1.0, 5.0),
+    MakeUnit("enemy_b", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 100, 1.0, 0.0)
+});
+var afterDefeat = battleDefeat.Tick(0.5);
+Require(afterDefeat.Outcome == BattleOutcome.PlayerDefeat, "losing every ally loses the battle");
+Require(!afterDefeat.AliveAllies.Any(), "defeated allies leave the field");
+
+var timerWin = BattleState.Create(new[]
+{
+    MakeUnit("ally_c", TacticalSide.Player, new TacticalPosition(2, 0), 100, 80, 0, 1.0, 100.0),
+    MakeUnit("enemy_c", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 50, 0, 1.0, 100.0)
+}, 1.0);
+Require(timerWin.Tick(1.0).Outcome == BattleOutcome.PlayerVictory, "on timeout the healthier side wins");
+var timerLoss = BattleState.Create(new[]
+{
+    MakeUnit("ally_d", TacticalSide.Player, new TacticalPosition(2, 0), 100, 40, 0, 1.0, 100.0),
+    MakeUnit("enemy_d", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 60, 0, 1.0, 100.0)
+}, 1.0);
+Require(timerLoss.Tick(1.0).Outcome == BattleOutcome.PlayerDefeat, "on timeout the less healthy side loses");
+
+var battleMove = BattleState.Create(new[]
+{
+    MakeUnit("mover", TacticalSide.Player, new TacticalPosition(3, 0), 100, 100, 50, 1.0, 0.0),
+    MakeUnit("enemy_e", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var movedUnit = battleMove.Tick(0.5).Units.First(unit => unit.UnitId == "mover");
+Require(movedUnit.Position.Equals(new TacticalPosition(2, 0)), "a melee unit steps toward a distant target");
+Require(Math.Abs(movedUnit.CurrentMana) < 1e-9, "moving instead of attacking grants no mana");
+
+var castBattle = BattleState.Create(new[]
+{
+    MakeUnit("caster", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 50, 1.0, 0.0, manaMax: 10),
+    MakeUnit("enemy_f", TacticalSide.Enemy, new TacticalPosition(1, 0), 1000, 1000, 0, 1.0, 100.0)
+});
+var afterCast = castBattle.Tick(0.5);
+var caster = afterCast.Units.First(unit => unit.UnitId == "caster");
+Require(caster.AbilitiesCast == 1, "a unit casts when mana reaches the maximum");
+Require(Math.Abs(caster.CurrentMana) < 1e-9, "casting resets mana to zero");
+Require(afterCast.Outcome == BattleOutcome.Ongoing, "the battle continues while both sides survive");
+
+var runeManaBattle = BattleState.Create(new[]
+{
+    MakeUnit("ally_g", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("enemy_g", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var afterRuneMana = runeManaBattle.AddManaFromBlueRunes(TacticalSide.Player, 3);
+var fedAlly = afterRuneMana.Units.First(unit => unit.UnitId == "ally_g");
+Require(Math.Abs(fedAlly.CurrentMana - 24.0) < 1e-9, "blue runes grant eight mana each to a living ally");
+RequireThrows(() => runeManaBattle.AddManaFromBlueRunes(TacticalSide.Player, -1), "blue rune mana rejects negative counts");
+
+var runeCastBattle = BattleState.Create(new[]
+{
+    MakeUnit("ally_h", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0, manaMax: 20),
+    MakeUnit("enemy_h", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var runeCaster = runeCastBattle.AddManaFromBlueRunes(TacticalSide.Player, 3).Units.First(unit => unit.UnitId == "ally_h");
+Require(runeCaster.AbilitiesCast == 1 && Math.Abs(runeCaster.CurrentMana) < 1e-9, "blue-rune mana that fills the bar triggers a cast");
+
+var rangedBattle = BattleState.Create(new[]
+{
+    MakeUnit("archer", TacticalSide.Player, new TacticalPosition(3, 0), 100, 100, 30, 1.0, 0.0, attackType: BattleAttackType.Ranged),
+    MakeUnit("enemy_r", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var afterRanged = rangedBattle.Tick(0.5);
+var archer = afterRanged.Units.First(unit => unit.UnitId == "archer");
+var rangedTarget = afterRanged.Units.First(unit => unit.UnitId == "enemy_r");
+Require(archer.Position.Equals(new TacticalPosition(3, 0)), "a ranged unit attacks without moving");
+Require(Math.Abs(rangedTarget.CurrentHealth - 70.0) < 1e-9, "a ranged unit hits a distant target");
+Require(Math.Abs(archer.CurrentMana - CombatFormulas.ManaFromAttack) < 1e-9, "a ranged attack also grants mana");
+
+RequireThrows(() => BattleState.Create(System.Array.Empty<BattleUnit>(), 0.0), "battle creation rejects a non-positive duration");
+RequireThrows(() => battleVictory.Tick(0.0), "battle tick rejects a non-positive delta");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
@@ -691,6 +789,37 @@ static void RequireThrows(Action action, string message)
 static bool ContainsExactly(IReadOnlySet<BoardPoint> actual, IReadOnlyList<BoardPoint> expected)
 {
     return actual.Count == expected.Count && expected.All(actual.Contains);
+}
+
+static BattleUnit MakeUnit(
+    string id,
+    TacticalSide side,
+    TacticalPosition position,
+    double maxHealth,
+    double currentHealth,
+    double attack,
+    double attacksPerSecond,
+    double cooldown,
+    double manaMax = 100.0,
+    double armor = 0.0,
+    BattleAttackType attackType = BattleAttackType.Melee)
+{
+    return new BattleUnit(
+        UnitId: id,
+        Side: side,
+        Position: position,
+        MaxHealth: maxHealth,
+        CurrentHealth: currentHealth,
+        Attack: attack,
+        Armor: armor,
+        MagicResist: 0.0,
+        AttacksPerSecond: attacksPerSecond,
+        CurrentMana: 0.0,
+        ManaMax: manaMax,
+        Shield: 0.0,
+        AttackType: attackType,
+        AttackCooldownRemaining: cooldown,
+        AbilitiesCast: 0);
 }
 
 static Match3Board CreatePatternBoard(params (BoardPoint Point, RuneType Rune)[] overrides)
