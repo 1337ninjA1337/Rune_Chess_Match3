@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 4, "hero catalog starts with the first four MVP heroes");
+Require(HeroCatalog.All.Count == 5, "hero catalog starts with the first five MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -765,6 +765,13 @@ Require(catalogWildClaw.Faction == "Дикие" && catalogWildClaw.Class == "Б�
 Require(catalogWildClaw.RuneAffinity == RuneType.Red && catalogWildClaw.Role == HeroRole.Bruiser, "wild claw is a red-rune bruiser");
 Require(catalogWildClaw.AttackType == "melee" && catalogWildClaw.Targeting == "nearest", "wild claw uses melee nearest targeting");
 Require(Math.Abs(catalogWildClaw.BaseStats.BaseHealth - 700.0) < 1e-9, "wild claw has bruiser health stats");
+var catalogThornShaman = HeroCatalog.Get("thorn_shaman");
+Require(catalogThornShaman.Name == "Терновый Шаман", "thorn shaman uses the GDD display name");
+Require(catalogThornShaman.Rarity == HeroRarity.Common && catalogThornShaman.Cost == 1, "thorn shaman is a one-cost common hero");
+Require(catalogThornShaman.Faction == "Дикие" && catalogThornShaman.Class == "Призыватель", "thorn shaman belongs to the Wild Summoner line");
+Require(catalogThornShaman.RuneAffinity == RuneType.Green && catalogThornShaman.Role == HeroRole.Summoner, "thorn shaman is a green-rune summoner");
+Require(catalogThornShaman.AttackType == "ranged" && catalogThornShaman.Targeting == "summon_slot", "thorn shaman uses summon-slot targeting");
+Require(Math.Abs(catalogThornShaman.BaseStats.ManaMax - 75.0) < 1e-9, "thorn shaman has summoner mana stats");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

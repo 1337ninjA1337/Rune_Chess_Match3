@@ -98,12 +98,36 @@ namespace RuneChess.Core
                 ManaMax: 65)
         );
 
+        public static HeroDefinition ThornShaman { get; } = new(
+            Id: "thorn_shaman",
+            Name: "Терновый Шаман",
+            Rarity: HeroRarity.Common,
+            Cost: 1,
+            Faction: "Дикие",
+            Class: "Призыватель",
+            RuneAffinity: RuneType.Green,
+            Role: HeroRole.Summoner,
+            AttackType: "ranged",
+            Targeting: "summon_slot",
+            Stars: 1,
+            Ability: "Призывает тернового зверя.",
+            Passive: "Зов чащи: начинает бой с частью маны.",
+            BaseStats: new HeroStats(
+                BaseHealth: 540,
+                Attack: 40,
+                Armor: 3,
+                MagicResist: 5,
+                BaseAttackSpeed: 0.8,
+                ManaMax: 75)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
             OathArcher,
             FieldMedic,
-            WildClaw
+            WildClaw,
+            ThornShaman
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
