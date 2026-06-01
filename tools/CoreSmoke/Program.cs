@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 1, "hero catalog starts with iron guard");
+Require(HeroCatalog.All.Count == 2, "hero catalog starts with the first two MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -743,6 +743,13 @@ Require(Math.Abs(catalogIronGuard.BaseStats.Armor - 8.0) < 1e-9, "iron guard bas
 Require(Math.Abs(catalogIronGuard.BaseStats.MagicResist - 3.0) < 1e-9, "iron guard magic resist comes from the GDD");
 Require(Math.Abs(catalogIronGuard.BaseStats.BaseAttackSpeed - 0.75) < 1e-9, "iron guard attack speed comes from the GDD");
 Require(Math.Abs(catalogIronGuard.BaseStats.ManaMax - 80.0) < 1e-9, "iron guard mana max comes from the GDD");
+var catalogOathArcher = HeroCatalog.Get("oath_archer");
+Require(catalogOathArcher.Name == "Лучница Присяги", "oath archer uses the GDD display name");
+Require(catalogOathArcher.Rarity == HeroRarity.Common && catalogOathArcher.Cost == 1, "oath archer is a one-cost common hero");
+Require(catalogOathArcher.Faction == "Империя" && catalogOathArcher.Class == "Стрелок", "oath archer belongs to the Empire Marksman line");
+Require(catalogOathArcher.RuneAffinity == RuneType.Red && catalogOathArcher.Role == HeroRole.Carry, "oath archer is a red-rune carry");
+Require(catalogOathArcher.AttackType == "ranged" && catalogOathArcher.Targeting == "current", "oath archer uses ranged current-target rules");
+Require(Math.Abs(catalogOathArcher.BaseStats.Attack - 65.0) < 1e-9, "oath archer has carry attack stats");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

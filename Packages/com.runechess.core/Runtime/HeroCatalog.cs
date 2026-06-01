@@ -29,9 +29,33 @@ namespace RuneChess.Core
                 ManaMax: 80)
         );
 
+        public static HeroDefinition OathArcher { get; } = new(
+            Id: "oath_archer",
+            Name: "Лучница Присяги",
+            Rarity: HeroRarity.Common,
+            Cost: 1,
+            Faction: "Империя",
+            Class: "Стрелок",
+            RuneAffinity: RuneType.Red,
+            Role: HeroRole.Carry,
+            AttackType: "ranged",
+            Targeting: "current",
+            Stars: 1,
+            Ability: "Серия быстрых выстрелов по текущей цели.",
+            Passive: "Боевой фокус: наносит больше урона базовыми атаками.",
+            BaseStats: new HeroStats(
+                BaseHealth: 520,
+                Attack: 65,
+                Armor: 3,
+                MagicResist: 2,
+                BaseAttackSpeed: 1.05,
+                ManaMax: 60)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
-            IronGuard
+            IronGuard,
+            OathArcher
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
