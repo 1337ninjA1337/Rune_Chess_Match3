@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 11, "hero catalog starts with the first eleven MVP heroes");
+Require(HeroCatalog.All.Count == 12, "hero catalog starts with the first twelve MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -818,6 +818,13 @@ Require(catalogSpiritDuelist.Faction == "Духи" && catalogSpiritDuelist.Class
 Require(catalogSpiritDuelist.RuneAffinity == RuneType.White && catalogSpiritDuelist.Role == HeroRole.Bruiser, "spirit duelist is a white-rune bruiser");
 Require(catalogSpiritDuelist.PreferredEffectKind == RuneEffectKind.CommanderEnergy, "a white hero prefers commander-energy rune effects");
 Require(catalogSpiritDuelist.AbilityForStars(1).Kind == HeroAbilityKind.PhysicalDamage, "bruiser heroes get an active physical-damage ability");
+var catalogDuskRanger = HeroCatalog.Get("dusk_ranger");
+Require(catalogDuskRanger.Name == "Сумеречный Егерь", "dusk ranger uses the GDD display name");
+Require(catalogDuskRanger.Rarity == HeroRarity.Epic && catalogDuskRanger.Cost == 3, "dusk ranger is a three-cost epic hero");
+Require(catalogDuskRanger.Faction == "Дикие" && catalogDuskRanger.Class == "Стрелок", "dusk ranger belongs to the Wild Marksman line");
+Require(catalogDuskRanger.RuneAffinity == RuneType.Red && catalogDuskRanger.Role == HeroRole.Carry, "dusk ranger is a red-rune carry");
+Require(catalogDuskRanger.AttackType == "ranged" && catalogDuskRanger.Targeting == "current", "dusk ranger uses ranged current-target attacks");
+Require(catalogDuskRanger.AbilityForStars(1).Kind == HeroAbilityKind.PhysicalDamage, "carry heroes get an active physical-damage ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

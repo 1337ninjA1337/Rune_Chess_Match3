@@ -259,6 +259,29 @@ namespace RuneChess.Core
                 ManaMax: 60)
         );
 
+        public static HeroDefinition DuskRanger { get; } = new(
+            Id: "dusk_ranger",
+            Name: "Сумеречный Егерь",
+            Rarity: HeroRarity.Epic,
+            Cost: 3,
+            Faction: "Дикие",
+            Class: "Стрелок",
+            RuneAffinity: RuneType.Red,
+            Role: HeroRole.Carry,
+            AttackType: "ranged",
+            Targeting: "current",
+            Stars: 1,
+            Ability: "Метит цель, повышая получаемый ею урон.",
+            Passive: "Охотничий взгляд: больше урона по помеченным целям.",
+            BaseStats: new HeroStats(
+                BaseHealth: 560,
+                Attack: 72,
+                Armor: 3,
+                MagicResist: 3,
+                BaseAttackSpeed: 1.05,
+                ManaMax: 60)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -271,7 +294,8 @@ namespace RuneChess.Core
             GearSquire,
             SparkTinker,
             AbyssAcolyte,
-            SpiritDuelist
+            SpiritDuelist,
+            DuskRanger
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
