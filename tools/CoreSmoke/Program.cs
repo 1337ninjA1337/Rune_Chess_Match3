@@ -226,8 +226,10 @@ Require(HeroEconomy.CalculateSellValue(baseCost: 1, stars: 3) == 9, "three-star 
 RequireThrows(() => state.StartCombat(), "combat cannot start before placement");
 
 var afterXp = afterPlace.BuyXp();
+Require(EconomyConfig.Default.BuyXpCost == 4 && EconomyConfig.Default.XpPerPurchase == 4, "default economy config buys 4 XP for 4 gold");
 Require(afterXp.Gold == 0, "buying XP spends configured gold");
 Require(afterXp.Xp == 4, "buying XP adds configured XP");
+RequireThrows(() => (afterPlace with { Gold = 3 }).BuyXp(), "buying XP rejects insufficient gold");
 
 var inCombat = afterXp.StartCombat(1337);
 Require(inCombat.Phase == RunPhase.Combat, "start combat changes phase");
