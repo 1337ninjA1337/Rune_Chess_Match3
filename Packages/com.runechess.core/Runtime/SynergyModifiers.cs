@@ -13,8 +13,9 @@ namespace RuneChess.Core
         public const double EmpireArmorBonus = 0.10;
 
         private readonly double armorMultiplier;
+        private readonly bool empireYellowRuneFrontlineShield;
 
-        public SynergyModifiers(double armorMultiplier)
+        public SynergyModifiers(double armorMultiplier, bool empireYellowRuneFrontlineShield = false)
         {
             if (armorMultiplier <= 0.0)
             {
@@ -22,9 +23,11 @@ namespace RuneChess.Core
             }
 
             this.armorMultiplier = armorMultiplier;
+            this.empireYellowRuneFrontlineShield = empireYellowRuneFrontlineShield;
         }
 
         public double ArmorMultiplier => armorMultiplier <= 0.0 ? 1.0 : armorMultiplier;
+        public bool EmpireYellowRuneFrontlineShield => empireYellowRuneFrontlineShield;
 
         public static SynergyModifiers None { get; } = new(1.0);
 
@@ -51,7 +54,9 @@ namespace RuneChess.Core
                 armorMultiplier *= 1.0 + EmpireArmorBonus;
             }
 
-            return new SynergyModifiers(armorMultiplier);
+            return new SynergyModifiers(
+                armorMultiplier,
+                empireYellowRuneFrontlineShield: HasActiveTier(progress, FactionCatalog.Empire.Id, requiredCount: 4));
         }
 
         public HeroStats ApplyToStats(HeroStats stats)
@@ -69,7 +74,8 @@ namespace RuneChess.Core
 
         public bool Equals(SynergyModifiers other)
         {
-            return Math.Abs(ArmorMultiplier - other.ArmorMultiplier) < 1e-9;
+            return Math.Abs(ArmorMultiplier - other.ArmorMultiplier) < 1e-9
+                && EmpireYellowRuneFrontlineShield == other.EmpireYellowRuneFrontlineShield;
         }
 
         public override bool Equals(object? obj)
@@ -79,7 +85,7 @@ namespace RuneChess.Core
 
         public override int GetHashCode()
         {
-            return ArmorMultiplier.GetHashCode();
+            return HashCode.Combine(ArmorMultiplier, EmpireYellowRuneFrontlineShield);
         }
 
         private static bool HasActiveTier(

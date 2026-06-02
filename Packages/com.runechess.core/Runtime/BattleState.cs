@@ -142,7 +142,10 @@ public sealed record BattleState(
     /// by default. Mass effects (T/L combos) hit every relevant unit; otherwise a single
     /// focused target is chosen.
     /// </summary>
-    public BattleState ApplyRuneEffects(IEnumerable<RuneEffect> effects, TacticalSide casterSide = TacticalSide.Player)
+    public BattleState ApplyRuneEffects(
+        IEnumerable<RuneEffect> effects,
+        TacticalSide casterSide = TacticalSide.Player,
+        SynergyModifiers synergyModifiers = default)
     {
         if (effects is null)
         {
@@ -152,13 +155,16 @@ public sealed record BattleState(
         var state = this;
         foreach (var effect in effects)
         {
-            state = state.ApplyRuneEffect(effect, casterSide);
+            state = state.ApplyRuneEffect(effect, casterSide, synergyModifiers);
         }
 
         return state;
     }
 
-    public BattleState ApplyRuneEffect(RuneEffect effect, TacticalSide casterSide = TacticalSide.Player)
+    public BattleState ApplyRuneEffect(
+        RuneEffect effect,
+        TacticalSide casterSide = TacticalSide.Player,
+        SynergyModifiers synergyModifiers = default)
     {
         if (effect is null)
         {
@@ -186,7 +192,7 @@ public sealed record BattleState(
                 ApplyRuneHealing(units, casterSide, effect);
                 break;
             case RuneEffectKind.Shield:
-                ApplyRuneShield(units, casterSide, effect);
+                ApplyRuneShield(units, casterSide, effect, synergyModifiers);
                 break;
             case RuneEffectKind.Mana:
                 ApplyRuneMana(units, casterSide, effect.Power, effect.IsMassEffect);
@@ -287,7 +293,7 @@ public sealed record BattleState(
                 ApplyRuneHealing(units, caster.Side, AbilityEffect(RuneEffectKind.Healing, ability.Power));
                 return;
             case HeroAbilityKind.Shield:
-                ApplyRuneShield(units, caster.Side, AbilityEffect(RuneEffectKind.Shield, ability.Power));
+                ApplyRuneShield(units, caster.Side, AbilityEffect(RuneEffectKind.Shield, ability.Power), SynergyModifiers.None);
                 return;
             default:
                 throw new ArgumentOutOfRangeException(nameof(caster), ability.Kind, "Unknown hero ability kind.");
@@ -459,9 +465,15 @@ public sealed record BattleState(
         }
     }
 
-    private static void ApplyRuneShield(List<BattleUnit> units, TacticalSide side, RuneEffect effect)
+    private static void ApplyRuneShield(
+        List<BattleUnit> units,
+        TacticalSide side,
+        RuneEffect effect,
+        SynergyModifiers synergyModifiers)
     {
-        var targets = effect.IsMassEffect
+        var targets = ShouldShieldFrontline(effect, synergyModifiers)
+            ? FrontlineIndices(units, side)
+            : effect.IsMassEffect
             ? AliveIndices(units, side)
             : SingleBy(units, side, unit => side == TacticalSide.Player ? unit.Position.Row : -unit.Position.Row);
 
@@ -473,6 +485,27 @@ public sealed record BattleState(
                 Shield = CombatFormulas.CapShield(unit.Shield + effect.Power, unit.MaxHealth)
             };
         }
+    }
+
+    private static bool ShouldShieldFrontline(RuneEffect effect, SynergyModifiers synergyModifiers)
+    {
+        return !effect.IsMassEffect
+            && effect.Rune == RuneType.Yellow
+            && synergyModifiers.EmpireYellowRuneFrontlineShield;
+    }
+
+    private static List<int> FrontlineIndices(List<BattleUnit> units, TacticalSide side)
+    {
+        var indices = new List<int>();
+        for (var i = 0; i < units.Count; i += 1)
+        {
+            if (units[i].IsAlive && units[i].Side == side && units[i].Position.IsFrontline)
+            {
+                indices.Add(i);
+            }
+        }
+
+        return indices;
     }
 
     private static void ApplyRuneMana(List<BattleUnit> units, TacticalSide side, double amount, bool mass)

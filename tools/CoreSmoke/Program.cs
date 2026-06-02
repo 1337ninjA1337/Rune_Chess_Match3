@@ -899,6 +899,16 @@ Require(Math.Abs(empireBuffedWildClaw.Armor - 5.5) < 1e-9, "Empire 2 grants +10 
 var empireBuffedBoardHero = BattleUnit.FromBoardHero(empireArmorBoard[1], TacticalSide.Player, empireArmorModifiers);
 Require(Math.Abs(empireBuffedBoardHero.Armor - 3.3) < 1e-9, "board heroes can be converted into synergy-buffed battle units");
 
+var empireFourBoard = new List<BoardHero>
+{
+    new(new HeroInstance("empire4_ig", "iron_guard", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("empire4_oa", "oath_archer", 1), new TacticalPosition(3, 0)),
+    new(new HeroInstance("empire4_fm", "field_medic", 1), new TacticalPosition(3, 1)),
+    new(new HeroInstance("empire4_ra", "rune_apprentice", 1), new TacticalPosition(2, 1))
+};
+var empireFourModifiers = SynergyModifiers.ForTeam(empireFourBoard);
+Require(empireFourModifiers.EmpireYellowRuneFrontlineShield, "four Empire heroes unlock the yellow-rune frontline shield modifier");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
@@ -1101,6 +1111,20 @@ Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Mana, 24)).Units
 Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.CommanderEnergy, 5)).CommanderEnergy - 5.0) < 1e-9, "a white rune accrues commander energy");
 Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40, mass: true, commanderEnergy: 10)).CommanderEnergy - 10.0) < 1e-9, "T/L combos accrue commander energy alongside their effect");
 
+var empireYellowShieldBattle = BattleState.Create(new[]
+{
+    MakeUnit("empire_front_a", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("empire_front_b", TacticalSide.Player, new TacticalPosition(2, 1), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("empire_back", TacticalSide.Player, new TacticalPosition(3, 0), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("empire_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var defaultYellowShield = empireYellowShieldBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.Yellow));
+Require(Math.Abs(defaultYellowShield.Units.First(u => u.UnitId == "empire_front_a").Shield - 20.0) < 1e-9, "without Empire 4 a yellow rune shields only the frontmost ally");
+Require(Math.Abs(defaultYellowShield.Units.First(u => u.UnitId == "empire_front_b").Shield) < 1e-9, "without Empire 4 the second frontline ally is not shielded by a single yellow match");
+var empireFourYellowShield = empireYellowShieldBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.Yellow), synergyModifiers: empireFourModifiers);
+Require(empireFourYellowShield.Units.Where(u => u.UnitId.StartsWith("empire_front", StringComparison.Ordinal)).All(u => Math.Abs(u.Shield - 20.0) < 1e-9), "Empire 4 yellow runes shield the allied frontline");
+Require(Math.Abs(empireFourYellowShield.Units.First(u => u.UnitId == "empire_back").Shield) < 1e-9, "Empire 4 yellow rune shield does not spill into the backline");
+
 var massHealBattle = BattleState.Create(new[]
 {
     MakeUnit("m1", TacticalSide.Player, new TacticalPosition(2, 0), 100, 40, 0, 1.0, 100.0),
@@ -1180,10 +1204,15 @@ static bool ContainsExactly(IReadOnlyCollection<BoardPoint> actual, IReadOnlyLis
     return actual.Count == expected.Count && expected.All(actual.Contains);
 }
 
-static RuneEffect Effect(RuneEffectKind kind, double power, bool mass = false, int commanderEnergy = 0)
+static RuneEffect Effect(
+    RuneEffectKind kind,
+    double power,
+    bool mass = false,
+    int commanderEnergy = 0,
+    RuneType rune = RuneType.Red)
 {
     return new RuneEffect(
-        Rune: RuneType.Red,
+        Rune: rune,
         Kind: kind,
         Tier: RuneMatchTier.Match3,
         MatchedRunesCount: 3,
