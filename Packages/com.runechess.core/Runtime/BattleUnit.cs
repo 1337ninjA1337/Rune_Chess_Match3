@@ -29,7 +29,9 @@ public sealed record BattleUnit(
     int LifestealMillisecondsRemaining = 0,
     double WeaknessAttackPenaltyFraction = 0.0,
     int WeaknessMillisecondsRemaining = 0,
-    int SummonMillisecondsRemaining = 0
+    int SummonMillisecondsRemaining = 0,
+    double DodgeChance = 0.0,
+    int AttacksReceived = 0
 )
 {
     public bool IsAlive => CurrentHealth > 0.0;
@@ -37,6 +39,7 @@ public sealed record BattleUnit(
     public bool HasActiveLifesteal => LifestealFraction > 0.0 && LifestealMillisecondsRemaining > 0;
     public bool HasActiveWeakness => WeaknessAttackPenaltyFraction > 0.0 && WeaknessMillisecondsRemaining > 0;
     public bool HasTimedSummon => SummonMillisecondsRemaining > 0;
+    public bool HasDodgeChance => DodgeChance > 0.0;
     public double EffectiveAttack => Attack * (HasActiveWeakness ? 1.0 - WeaknessAttackPenaltyFraction : 1.0);
     public double HealthPercent => MaxHealth <= 0.0 ? 0.0 : CurrentHealth / MaxHealth;
     public double AttackInterval => CombatFormulas.CalculateAttackInterval(AttacksPerSecond);
@@ -83,7 +86,8 @@ public sealed record BattleUnit(
             AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
             AbilitiesCast: 0,
             ActiveAbility: definition.AbilityForStars(stars),
-            PassiveEffect: passive
+            PassiveEffect: passive,
+            DodgeChance: synergyModifiers.DodgeChance
         );
     }
 

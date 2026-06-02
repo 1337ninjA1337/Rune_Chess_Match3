@@ -56,6 +56,8 @@ public sealed record BattleState(
         var battleUnits = units.ToList();
         AddMechanistOpeningDrone(battleUnits, TacticalSide.Player, playerSynergyModifiers);
         AddMechanistOpeningDrone(battleUnits, TacticalSide.Enemy, enemySynergyModifiers);
+        ApplySpiritDodgeChance(battleUnits, TacticalSide.Player, playerSynergyModifiers);
+        ApplySpiritDodgeChance(battleUnits, TacticalSide.Enemy, enemySynergyModifiers);
 
         return new BattleState(
             battleUnits,
@@ -129,6 +131,19 @@ public sealed record BattleState(
                     units[attackerIndex] = attacker with { Position = nextPosition };
                 }
 
+                continue;
+            }
+
+            target = target with { AttacksReceived = target.AttacksReceived + 1 };
+            if (ShouldDodgeAttack(target))
+            {
+                units[targetIndex] = target;
+                units[attackerIndex] = attacker with
+                {
+                    CurrentMana = Math.Min(attacker.ManaMax, attacker.CurrentMana + CombatFormulas.ManaFromAttack),
+                    AttackCooldownRemaining = attacker.AttackInterval
+                };
+                TryCastAbility(units, attackerIndex, ModifiersForSide(attacker.Side), ModifiersForSide(target.Side));
                 continue;
             }
 
@@ -447,7 +462,8 @@ public sealed record BattleState(
             Shield: 0.0,
             AttackType: BattleAttackType.Ranged,
             AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
-            AbilitiesCast: 0));
+            AbilitiesCast: 0,
+            DodgeChance: synergyModifiers.DodgeChance));
     }
 
     private static void ApplyMechanistMatch4Turret(
@@ -484,7 +500,44 @@ public sealed record BattleState(
             AttackType: BattleAttackType.Ranged,
             AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
             AbilitiesCast: 0,
-            SummonMillisecondsRemaining: MechanistTurretDurationMilliseconds));
+            SummonMillisecondsRemaining: MechanistTurretDurationMilliseconds,
+            DodgeChance: synergyModifiers.DodgeChance));
+    }
+
+    private static void ApplySpiritDodgeChance(
+        List<BattleUnit> units,
+        TacticalSide side,
+        SynergyModifiers synergyModifiers)
+    {
+        if (synergyModifiers.DodgeChance <= 0.0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < units.Count; i += 1)
+        {
+            var unit = units[i];
+            if (unit.Side != side)
+            {
+                continue;
+            }
+
+            units[i] = unit with
+            {
+                DodgeChance = Math.Max(unit.DodgeChance, synergyModifiers.DodgeChance)
+            };
+        }
+    }
+
+    private static bool ShouldDodgeAttack(BattleUnit target)
+    {
+        if (target.DodgeChance <= 0.0 || target.AttacksReceived <= 0)
+        {
+            return false;
+        }
+
+        var dodgeInterval = Math.Max(1, (int)Math.Round(1.0 / target.DodgeChance, MidpointRounding.AwayFromZero));
+        return target.AttacksReceived % dodgeInterval == 0;
     }
 
     private static TacticalPosition? SelectBacklineSpawnPosition(List<BattleUnit> units, TacticalSide side)

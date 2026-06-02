@@ -17,6 +17,7 @@ namespace RuneChess.Core
         public const double AbyssalAbilityWeaknessAttackPenalty = 0.10;
         public const int AbyssalAbilityWeaknessDurationMilliseconds = 3000;
         public const double AbyssalPurpleRuneDamageBonus = 0.25;
+        public const double SpiritDodgeChanceBonus = 0.10;
 
         private readonly double armorMultiplier;
         private readonly double attackSpeedMultiplier;
@@ -26,6 +27,7 @@ namespace RuneChess.Core
         private readonly bool abyssalPurpleRuneBonusDamage;
         private readonly bool mechanistOpeningDrone;
         private readonly bool mechanistMatch4Turret;
+        private readonly double dodgeChance;
 
         public SynergyModifiers(
             double armorMultiplier,
@@ -35,7 +37,8 @@ namespace RuneChess.Core
             bool abyssalAbilityWeakness = false,
             bool abyssalPurpleRuneBonusDamage = false,
             bool mechanistOpeningDrone = false,
-            bool mechanistMatch4Turret = false)
+            bool mechanistMatch4Turret = false,
+            double dodgeChance = 0.0)
         {
             if (armorMultiplier <= 0.0)
             {
@@ -47,6 +50,11 @@ namespace RuneChess.Core
                 throw new ArgumentOutOfRangeException(nameof(attackSpeedMultiplier), "Synergy attack speed multiplier must be positive.");
             }
 
+            if (dodgeChance < 0.0 || dodgeChance > 1.0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(dodgeChance), "Synergy dodge chance must be between zero and one.");
+            }
+
             this.armorMultiplier = armorMultiplier;
             this.attackSpeedMultiplier = attackSpeedMultiplier;
             this.empireYellowRuneFrontlineShield = empireYellowRuneFrontlineShield;
@@ -55,6 +63,7 @@ namespace RuneChess.Core
             this.abyssalPurpleRuneBonusDamage = abyssalPurpleRuneBonusDamage;
             this.mechanistOpeningDrone = mechanistOpeningDrone;
             this.mechanistMatch4Turret = mechanistMatch4Turret;
+            this.dodgeChance = dodgeChance;
         }
 
         public double ArmorMultiplier => armorMultiplier <= 0.0 ? 1.0 : armorMultiplier;
@@ -65,6 +74,7 @@ namespace RuneChess.Core
         public bool AbyssalPurpleRuneBonusDamage => abyssalPurpleRuneBonusDamage;
         public bool MechanistOpeningDrone => mechanistOpeningDrone;
         public bool MechanistMatch4Turret => mechanistMatch4Turret;
+        public double DodgeChance => dodgeChance;
 
         public static SynergyModifiers None { get; } = new(1.0);
 
@@ -105,7 +115,8 @@ namespace RuneChess.Core
                 abyssalAbilityWeakness: HasActiveTier(progress, FactionCatalog.Abyssal.Id, requiredCount: 2),
                 abyssalPurpleRuneBonusDamage: HasActiveTier(progress, FactionCatalog.Abyssal.Id, requiredCount: 4),
                 mechanistOpeningDrone: HasActiveTier(progress, FactionCatalog.Mechanist.Id, requiredCount: 2),
-                mechanistMatch4Turret: HasActiveTier(progress, FactionCatalog.Mechanist.Id, requiredCount: 4));
+                mechanistMatch4Turret: HasActiveTier(progress, FactionCatalog.Mechanist.Id, requiredCount: 4),
+                dodgeChance: HasActiveTier(progress, FactionCatalog.Spirit.Id, requiredCount: 2) ? SpiritDodgeChanceBonus : 0.0);
         }
 
         public HeroStats ApplyToStats(HeroStats stats)
@@ -131,7 +142,8 @@ namespace RuneChess.Core
                 && AbyssalAbilityWeakness == other.AbyssalAbilityWeakness
                 && AbyssalPurpleRuneBonusDamage == other.AbyssalPurpleRuneBonusDamage
                 && MechanistOpeningDrone == other.MechanistOpeningDrone
-                && MechanistMatch4Turret == other.MechanistMatch4Turret;
+                && MechanistMatch4Turret == other.MechanistMatch4Turret
+                && Math.Abs(DodgeChance - other.DodgeChance) < 1e-9;
         }
 
         public override bool Equals(object? obj)
@@ -149,7 +161,7 @@ namespace RuneChess.Core
                 AbyssalAbilityWeakness,
                 AbyssalPurpleRuneBonusDamage,
                 MechanistOpeningDrone,
-                MechanistMatch4Turret);
+                HashCode.Combine(MechanistMatch4Turret, DodgeChance));
         }
 
         private static bool HasActiveTier(

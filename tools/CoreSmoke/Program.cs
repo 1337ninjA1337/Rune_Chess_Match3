@@ -966,6 +966,14 @@ var mechanistFourBoard = new List<BoardHero>
 var mechanistFourModifiers = SynergyModifiers.ForTeam(mechanistFourBoard);
 Require(mechanistFourModifiers.MechanistOpeningDrone && mechanistFourModifiers.MechanistMatch4Turret, "four Mechanist heroes unlock opening drones and match-4 turrets");
 
+var spiritDodgeBoard = new List<BoardHero>
+{
+    new(new HeroInstance("spirit2_mc", "mist_cutthroat", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("spirit2_sd", "spirit_duelist", 1), new TacticalPosition(3, 0))
+};
+var spiritDodgeModifiers = SynergyModifiers.ForTeam(spiritDodgeBoard);
+Require(Math.Abs(spiritDodgeModifiers.DodgeChance - SynergyModifiers.SpiritDodgeChanceBonus) < 1e-9, "two Spirit heroes unlock ally dodge chance");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
@@ -1010,6 +1018,8 @@ Require(Math.Abs(ironGuardUnit.AttackInterval - 1.25) < 1e-9, "attack interval m
 Require(ironGuardUnit.ActiveAbility.Kind == HeroAbilityKind.Shield, "battle units carry their hero active ability");
 Require(ironGuardUnit.PassiveEffect.Kind == HeroPassiveKind.FrontlineGuard, "battle units carry their hero passive effect");
 Require(ironGuardUnit.CurrentHealth == ironGuardUnit.MaxHealth && ironGuardUnit.AbilitiesCast == 0, "a new hero unit starts at full health");
+var spiritDodgerUnit = BattleUnit.FromHero(catalogSpiritDuelist, 1, "spirit_dodger_unit", TacticalSide.Player, new TacticalPosition(3, 0), spiritDodgeModifiers);
+Require(Math.Abs(spiritDodgerUnit.DodgeChance - SynergyModifiers.SpiritDodgeChanceBonus) < 1e-9, "Spirit 2 dodge chance applies when building battle units");
 var backlineGuardUnit = BattleUnit.FromHero(ironGuardDefinition, 1, "ig_back", TacticalSide.Player, new TacticalPosition(3, 1));
 Require(Math.Abs(backlineGuardUnit.Armor - 25.0) < 1e-9, "frontline guard does not modify backline armor");
 
@@ -1084,6 +1094,37 @@ var blockedTurretBattle = occupiedBacklineBattle.ApplyRuneEffect(
     Effect(RuneEffectKind.Mana, 0, rune: RuneType.Blue, tier: RuneMatchTier.Match4, matchedRunesCount: 4),
     synergyModifiers: mechanistFourModifiers);
 Require(!blockedTurretBattle.Units.Any(unit => unit.UnitId.StartsWith("mechanist_turret_player", StringComparison.Ordinal)), "Mechanist 4 skips turret spawn when the backline is full");
+
+var spiritBattleWithModifiers = BattleState.Create(
+    new[]
+    {
+        MakeUnit("spirit_state_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+        MakeUnit("spirit_state_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+    },
+    playerSynergyModifiers: spiritDodgeModifiers);
+Require(Math.Abs(spiritBattleWithModifiers.Units.First(unit => unit.UnitId == "spirit_state_ally").DodgeChance - SynergyModifiers.SpiritDodgeChanceBonus) < 1e-9, "Spirit 2 dodge chance applies during battle creation");
+
+var spiritHitBattle = BattleState.Create(new[]
+{
+    MakeUnit("spirit_hit_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0)
+        with { DodgeChance = SynergyModifiers.SpiritDodgeChanceBonus },
+    MakeUnit("spirit_hit_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 0.0)
+});
+var spiritHitAlly = spiritHitBattle.Tick(0.5).Units.First(unit => unit.UnitId == "spirit_hit_ally");
+Require(Math.Abs(spiritHitAlly.CurrentHealth - 90.0) < 1e-9 && spiritHitAlly.AttacksReceived == 1, "Spirit dodge chance still lets non-dodge attacks hit");
+
+var spiritDodgeBattle = BattleState.Create(new[]
+{
+    MakeUnit("spirit_dodge_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0)
+        with
+        {
+            DodgeChance = SynergyModifiers.SpiritDodgeChanceBonus,
+            AttacksReceived = 9
+        },
+    MakeUnit("spirit_dodge_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 0.0)
+});
+var spiritDodgedAlly = spiritDodgeBattle.Tick(0.5).Units.First(unit => unit.UnitId == "spirit_dodge_ally");
+Require(Math.Abs(spiritDodgedAlly.CurrentHealth - 100.0) < 1e-9 && spiritDodgedAlly.AttacksReceived == 10, "Spirit 2 deterministic dodge avoids the cadence attack");
 
 var battleDefeat = BattleState.Create(new[]
 {
