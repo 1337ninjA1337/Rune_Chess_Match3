@@ -882,6 +882,14 @@ Require(catalogAstralRegent.Faction == "Духи" && catalogAstralRegent.Class =
 Require(catalogAstralRegent.RuneAffinity == RuneType.White && catalogAstralRegent.Role == HeroRole.Caster, "astral regent is a white-rune caster");
 Require(catalogAstralRegent.PreferredEffectKind == RuneEffectKind.CommanderEnergy, "a white caster prefers commander-energy rune effects");
 Require(catalogAstralRegent.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
+// MVP faction distribution. The GDD "Распределение героев MVP" section claims
+// 5/4/4/4/4 (summing to 21), but the concrete 20-hero table only lists 3 Abyss
+// heroes, so the table is treated as authoritative: 5/4/3/4/4 = 20.
+Require(HeroCatalog.All.Count(h => h.Faction == "Империя") == 5, "five Empire heroes in the MVP roster");
+Require(HeroCatalog.All.Count(h => h.Faction == "Дикие") == 4, "four Wild heroes in the MVP roster");
+Require(HeroCatalog.All.Count(h => h.Faction == "Бездонные") == 3, "three Abyss heroes in the MVP roster per the hero table");
+Require(HeroCatalog.All.Count(h => h.Faction == "Механисты") == 4, "four Mechanist heroes in the MVP roster");
+Require(HeroCatalog.All.Count(h => h.Faction == "Духи") == 4, "four Spirit heroes in the MVP roster");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(
