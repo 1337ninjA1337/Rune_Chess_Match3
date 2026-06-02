@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 15, "hero catalog starts with the first fifteen MVP heroes");
+Require(HeroCatalog.All.Count == 16, "hero catalog starts with the first sixteen MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -846,6 +846,14 @@ Require(catalogDroneMarshal.Faction == "Механисты" && catalogDroneMarsh
 Require(catalogDroneMarshal.RuneAffinity == RuneType.Blue && catalogDroneMarshal.Role == HeroRole.Summoner, "drone marshal is a blue-rune summoner");
 Require(catalogDroneMarshal.AttackType == "ranged" && catalogDroneMarshal.Targeting == "summon_slot", "drone marshal uses summon-slot targeting");
 Require(catalogDroneMarshal.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "summoner heroes get an active magic-damage ability");
+var catalogPhaseAssassin = HeroCatalog.Get("phase_assassin");
+Require(catalogPhaseAssassin.Name == "Фазовый Убийца", "phase assassin uses the GDD display name");
+Require(catalogPhaseAssassin.Rarity == HeroRarity.Epic && catalogPhaseAssassin.Cost == 3, "phase assassin is a three-cost epic hero");
+Require(catalogPhaseAssassin.Faction == "Духи" && catalogPhaseAssassin.Class == "Убийца", "phase assassin belongs to the Spirit Assassin line");
+Require(catalogPhaseAssassin.RuneAffinity == RuneType.White && catalogPhaseAssassin.Role == HeroRole.Assassin, "phase assassin is a white-rune assassin");
+Require(catalogPhaseAssassin.AttackType == "melee" && catalogPhaseAssassin.Targeting == "farthest_enemy", "phase assassin jumps to the farthest enemy");
+Require(catalogPhaseAssassin.PreferredEffectKind == RuneEffectKind.CommanderEnergy, "a white assassin prefers commander-energy rune effects");
+Require(catalogPhaseAssassin.AbilityForStars(1).Kind == HeroAbilityKind.PhysicalDamage, "assassin heroes get an active physical-damage ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

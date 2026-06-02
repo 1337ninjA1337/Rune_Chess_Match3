@@ -351,6 +351,29 @@ namespace RuneChess.Core
                 ManaMax: 85)
         );
 
+        public static HeroDefinition PhaseAssassin { get; } = new(
+            Id: "phase_assassin",
+            Name: "Фазовый Убийца",
+            Rarity: HeroRarity.Epic,
+            Cost: 3,
+            Faction: "Духи",
+            Class: "Убийца",
+            RuneAffinity: RuneType.White,
+            Role: HeroRole.Assassin,
+            AttackType: "melee",
+            Targeting: "farthest_enemy",
+            Stars: 1,
+            Ability: "Становится неуязвимым и атакует заднюю линию.",
+            Passive: "Фазовый рывок: первый удар по цели наносит больше урона.",
+            BaseStats: new HeroStats(
+                BaseHealth: 520,
+                Attack: 85,
+                Armor: 3,
+                MagicResist: 4,
+                BaseAttackSpeed: 1.05,
+                ManaMax: 60)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -367,7 +390,8 @@ namespace RuneChess.Core
             DuskRanger,
             BulwarkCaptain,
             VoidOracle,
-            DroneMarshal
+            DroneMarshal,
+            PhaseAssassin
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
