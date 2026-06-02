@@ -75,7 +75,7 @@ The central run state should include:
 - combat timer and battle result;
 - match-3 board state during combat.
 
-Use explicit commands such as `BuyHero`, `PlaceHero`, `StartCombat`, `SwapRunes`, `ResolveCombatTick`, `ClaimReward`, and `AdvanceRound`. Prefer value-style state transitions for deterministic systems.
+Use explicit commands such as `NewRun(commanderId)`, `BuyHero`, `PlaceHero`, `StartCombat`, `SwapRunes`, `ResolveCombatTick`, `ClaimReward`, and `AdvanceRound`. Prefer value-style state transitions for deterministic systems.
 
 ## Domain Modules
 

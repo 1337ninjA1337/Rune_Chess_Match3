@@ -30,6 +30,15 @@ namespace RuneChess.Core
         public bool IsRunComplete => Phase is RunPhase.Victory or RunPhase.Defeat;
 
         public static RunState NewRun(
+            string commanderId,
+            EconomyConfig? economy = null,
+            ShopState? shop = null
+        )
+        {
+            return NewRun(CommanderCatalog.Get(commanderId).CreateInitialState(), economy, shop);
+        }
+
+        public static RunState NewRun(
             CommanderState? commander = null,
             EconomyConfig? economy = null,
             ShopState? shop = null
