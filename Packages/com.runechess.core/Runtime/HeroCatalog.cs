@@ -190,6 +190,29 @@ namespace RuneChess.Core
                 ManaMax: 80)
         );
 
+        public static HeroDefinition SparkTinker { get; } = new(
+            Id: "spark_tinker",
+            Name: "Искровой Мастер",
+            Rarity: HeroRarity.Rare,
+            Cost: 2,
+            Faction: "Механисты",
+            Class: "Маг",
+            RuneAffinity: RuneType.Blue,
+            Role: HeroRole.Caster,
+            AttackType: "ranged",
+            Targeting: "nearest",
+            Stars: 1,
+            Ability: "Выпускает электрическую дугу по цепочке врагов.",
+            Passive: "Перегрузка: периодически усиливает следующую способность.",
+            BaseStats: new HeroStats(
+                BaseHealth: 490,
+                Attack: 52,
+                Armor: 2,
+                MagicResist: 4,
+                BaseAttackSpeed: 0.85,
+                ManaMax: 65)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -199,7 +222,8 @@ namespace RuneChess.Core
             ThornShaman,
             MistCutthroat,
             RuneApprentice,
-            GearSquire
+            GearSquire,
+            SparkTinker
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(

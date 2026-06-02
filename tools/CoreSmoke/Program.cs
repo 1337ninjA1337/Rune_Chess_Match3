@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 8, "hero catalog starts with the first eight MVP heroes");
+Require(HeroCatalog.All.Count == 9, "hero catalog starts with the first nine MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -797,6 +797,13 @@ Require(catalogGearSquire.RuneAffinity == RuneType.Yellow && catalogGearSquire.R
 Require(catalogGearSquire.AttackType == "melee" && catalogGearSquire.Targeting == "nearest", "gear squire uses melee nearest targeting");
 Require(catalogGearSquire.PreferredEffectKind == RuneEffectKind.Shield, "a yellow tank prefers shield rune effects");
 Require(catalogGearSquire.AbilityForStars(1).Kind == HeroAbilityKind.Shield, "tank heroes get an active shield ability");
+var catalogSparkTinker = HeroCatalog.Get("spark_tinker");
+Require(catalogSparkTinker.Name == "Искровой Мастер", "spark tinker uses the GDD display name");
+Require(catalogSparkTinker.Rarity == HeroRarity.Rare && catalogSparkTinker.Cost == 2, "spark tinker is a two-cost rare hero");
+Require(catalogSparkTinker.Faction == "Механисты" && catalogSparkTinker.Class == "Маг", "spark tinker belongs to the Mechanist Mage line");
+Require(catalogSparkTinker.RuneAffinity == RuneType.Blue && catalogSparkTinker.Role == HeroRole.Caster, "spark tinker is a blue-rune caster");
+Require(catalogSparkTinker.AttackType == "ranged" && catalogSparkTinker.Targeting == "nearest", "spark tinker uses ranged nearest targeting");
+Require(catalogSparkTinker.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(
