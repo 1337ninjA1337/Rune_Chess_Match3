@@ -843,7 +843,7 @@ Require(catalogAstralRegent.Faction == "Духи" && catalogAstralRegent.RuneAff
 
 Require(HeroCatalog.All.Count(hero => hero.Faction == "Империя") == 5, "MVP roster has five Empire heroes");
 Require(HeroCatalog.All.Count(hero => hero.Faction == "Дикие") == 4, "MVP roster has four Wild heroes");
-Require(HeroCatalog.All.Count(hero => hero.Faction == "Бездонные") == 4, "MVP roster has four Abyssal heroes");
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Бездонные") == 3, "MVP roster has three Abyssal heroes");
 Require(HeroCatalog.All.Count(hero => hero.Faction == "Механисты") == 4, "MVP roster has four Mechanist heroes");
 Require(HeroCatalog.All.Count(hero => hero.Faction == "Духи") == 4, "MVP roster has four Spirit heroes");
 
@@ -879,6 +879,25 @@ var synergyBoard = new List<BoardHero>
 };
 var defenderSynergy = SynergyCalculator.ActiveSynergies(synergyBoard).Single(progress => progress.Definition.Name == "Защитник");
 Require(defenderSynergy.UnitCount == 2 && defenderSynergy.IsActive, "two defenders on the board activate the defender synergy");
+
+var singleEmpireBoard = new List<BoardHero>
+{
+    new(new HeroInstance("empire_single_ig", "iron_guard", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("empire_duplicate_ig", "iron_guard", 1), new TacticalPosition(2, 1))
+};
+Require(Math.Abs(SynergyModifiers.ForTeam(singleEmpireBoard).ArmorMultiplier - 1.0) < 1e-9, "duplicate Empire heroes do not activate the armor synergy");
+
+var empireArmorBoard = new List<BoardHero>
+{
+    new(new HeroInstance("empire_ig", "iron_guard", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("empire_oa", "oath_archer", 1), new TacticalPosition(3, 0))
+};
+var empireArmorModifiers = SynergyModifiers.ForTeam(empireArmorBoard);
+Require(Math.Abs(empireArmorModifiers.ArmorMultiplier - 1.10) < 1e-9, "two Empire heroes unlock the +10 percent armor modifier");
+var empireBuffedWildClaw = BattleUnit.FromHero(catalogWildClaw, 1, "wild_empire_ally", TacticalSide.Player, new TacticalPosition(2, 2), empireArmorModifiers);
+Require(Math.Abs(empireBuffedWildClaw.Armor - 5.5) < 1e-9, "Empire 2 grants +10 percent armor to allied battle units");
+var empireBuffedBoardHero = BattleUnit.FromBoardHero(empireArmorBoard[1], TacticalSide.Player, empireArmorModifiers);
+Require(Math.Abs(empireBuffedBoardHero.Armor - 3.3) < 1e-9, "board heroes can be converted into synergy-buffed battle units");
 
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",

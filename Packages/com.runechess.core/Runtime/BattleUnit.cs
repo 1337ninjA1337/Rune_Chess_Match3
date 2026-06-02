@@ -38,7 +38,8 @@ public sealed record BattleUnit(
         int stars,
         string unitId,
         TacticalSide side,
-        TacticalPosition position)
+        TacticalPosition position,
+        SynergyModifiers synergyModifiers = default)
     {
         if (definition is null)
         {
@@ -52,7 +53,7 @@ public sealed record BattleUnit(
 
         var baseStats = definition.StatsForStars(stars);
         var passive = definition.PassiveForStars(stars);
-        var stats = HeroPassives.ApplyToStats(baseStats, passive, position);
+        var stats = synergyModifiers.ApplyToStats(HeroPassives.ApplyToStats(baseStats, passive, position));
         var attacksPerSecond = CombatFormulas.CalculateAttacksPerSecond(stats.BaseAttackSpeed);
         var startingMana = HeroPassives.CalculateStartingMana(stats, passive);
 
@@ -75,6 +76,26 @@ public sealed record BattleUnit(
             ActiveAbility: definition.AbilityForStars(stars),
             PassiveEffect: passive
         );
+    }
+
+    public static BattleUnit FromBoardHero(
+        BoardHero boardHero,
+        TacticalSide side,
+        SynergyModifiers synergyModifiers = default)
+    {
+        if (boardHero is null)
+        {
+            throw new ArgumentNullException(nameof(boardHero));
+        }
+
+        var definition = HeroCatalog.Get(boardHero.Hero.HeroId);
+        return FromHero(
+            definition,
+            boardHero.Hero.Stars,
+            boardHero.Hero.InstanceId,
+            side,
+            boardHero.Position,
+            synergyModifiers);
     }
 }
 }
