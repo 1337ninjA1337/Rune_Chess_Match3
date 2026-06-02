@@ -265,6 +265,7 @@ Require(EconomyConfig.Default.CalculateInterestBonus(30) == 3 && EconomyConfig.D
 Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0, eventBonus: 4) == 7, "event bonus can add incoming event gold");
 Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0, eventBonus: -1) == 2, "event bonus can represent an event penalty");
 Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0) == 3, "gold income works without optional bonuses");
+Require(EconomyConfig.Default.MinRunHealthDamage == 2 && EconomyConfig.Default.MaxRunHealthDamage == 8, "run health damage clamp is configured to 2-8");
 Require(EconomyConfig.Default.CalculateRunHealthDamage(roundNumber: 1, survivingEnemyStars: 0) == 2, "run health damage starts at two on round 1");
 Require(EconomyConfig.Default.CalculateRunHealthDamage(roundNumber: 2, survivingEnemyStars: 0) == 2, "run health damage floors round scaling below round 3");
 Require(EconomyConfig.Default.CalculateRunHealthDamage(roundNumber: 3, survivingEnemyStars: 2) == 5, "run health damage includes round scaling and surviving enemy stars");
