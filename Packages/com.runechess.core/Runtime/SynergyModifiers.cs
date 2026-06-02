@@ -18,9 +18,11 @@ namespace RuneChess.Core
         public const int AbyssalAbilityWeaknessDurationMilliseconds = 3000;
         public const double AbyssalPurpleRuneDamageBonus = 0.25;
         public const double SpiritDodgeChanceBonus = 0.10;
+        public const double MageAbilityDamageBonus = 0.20;
 
         private readonly double armorMultiplier;
         private readonly double attackSpeedMultiplier;
+        private readonly double abilityDamageMultiplier;
         private readonly bool empireYellowRuneFrontlineShield;
         private readonly bool wildChainReactionLifesteal;
         private readonly bool abyssalAbilityWeakness;
@@ -33,6 +35,7 @@ namespace RuneChess.Core
         public SynergyModifiers(
             double armorMultiplier,
             double attackSpeedMultiplier = 1.0,
+            double abilityDamageMultiplier = 1.0,
             bool empireYellowRuneFrontlineShield = false,
             bool wildChainReactionLifesteal = false,
             bool abyssalAbilityWeakness = false,
@@ -52,6 +55,11 @@ namespace RuneChess.Core
                 throw new ArgumentOutOfRangeException(nameof(attackSpeedMultiplier), "Synergy attack speed multiplier must be positive.");
             }
 
+            if (abilityDamageMultiplier <= 0.0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(abilityDamageMultiplier), "Synergy ability damage multiplier must be positive.");
+            }
+
             if (dodgeChance < 0.0 || dodgeChance > 1.0)
             {
                 throw new ArgumentOutOfRangeException(nameof(dodgeChance), "Synergy dodge chance must be between zero and one.");
@@ -59,6 +67,7 @@ namespace RuneChess.Core
 
             this.armorMultiplier = armorMultiplier;
             this.attackSpeedMultiplier = attackSpeedMultiplier;
+            this.abilityDamageMultiplier = abilityDamageMultiplier;
             this.empireYellowRuneFrontlineShield = empireYellowRuneFrontlineShield;
             this.wildChainReactionLifesteal = wildChainReactionLifesteal;
             this.abyssalAbilityWeakness = abyssalAbilityWeakness;
@@ -71,6 +80,7 @@ namespace RuneChess.Core
 
         public double ArmorMultiplier => armorMultiplier <= 0.0 ? 1.0 : armorMultiplier;
         public double AttackSpeedMultiplier => attackSpeedMultiplier <= 0.0 ? 1.0 : attackSpeedMultiplier;
+        public double AbilityDamageMultiplier => abilityDamageMultiplier <= 0.0 ? 1.0 : abilityDamageMultiplier;
         public bool EmpireYellowRuneFrontlineShield => empireYellowRuneFrontlineShield;
         public bool WildChainReactionLifesteal => wildChainReactionLifesteal;
         public bool AbyssalAbilityWeakness => abyssalAbilityWeakness;
@@ -111,9 +121,16 @@ namespace RuneChess.Core
                 attackSpeedMultiplier *= 1.0 + WildAttackSpeedBonus;
             }
 
+            var abilityDamageMultiplier = 1.0;
+            if (HasActiveTier(progress, ClassCatalog.Mage.Id, requiredCount: 3))
+            {
+                abilityDamageMultiplier *= 1.0 + MageAbilityDamageBonus;
+            }
+
             return new SynergyModifiers(
                 armorMultiplier,
                 attackSpeedMultiplier,
+                abilityDamageMultiplier,
                 empireYellowRuneFrontlineShield: HasActiveTier(progress, FactionCatalog.Empire.Id, requiredCount: 4),
                 wildChainReactionLifesteal: HasActiveTier(progress, FactionCatalog.Wild.Id, requiredCount: 4),
                 abyssalAbilityWeakness: HasActiveTier(progress, FactionCatalog.Abyssal.Id, requiredCount: 2),
@@ -142,6 +159,7 @@ namespace RuneChess.Core
         {
             return Math.Abs(ArmorMultiplier - other.ArmorMultiplier) < 1e-9
                 && Math.Abs(AttackSpeedMultiplier - other.AttackSpeedMultiplier) < 1e-9
+                && Math.Abs(AbilityDamageMultiplier - other.AbilityDamageMultiplier) < 1e-9
                 && EmpireYellowRuneFrontlineShield == other.EmpireYellowRuneFrontlineShield
                 && WildChainReactionLifesteal == other.WildChainReactionLifesteal
                 && AbyssalAbilityWeakness == other.AbyssalAbilityWeakness
@@ -162,12 +180,12 @@ namespace RuneChess.Core
             return HashCode.Combine(
                 ArmorMultiplier,
                 AttackSpeedMultiplier,
+                AbilityDamageMultiplier,
                 EmpireYellowRuneFrontlineShield,
                 WildChainReactionLifesteal,
                 AbyssalAbilityWeakness,
                 AbyssalPurpleRuneBonusDamage,
-                MechanistOpeningDrone,
-                HashCode.Combine(MechanistMatch4Turret, DodgeChance, SpiritWhiteRuneIllusion));
+                HashCode.Combine(MechanistOpeningDrone, MechanistMatch4Turret, DodgeChance, SpiritWhiteRuneIllusion));
         }
 
         private static bool HasActiveTier(

@@ -372,7 +372,7 @@ public sealed record BattleState(
                 debuffTargets = ApplyDamage(
                     units,
                     enemySide,
-                    AbilityEffect(RuneEffectKind.PhysicalDamage, ability.Power),
+                    AbilityEffect(RuneEffectKind.PhysicalDamage, ApplyAbilityDamageBonus(ability.Power, casterSynergyModifiers)),
                     physical: true,
                     opposingSynergyModifiers,
                     casterSynergyModifiers);
@@ -382,7 +382,7 @@ public sealed record BattleState(
                 debuffTargets = ApplyDamage(
                     units,
                     enemySide,
-                    AbilityEffect(RuneEffectKind.MagicDamage, ability.Power),
+                    AbilityEffect(RuneEffectKind.MagicDamage, ApplyAbilityDamageBonus(ability.Power, casterSynergyModifiers)),
                     physical: false,
                     opposingSynergyModifiers,
                     casterSynergyModifiers);
@@ -399,6 +399,11 @@ public sealed record BattleState(
             default:
                 throw new ArgumentOutOfRangeException(nameof(caster), ability.Kind, "Unknown hero ability kind.");
         }
+    }
+
+    private static double ApplyAbilityDamageBonus(double power, SynergyModifiers synergyModifiers)
+    {
+        return power * synergyModifiers.AbilityDamageMultiplier;
     }
 
     private static RuneEffect AbilityEffect(RuneEffectKind kind, double power)

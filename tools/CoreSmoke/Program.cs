@@ -871,6 +871,8 @@ Require(duplicateSynergies.Single(progress => progress.Definition.Name == "Им�
 var mageSynergies = SynergyCalculator.EvaluateByHeroIds(new[] { "rune_apprentice", "spark_tinker", "abyss_acolyte" });
 var mageSynergy = mageSynergies.Single(progress => progress.Definition.Name == "Маг");
 Require(mageSynergy.IsActive && mageSynergy.ActiveTiers.Count == 1, "three mages activate the mage synergy");
+var mageDamageModifiers = SynergyModifiers.FromProgress(mageSynergies);
+Require(Math.Abs(mageDamageModifiers.AbilityDamageMultiplier - 1.20) < 1e-9, "three mages unlock the +20 percent ability damage modifier");
 
 var synergyBoard = new List<BoardHero>
 {
@@ -1247,6 +1249,18 @@ var activeMage = afterActiveDamage.Units.First(unit => unit.UnitId == "mage_acti
 var activeEnemy = afterActiveDamage.Units.First(unit => unit.UnitId == "ability_enemy");
 Require(activeMage.AbilitiesCast == 1 && Math.Abs(activeMage.CurrentMana) < 1e-9, "active ability casts when blue mana fills the bar");
 Require(Math.Abs(activeEnemy.CurrentHealth - 60.0) < 1e-9, "active caster ability deals magic damage to an enemy");
+
+var mageAbilityDamageBattle = BattleState.Create(
+    new[]
+    {
+        mageUnit with { UnitId = "mage_damage_bonus" },
+        MakeUnit("mage_damage_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+    },
+    playerSynergyModifiers: mageDamageModifiers);
+var mageDamageEnemy = mageAbilityDamageBattle
+    .AddManaFromBlueRunes(TacticalSide.Player, 1)
+    .Units.First(unit => unit.UnitId == "mage_damage_enemy");
+Require(Math.Abs(mageDamageEnemy.CurrentHealth - 52.0) < 1e-9, "Mage 3 increases damaging active abilities by 20 percent");
 
 var abyssalCaster = mageUnit with { UnitId = "abyssal_caster" };
 var abyssalAbilityBattle = BattleState.Create(
