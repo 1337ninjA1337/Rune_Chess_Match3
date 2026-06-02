@@ -65,6 +65,10 @@ Require(afterBuy.Bench.Count == 1, "bought hero goes to bench");
 Require(afterBuy.Shop.Offers.Count == 2, "bought shop offer is removed");
 RequireThrows(() => state.BuyHero(-1), "buying rejects an invalid shop offer index");
 RequireThrows(() => (state with { Gold = 0 }).BuyHero(0), "buying rejects offers the player cannot afford");
+Require(EconomyConfig.Default.RerollCost == 2, "default economy config rerolls the shop for two gold");
+var levelOneReroll = state.RerollShop(ShopState.StartingShop.Offers);
+Require(levelOneReroll.Gold == 3 && levelOneReroll.Shop.RerollsThisRound == 1, "level 1 reroll costs two gold and tracks reroll count");
+RequireThrows(() => (state with { Gold = 1 }).RerollShop(ShopState.StartingShop.Offers), "reroll rejects insufficient gold");
 var fullBenchState = state with
 {
     Gold = 10,
