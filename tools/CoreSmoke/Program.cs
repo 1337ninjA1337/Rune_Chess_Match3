@@ -237,6 +237,14 @@ RequireThrows(() => (afterPlace with { Gold = 3 }).BuyXp(), "buying XP rejects i
 Require(EconomyConfig.Default.MaxPlayerLevel == 5, "default economy config supports five player levels");
 Require(string.Join(",", Enumerable.Range(1, 5).Select(EconomyConfig.Default.GetXpThresholdForLevel)) == "0,4,8,12,16", "player levels use the configured XP thresholds");
 Require(string.Join(",", Enumerable.Range(1, 5).Select(EconomyConfig.Default.GetHeroLimitForLevel)) == "2,3,4,5,6", "player levels use the configured field hero limits");
+var levelOneOdds = EconomyConfig.Default.GetShopRarityOddsForLevel(1);
+Require(levelOneOdds.GetChance(HeroRarity.Common) == 80 && levelOneOdds.GetChance(HeroRarity.Rare) == 20, "level 1 shop odds match the GDD common/rare split");
+Require(levelOneOdds.TotalChance == 100, "shop rarity odds sum to 100 percent");
+var levelFiveOdds = EconomyConfig.Default.GetShopRarityOddsForLevel(5);
+Require(levelFiveOdds.GetChance(HeroRarity.Common) == 20 && levelFiveOdds.GetChance(HeroRarity.Rare) == 35 && levelFiveOdds.GetChance(HeroRarity.Epic) == 35 && levelFiveOdds.GetChance(HeroRarity.Legendary) == 10, "level 5 shop odds match the GDD rarity table");
+RequireThrows(() => EconomyConfig.Default.GetShopRarityOddsForLevel(0), "shop rarity odds reject levels below one");
+RequireThrows(() => EconomyConfig.Default.GetShopRarityOddsForLevel(6), "shop rarity odds reject levels above five");
+RequireThrows(() => new ShopRarityOdds(Common: -1, Rare: 101, Epic: 0, Legendary: 0), "shop rarity odds reject negative chances");
 Require(EconomyConfig.Default.GetXpCostForNextLevel(1) == 4, "level 1 advances at four banked XP");
 var leveledByConfig = afterXp.LevelUp();
 Require(leveledByConfig.PlayerLevel == 2 && leveledByConfig.Xp == 0, "level-up uses the configured XP threshold for the next level");

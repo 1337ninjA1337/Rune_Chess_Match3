@@ -21,7 +21,8 @@ namespace RuneChess.Core
         int InterestGoldStep,
         int InterestBonusCap,
         IReadOnlyList<int> PlayerLevelXpThresholds,
-        IReadOnlyList<int> PlayerLevelHeroLimits
+        IReadOnlyList<int> PlayerLevelHeroLimits,
+        IReadOnlyList<ShopRarityOdds> ShopRarityOddsByLevel
     )
     {
         public IReadOnlyList<int> PlayerLevelXpThresholds { get; init; } =
@@ -29,6 +30,9 @@ namespace RuneChess.Core
 
         public IReadOnlyList<int> PlayerLevelHeroLimits { get; init; } =
             ValidatePlayerLevelHeroLimits(PlayerLevelHeroLimits);
+
+        public IReadOnlyList<ShopRarityOdds> ShopRarityOddsByLevel { get; init; } =
+            ValidateShopRarityOdds(ShopRarityOddsByLevel);
 
         public int MaxPlayerLevel => PlayerLevelXpThresholds.Count;
 
@@ -60,6 +64,16 @@ namespace RuneChess.Core
             }
 
             return PlayerLevelHeroLimits[playerLevel - 1];
+        }
+
+        public ShopRarityOdds GetShopRarityOddsForLevel(int playerLevel)
+        {
+            if (playerLevel < 1 || playerLevel > ShopRarityOddsByLevel.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(playerLevel), "Player level is outside the configured shop odds range.");
+            }
+
+            return ShopRarityOddsByLevel[playerLevel - 1];
         }
 
         public int GetShopSizeForLevel(int playerLevel)
@@ -166,6 +180,29 @@ namespace RuneChess.Core
             return limits.ToList();
         }
 
+        private static IReadOnlyList<ShopRarityOdds> ValidateShopRarityOdds(IReadOnlyList<ShopRarityOdds> oddsByLevel)
+        {
+            if (oddsByLevel is null || oddsByLevel.Count == 0)
+            {
+                throw new ArgumentException("At least one shop rarity odds row is required.", nameof(oddsByLevel));
+            }
+
+            foreach (var odds in oddsByLevel)
+            {
+                if (odds is null)
+                {
+                    throw new ArgumentException("Shop rarity odds rows cannot be null.", nameof(oddsByLevel));
+                }
+
+                if (odds.TotalChance != 100)
+                {
+                    throw new ArgumentException("Each shop rarity odds row must sum to 100 percent.", nameof(oddsByLevel));
+                }
+            }
+
+            return oddsByLevel.ToList();
+        }
+
         public static EconomyConfig Default { get; } = new(
             StartingRunHealth: 20,
             StartingGold: 5,
@@ -183,7 +220,15 @@ namespace RuneChess.Core
             InterestGoldStep: 10,
             InterestBonusCap: 3,
             PlayerLevelXpThresholds: Array.AsReadOnly(new[] { 0, 4, 8, 12, 16 }),
-            PlayerLevelHeroLimits: Array.AsReadOnly(new[] { 2, 3, 4, 5, 6 })
+            PlayerLevelHeroLimits: Array.AsReadOnly(new[] { 2, 3, 4, 5, 6 }),
+            ShopRarityOddsByLevel: Array.AsReadOnly(new[]
+            {
+                new ShopRarityOdds(Common: 80, Rare: 20, Epic: 0, Legendary: 0),
+                new ShopRarityOdds(Common: 65, Rare: 30, Epic: 5, Legendary: 0),
+                new ShopRarityOdds(Common: 45, Rare: 40, Epic: 15, Legendary: 0),
+                new ShopRarityOdds(Common: 30, Rare: 40, Epic: 25, Legendary: 5),
+                new ShopRarityOdds(Common: 20, Rare: 35, Epic: 35, Legendary: 10)
+            })
         );
     }
 }
