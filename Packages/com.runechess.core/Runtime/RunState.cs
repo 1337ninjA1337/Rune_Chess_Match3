@@ -120,10 +120,7 @@ namespace RuneChess.Core
             switch (bonus.Kind)
             {
                 case CommanderStartingBonusKind.CommanderEnergy:
-                    commander = commander with
-                    {
-                        Energy = Math.Min(commander.MaxEnergy, commander.Energy + bonus.Amount)
-                    };
+                    commander = commander.GainEnergy(bonus.Amount);
                     break;
                 case CommanderStartingBonusKind.BenchHero:
                     startingBench.Add(new HeroInstance(
@@ -351,7 +348,12 @@ namespace RuneChess.Core
                 throw new InvalidOperationException("Combat rune board has not been initialized.");
             }
 
-            return this with { Combat = Combat.SwapRunes(a, b, comboDepth) };
+            var nextCombat = Combat.SwapRunes(a, b, comboDepth);
+            return this with
+            {
+                Combat = nextCombat,
+                Commander = Commander.GainEnergy(nextCombat.LastCommanderEnergyGain)
+            };
         }
 
         public RunState ResolveCombatTick(

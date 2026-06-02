@@ -13,7 +13,8 @@ namespace RuneChess.Core
         int GlobalCooldownMillisecondsRemaining,
         int SecondsSinceLastRuneSwap,
         int SlowdownMillisecondsRemaining,
-        bool EarnedChainFourGoldBonus = false
+        bool EarnedChainFourGoldBonus = false,
+        double LastCommanderEnergyGain = 0.0
     )
     {
         public const int DefaultDurationSeconds = 60;
@@ -113,6 +114,7 @@ namespace RuneChess.Core
             var matchPower = resolution.GetTotalMatchPower(comboDepth);
             var earnedChainFourBonus = resolution.Steps.Any(step =>
                 step.ChainNumber >= ChainFourGoldBonusMinimumChainNumber);
+            var commanderEnergyGain = resolution.Steps.Sum(step => step.CommanderEnergyGain);
             var slowdownMilliseconds = ShouldTriggerLargeComboSlowdown(matchedRunesCount, resolvedComboDepth)
                 ? LargeComboSlowdownMilliseconds
                 : 0;
@@ -127,7 +129,8 @@ namespace RuneChess.Core
                 GlobalCooldownMillisecondsRemaining = SwapGlobalCooldownMilliseconds,
                 SecondsSinceLastRuneSwap = 0,
                 SlowdownMillisecondsRemaining = Math.Max(SlowdownMillisecondsRemaining, slowdownMilliseconds),
-                EarnedChainFourGoldBonus = EarnedChainFourGoldBonus || earnedChainFourBonus
+                EarnedChainFourGoldBonus = EarnedChainFourGoldBonus || earnedChainFourBonus,
+                LastCommanderEnergyGain = commanderEnergyGain
             };
         }
 

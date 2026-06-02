@@ -132,6 +132,17 @@ public static class RuneEffects
             _ => 2.0
         };
     }
+
+    public static double GetCommanderEnergyGain(RuneEffect effect)
+    {
+        if (effect is null)
+        {
+            throw new ArgumentNullException(nameof(effect));
+        }
+
+        return effect.CommanderEnergy
+            + (effect.Kind == RuneEffectKind.CommanderEnergy ? effect.Power : 0.0);
+    }
 }
 
 /// <summary>Turns rune match groups into resolved combat effects.</summary>

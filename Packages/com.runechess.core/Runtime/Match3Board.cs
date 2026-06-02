@@ -78,12 +78,14 @@ namespace RuneChess.Core
         IReadOnlyCollection<BoardPoint> MatchedCells,
         IReadOnlyCollection<BoardPoint> CreatedGreatRunes,
         Match3Board BoardAfterRemoval,
-        Match3Board BoardAfterDrop
+        Match3Board BoardAfterDrop,
+        IReadOnlyList<RuneEffect> Effects
     )
     {
         public int ChainNumber => ComboDepth + 1;
         public int MatchedRunesCount => MatchedCells.Count;
         public int MatchPower => GetMatchPower();
+        public double CommanderEnergyGain => Effects.Sum(RuneEffects.GetCommanderEnergyGain);
 
         public int GetMatchPower(int comboDepthOffset = 0)
         {
@@ -428,7 +430,11 @@ namespace RuneChess.Core
                     return new Match3ChainResolution(current, steps.ToList());
                 }
 
+                var chainNumber = steps.Count + 1;
                 var matchedCells = matchGroups.SelectMany(group => group.Cells).ToHashSet();
+                var effects = matchGroups
+                    .Select(group => RuneEffectResolver.Resolve(group, chainNumber))
+                    .ToList();
                 var greatRunes = GetGreatRuneCreationAnchors(matchGroups);
                 var removed = current.RemoveRunes(matchedCells);
                 var dropped = removed
@@ -440,7 +446,8 @@ namespace RuneChess.Core
                     MatchedCells: matchedCells,
                     CreatedGreatRunes: greatRunes.Keys.ToHashSet(),
                     BoardAfterRemoval: removed,
-                    BoardAfterDrop: dropped
+                    BoardAfterDrop: dropped,
+                    Effects: effects
                 ));
 
                 current = dropped;

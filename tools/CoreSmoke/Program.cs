@@ -31,12 +31,19 @@ Require(CommanderCatalog.Get("warlord").Passive.Contains("+20%"), "warlord comma
 Require(CommanderCatalog.Get("alchemist").Passive.Contains("золото"), "alchemist commander rewards gold for chain reactions");
 var runeArchonState = runeArchon.CreateInitialState();
 Require(runeArchonState.Id == "rune_archon" && runeArchonState.Energy == 0 && runeArchonState.MaxEnergy == 100, "a commander builds an empty runtime energy bar");
+Require(Math.Abs(state.Commander.EnergyFillRatio - 0.2) < 1e-9, "commander state exposes an energy bar fill ratio");
+Require(!state.Commander.IsEnergyFull, "commander energy bar reports when it is not full");
+Require(new CommanderState("test_commander", "Test", 95, 100).GainEnergy(10).IsEnergyFull, "commander energy gain clamps at the energy bar maximum");
+Require(Math.Abs(new CommanderState("test_commander", "Test", 50, 100).SpendEnergy(25).Energy - 25.0) < 1e-9, "commander energy can be spent from the bar");
 Require(CommanderCatalog.TryGet("RUNE_ARCHON", out _), "commander lookup is case-insensitive");
 Require(!CommanderCatalog.TryGet("unknown_commander", out _), "commander lookup rejects unknown ids");
 RequireThrows(() => CommanderCatalog.Get("unknown_commander"), "commander get throws on unknown ids");
 RequireThrows(() => RunState.NewRun("unknown_commander"), "run setup rejects an unknown selected commander");
 RequireThrows(() => new CommanderDefinition("", "Name", "Passive", 100, new CommanderStartingBonus("Bonus", CommanderStartingBonusKind.Gold, Amount: 1), Array.Empty<string>()), "commander definition rejects a blank id");
 RequireThrows(() => new CommanderDefinition("id", "Name", "Passive", 0, new CommanderStartingBonus("Bonus", CommanderStartingBonusKind.Gold, Amount: 1), Array.Empty<string>()), "commander definition rejects a non-positive energy bar");
+RequireThrows(() => new CommanderState("", "Name", 0, 100), "commander state rejects a blank id");
+RequireThrows(() => new CommanderState("id", "Name", 101, 100), "commander state rejects energy above max");
+RequireThrows(() => new CommanderState("id", "Name", 0, 100).SpendEnergy(1), "commander energy spend rejects insufficient energy");
 RequireThrows(() => new CommanderStartingBonus("", CommanderStartingBonusKind.Gold, Amount: 1), "commander starting bonus rejects a blank description");
 RequireThrows(() => new CommanderStartingBonus("Bad", CommanderStartingBonusKind.Gold, Amount: 0), "commander starting bonus rejects non-positive gold");
 RequireThrows(() => new CommanderStartingBonus("Bad", CommanderStartingBonusKind.BenchHero), "commander starting bonus rejects missing bench hero id");
@@ -234,6 +241,7 @@ Require(swappedCombat.Match3MovesUsed == 1, "rune swap counts as a match-3 comba
 Require(swappedCombat.LastMatchedRunesCount >= 3, "rune swap records matched runes");
 Require(swappedCombat.LastMatchPower >= swappedCombat.LastMatchedRunesCount, "rune swap records matchPower from matched runes and combo depth");
 Require(swappedCombat.RuneBoard.FindMatches().Count == 0, "rune swap resolves matches and chains before combat continues");
+Require(afterRuneSwap.Commander.Energy >= inCombat.Commander.Energy, "rune swaps preserve or increase the commander energy bar");
 Require(swappedCombat.GlobalCooldownMillisecondsRemaining == CombatState.SwapGlobalCooldownMilliseconds, "rune swap starts the global cooldown");
 Require(swappedCombat.IsSwapOnCooldown, "rune swap blocks immediate follow-up swaps");
 Require(swappedCombat.SecondsSinceLastRuneSwap == 0, "rune swap resets the match hint idle timer");
@@ -265,6 +273,7 @@ Require(restoredCombat.GlobalCooldownMillisecondsRemaining == savedCombat.Global
 Require(restoredCombat.SecondsSinceLastRuneSwap == savedCombat.SecondsSinceLastRuneSwap, "restored progress preserves match hint idle timer");
 Require(restoredCombat.SlowdownMillisecondsRemaining == savedCombat.SlowdownMillisecondsRemaining, "restored progress preserves combat slowdown");
 Require(restoredCombat.EarnedChainFourGoldBonus == savedCombat.EarnedChainFourGoldBonus, "restored progress preserves chain 4+ gold bonus state");
+Require(Math.Abs(restoredCombat.LastCommanderEnergyGain - savedCombat.LastCommanderEnergyGain) < 1e-9, "restored progress preserves last commander energy gain");
 Require(restoredCombat.RuneBoard[0, 0] == savedCombat.RuneBoard[0, 0], "restored progress preserves rune board");
 var greatSnapshotPoint = new BoardPoint(2, 3);
 var greatSnapshotBoard = new Match3Board(Match3Board.CreateCells()
@@ -460,6 +469,30 @@ Require(firstHint.From == legalMatchA && firstHint.To == legalMatchB, "board hin
 Require(!noMatchSwapBoard.TryCreateMoveHint(swapA, swapB, out var missingHint) && missingHint is null, "move hint rejects no-match swaps");
 var legalMatchResult = legalMatchBoard.SwapIfCreatesMatch(legalMatchA, legalMatchB);
 Require(legalMatchResult.FindMatches().Contains(legalMatchA), "created match includes one of the swapped runes");
+var whiteEnergyBoard = CreatePatternBoard(
+    (new BoardPoint(0, 0), RuneType.White),
+    (new BoardPoint(0, 1), RuneType.Blue),
+    (new BoardPoint(0, 2), RuneType.White),
+    (new BoardPoint(1, 1), RuneType.White)
+);
+var whiteEnergyRun = state with
+{
+    Phase = RunPhase.Combat,
+    Combat = new CombatState(
+        RuneBoard: whiteEnergyBoard,
+        Match3MovesUsed: 0,
+        LastMatchedRunesCount: 0,
+        LastComboDepth: 0,
+        LastMatchPower: 0,
+        DurationSeconds: CombatState.DefaultDurationSeconds,
+        ElapsedSeconds: 0,
+        GlobalCooldownMillisecondsRemaining: 0,
+        SecondsSinceLastRuneSwap: 0,
+        SlowdownMillisecondsRemaining: 0)
+};
+var afterWhiteEnergySwap = whiteEnergyRun.SwapRunes(legalMatchA, legalMatchB);
+Require(afterWhiteEnergySwap.Combat?.LastCommanderEnergyGain >= 3.0, "white rune swaps record commander energy gained from the match");
+Require(Math.Abs(afterWhiteEnergySwap.Commander.Energy - (whiteEnergyRun.Commander.Energy + (afterWhiteEnergySwap.Combat?.LastCommanderEnergyGain ?? 0.0))) < 1e-9, "white rune swaps fill the commander energy bar");
 var smallScoredCombat = new CombatState(
     RuneBoard: legalMatchBoard,
     Match3MovesUsed: 0,
@@ -586,6 +619,7 @@ Require(chainResolution.TotalMatchedRunesCount == 6, "chain resolution totals ma
 Require(chainResolution.Steps[0].ComboDepth == 0, "initial match starts at combo depth zero");
 Require(chainResolution.Steps[0].ChainNumber == 1, "initial match is chain number one for effect bonuses");
 Require(chainResolution.Steps[0].MatchPower == 3, "initial chain step calculates base matchPower");
+Require(chainResolution.Steps[0].Effects.Count == 1, "chain step stores resolved rune effects");
 Require(chainResolution.Steps[1].ComboDepth == 1, "refill-created match increments combo depth");
 Require(chainResolution.Steps[1].ChainNumber == 2, "first chain reaction is chain number two for bonuses");
 Require(chainResolution.Steps[1].MatchPower == 4, "chain reaction matchPower includes combo depth");
@@ -667,6 +701,7 @@ Require(tlEffect.CreatesGreatRune, "match-5 creates a great rune");
 Require(tlEffect.CommanderEnergy == RuneEffects.TShapeCommanderEnergy, "T/L combos grant commander energy");
 Require(Math.Abs(tlEffect.Power - 7.0) < 1e-9, "T/L combo adds its matchPower bonus before chain scaling");
 var match5CreationResolution = crossMatchBoard.ResolveChainReactions(99);
+Require(Math.Abs(match5CreationResolution.Steps[0].CommanderEnergyGain - RuneEffects.TShapeCommanderEnergy) < 1e-9, "T/L chain steps expose commander energy gain for the run bar");
 var greatRuneAnchor = new BoardPoint(0, 0);
 Require(match5CreationResolution.Steps[0].CreatedGreatRunes.Contains(greatRuneAnchor), "match-5 chain step records the created great rune anchor");
 Require(match5CreationResolution.Steps[0].BoardAfterDrop.IsGreatRune(greatRuneAnchor), "match-5 creates a great rune on the board");
