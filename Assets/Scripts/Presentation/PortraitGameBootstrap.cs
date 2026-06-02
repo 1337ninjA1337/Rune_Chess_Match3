@@ -47,6 +47,7 @@ namespace RuneChess.Presentation
         private BoardPoint? selectedRune;
         private Match3MoveHint currentHint;
         private Transform runeGridRoot;
+        private Transform contentRoot;
         private Text runeMetaText;
         private readonly Dictionary<BoardPoint, RuneTileView> runeTiles = new Dictionary<BoardPoint, RuneTileView>();
         private int runeSeed = 1337;
@@ -65,7 +66,6 @@ namespace RuneChess.Presentation
         {
             EnsureMainCamera();
             EnsureEventSystem();
-            ResetMatch3Board();
             BuildPortraitGameSurface();
         }
 
@@ -161,7 +161,36 @@ namespace RuneChess.Presentation
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            AddRunePanel(content.transform);
+            contentRoot = content.transform;
+            AddMainMenu(contentRoot);
+        }
+
+        private void AddMainMenu(Transform parent)
+        {
+            var button = CreatePanel("Start Game Button", parent, GameColors.ButtonPrimary);
+            AddLayoutElement(button, 56);
+            AddOutline(button, GameColors.WithAlpha(GameColors.Text, 0.24f));
+
+            var image = button.GetComponent<Image>();
+            image.raycastTarget = true;
+
+            var action = button.AddComponent<Button>();
+            action.targetGraphic = image;
+            action.onClick.AddListener(StartGame);
+
+            CreateOverlayText("Начать игру", button.transform, 18, GameColors.Background, TextAnchor.MiddleCenter);
+        }
+
+        private void StartGame()
+        {
+            if (contentRoot == null)
+            {
+                return;
+            }
+
+            ClearChildren(contentRoot);
+            ResetMatch3Board();
+            AddRunePanel(contentRoot);
         }
 
         private void AddHeader(Transform parent)
@@ -1064,6 +1093,16 @@ namespace RuneChess.Presentation
             rect.anchorMax = new Vector2(1f, 1f);
             rect.offsetMin = new Vector2(left, bottom);
             rect.offsetMax = new Vector2(-right, -top);
+        }
+
+        private static void ClearChildren(Transform parent)
+        {
+            for (var index = parent.childCount - 1; index >= 0; index -= 1)
+            {
+                var child = parent.GetChild(index);
+                child.SetParent(null, false);
+                Destroy(child.gameObject);
+            }
         }
 
         private static void Stretch(GameObject gameObject)
