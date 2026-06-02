@@ -43,7 +43,7 @@ namespace RuneChess.Core
                 Gold: config.StartingGold,
                 Xp: config.StartingXp,
                 PlayerLevel: config.StartingPlayerLevel,
-                Commander: commander ?? CommanderState.StoneOath,
+                Commander: commander ?? CommanderCatalog.Default.CreateInitialState(),
                 Team: new List<BoardHero>(),
                 Bench: new List<HeroInstance>(),
                 Shop: shop ?? ShopState.StartingShop,

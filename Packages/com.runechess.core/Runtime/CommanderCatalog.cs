@@ -41,6 +41,8 @@ namespace RuneChess.Core
             Alchemist
         });
 
+        public static CommanderDefinition Default { get; } = RuneArchon;
+
         private static IReadOnlyDictionary<string, CommanderDefinition> ById { get; } = All.ToDictionary(
             commander => commander.Id,
             commander => commander,
