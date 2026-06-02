@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 5, "hero catalog starts with the first five MVP heroes");
+Require(HeroCatalog.All.Count == 20, "hero catalog holds the 20 MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -773,6 +773,79 @@ Require(catalogThornShaman.RuneAffinity == RuneType.Green && catalogThornShaman.
 Require(catalogThornShaman.AttackType == "ranged" && catalogThornShaman.Targeting == "summon_slot", "thorn shaman uses summon-slot targeting");
 Require(Math.Abs(catalogThornShaman.BaseStats.ManaMax - 75.0) < 1e-9, "thorn shaman has summoner mana stats");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
+
+Require(HeroCatalog.All.Select(hero => hero.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == HeroCatalog.All.Count, "catalog hero ids are unique");
+Require(HeroCatalog.All.All(hero => HeroRarities.GetCostRange(hero.Rarity) is var range && hero.Cost >= range.Min && hero.Cost <= range.Max), "every catalog hero cost fits its rarity range");
+
+var catalogMistCutthroat = HeroCatalog.Get("mist_cutthroat");
+Require(catalogMistCutthroat.Name == "Туманный Резчик", "mist cutthroat uses the GDD display name");
+Require(catalogMistCutthroat.Rarity == HeroRarity.Rare && catalogMistCutthroat.Cost == 2, "mist cutthroat is a two-cost rare hero");
+Require(catalogMistCutthroat.Faction == "Духи" && catalogMistCutthroat.Class == "Убийца", "mist cutthroat belongs to the Spirit Assassin line");
+Require(catalogMistCutthroat.RuneAffinity == RuneType.Purple && catalogMistCutthroat.Role == HeroRole.Assassin, "mist cutthroat is a purple-rune assassin");
+Require(catalogMistCutthroat.AttackType == "melee" && catalogMistCutthroat.Targeting == "farthest_enemy", "mist cutthroat jumps to the farthest enemy");
+
+var catalogRuneApprentice = HeroCatalog.Get("rune_apprentice");
+Require(catalogRuneApprentice.Faction == "Империя" && catalogRuneApprentice.Class == "Маг", "rune apprentice belongs to the Empire Mage line");
+Require(catalogRuneApprentice.RuneAffinity == RuneType.Blue && catalogRuneApprentice.Role == HeroRole.Caster, "rune apprentice is a blue-rune caster");
+Require(catalogRuneApprentice.AttackType == "ranged" && catalogRuneApprentice.Targeting == "two_targets", "rune apprentice strikes two targets");
+
+var catalogGearSquire = HeroCatalog.Get("gear_squire");
+Require(catalogGearSquire.Faction == "Механисты" && catalogGearSquire.Role == HeroRole.Tank, "gear squire is a Mechanist tank");
+Require(catalogGearSquire.RuneAffinity == RuneType.Yellow && catalogGearSquire.Rarity == HeroRarity.Rare, "gear squire is a yellow-rune rare hero");
+
+var catalogSparkTinker = HeroCatalog.Get("spark_tinker");
+Require(catalogSparkTinker.Faction == "Механисты" && catalogSparkTinker.Role == HeroRole.Caster, "spark tinker is a Mechanist caster");
+Require(catalogSparkTinker.RuneAffinity == RuneType.Blue, "spark tinker channels blue runes");
+
+var catalogAbyssAcolyte = HeroCatalog.Get("abyss_acolyte");
+Require(catalogAbyssAcolyte.Faction == "Бездонные" && catalogAbyssAcolyte.Role == HeroRole.Caster, "abyss acolyte is an Abyssal caster");
+Require(catalogAbyssAcolyte.RuneAffinity == RuneType.Purple, "abyss acolyte channels purple runes");
+
+var catalogSpiritDuelist = HeroCatalog.Get("spirit_duelist");
+Require(catalogSpiritDuelist.Faction == "Духи" && catalogSpiritDuelist.Role == HeroRole.Bruiser, "spirit duelist is a Spirit bruiser");
+Require(catalogSpiritDuelist.RuneAffinity == RuneType.White, "spirit duelist channels white runes");
+
+var catalogDuskRanger = HeroCatalog.Get("dusk_ranger");
+Require(catalogDuskRanger.Rarity == HeroRarity.Epic && catalogDuskRanger.Cost == 3, "dusk ranger is a three-cost epic hero");
+Require(catalogDuskRanger.Faction == "Дикие" && catalogDuskRanger.Role == HeroRole.Carry, "dusk ranger is a Wild carry");
+
+var catalogBulwarkCaptain = HeroCatalog.Get("bulwark_captain");
+Require(catalogBulwarkCaptain.Faction == "Империя" && catalogBulwarkCaptain.Role == HeroRole.Tank, "bulwark captain is an Empire tank");
+Require(catalogBulwarkCaptain.Cost == 3 && catalogBulwarkCaptain.Rarity == HeroRarity.Epic, "bulwark captain is a three-cost epic hero");
+
+var catalogVoidOracle = HeroCatalog.Get("void_oracle");
+Require(catalogVoidOracle.Faction == "Бездонные" && catalogVoidOracle.Role == HeroRole.Support, "void oracle is an Abyssal support");
+Require(catalogVoidOracle.RuneAffinity == RuneType.Green, "void oracle channels green runes");
+
+var catalogDroneMarshal = HeroCatalog.Get("drone_marshal");
+Require(catalogDroneMarshal.Faction == "Механисты" && catalogDroneMarshal.Role == HeroRole.Summoner, "drone marshal is a Mechanist summoner");
+Require(catalogDroneMarshal.Targeting == "summon_slot", "drone marshal uses summon-slot targeting");
+
+var catalogPhaseAssassin = HeroCatalog.Get("phase_assassin");
+Require(catalogPhaseAssassin.Faction == "Духи" && catalogPhaseAssassin.Role == HeroRole.Assassin, "phase assassin is a Spirit assassin");
+Require(catalogPhaseAssassin.Targeting == "backline_enemy", "phase assassin strikes the enemy backline");
+
+var catalogMagmaBrute = HeroCatalog.Get("magma_brute");
+Require(catalogMagmaBrute.Cost == 4 && catalogMagmaBrute.Rarity == HeroRarity.Epic, "magma brute is a four-cost epic hero");
+Require(catalogMagmaBrute.Faction == "Дикие" && catalogMagmaBrute.Role == HeroRole.Bruiser, "magma brute is a Wild bruiser");
+
+var catalogCurseWeaver = HeroCatalog.Get("curse_weaver");
+Require(catalogCurseWeaver.Cost == 4 && catalogCurseWeaver.Faction == "Бездонные", "curse weaver is a four-cost Abyssal hero");
+Require(catalogCurseWeaver.RuneAffinity == RuneType.Purple && catalogCurseWeaver.Role == HeroRole.Caster, "curse weaver is a purple-rune caster");
+
+var catalogClockworkSaint = HeroCatalog.Get("clockwork_saint");
+Require(catalogClockworkSaint.Cost == 4 && catalogClockworkSaint.Faction == "Механисты", "clockwork saint is a four-cost Mechanist hero");
+Require(catalogClockworkSaint.Role == HeroRole.Healer && catalogClockworkSaint.RuneAffinity == RuneType.Green, "clockwork saint is a green-rune healer");
+
+var catalogAstralRegent = HeroCatalog.Get("astral_regent");
+Require(catalogAstralRegent.Rarity == HeroRarity.Legendary && catalogAstralRegent.Cost == 5, "astral regent is a five-cost legendary hero");
+Require(catalogAstralRegent.Faction == "Духи" && catalogAstralRegent.RuneAffinity == RuneType.White, "astral regent is a white-rune Spirit legend");
+
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Империя") == 5, "MVP roster has five Empire heroes");
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Дикие") == 4, "MVP roster has four Wild heroes");
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Бездонные") == 4, "MVP roster has four Abyssal heroes");
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Механисты") == 4, "MVP roster has four Mechanist heroes");
+Require(HeroCatalog.All.Count(hero => hero.Faction == "Духи") == 4, "MVP roster has four Spirit heroes");
 
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
