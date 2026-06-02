@@ -272,6 +272,7 @@ public sealed record BattleState(
         ApplyWildChainLifesteal(units, casterSide, combatEffect, casterSynergyModifiers);
         ApplyMechanistMatch4Turret(units, casterSide, combatEffect, casterSynergyModifiers);
         ApplySpiritWhiteRuneIllusion(units, casterSide, combatEffect, casterSynergyModifiers);
+        ApplyMageBlueMatch4BonusCharge(units, casterSide, combatEffect, casterSynergyModifiers, enemySynergyModifiers);
 
         var outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds);
         return new BattleState(
@@ -572,7 +573,42 @@ public sealed record BattleState(
             AbilitiesCast: 0,
             SummonMillisecondsRemaining: SpiritIllusionDurationMilliseconds,
             DodgeChance: source.DodgeChance,
-            IsSummoned: true);
+            IsSummoned: true,
+            HeroClass: source.HeroClass);
+    }
+
+    private static void ApplyMageBlueMatch4BonusCharge(
+        List<BattleUnit> units,
+        TacticalSide side,
+        RuneEffect effect,
+        SynergyModifiers synergyModifiers,
+        SynergyModifiers opposingSynergyModifiers)
+    {
+        if (!synergyModifiers.MageBlueMatch4BonusCharge
+            || effect.Rune != RuneType.Blue
+            || effect.Tier != RuneMatchTier.Match4)
+        {
+            return;
+        }
+
+        var candidates = units
+            .Select((unit, index) => (Unit: unit, Index: index))
+            .Where(item => item.Unit.IsAlive
+                && item.Unit.Side == side
+                && item.Unit.HeroClass.Equals(ClassCatalog.Mage.Name, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.Unit.UnitId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (candidates.Count == 0)
+        {
+            return;
+        }
+
+        var target = candidates[((effect.MatchedRunesCount * 17) + effect.ChainNumber) % candidates.Count];
+        units[target.Index] = target.Unit with
+        {
+            CurrentMana = Math.Min(target.Unit.ManaMax, target.Unit.CurrentMana + SynergyModifiers.MageBlueMatch4BonusMana)
+        };
+        TryCastAbility(units, target.Index, synergyModifiers, opposingSynergyModifiers);
     }
 
     private static void ApplySpiritDodgeChance(

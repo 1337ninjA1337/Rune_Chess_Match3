@@ -873,6 +873,9 @@ var mageSynergy = mageSynergies.Single(progress => progress.Definition.Name == "
 Require(mageSynergy.IsActive && mageSynergy.ActiveTiers.Count == 1, "three mages activate the mage synergy");
 var mageDamageModifiers = SynergyModifiers.FromProgress(mageSynergies);
 Require(Math.Abs(mageDamageModifiers.AbilityDamageMultiplier - 1.20) < 1e-9, "three mages unlock the +20 percent ability damage modifier");
+var mageFiveSynergies = SynergyCalculator.EvaluateByHeroIds(new[] { "rune_apprentice", "spark_tinker", "abyss_acolyte", "curse_weaver", "astral_regent" });
+var mageFiveModifiers = SynergyModifiers.FromProgress(mageFiveSynergies);
+Require(mageFiveModifiers.MageBlueMatch4BonusCharge, "five mages unlock the blue match-4 bonus charge");
 
 var synergyBoard = new List<BoardHero>
 {
@@ -1227,6 +1230,7 @@ var mageDefinition = ironGuardDefinition with
 {
     Id = "rune_apprentice",
     Name = "Rune Apprentice",
+    Class = "Маг",
     Role = HeroRole.Caster,
     RuneAffinity = RuneType.Blue,
     AttackType = "ranged",
@@ -1261,6 +1265,23 @@ var mageDamageEnemy = mageAbilityDamageBattle
     .AddManaFromBlueRunes(TacticalSide.Player, 1)
     .Units.First(unit => unit.UnitId == "mage_damage_enemy");
 Require(Math.Abs(mageDamageEnemy.CurrentHealth - 52.0) < 1e-9, "Mage 3 increases damaging active abilities by 20 percent");
+
+var mageChargeUnit = BattleUnit.FromHero(mageDefinition, 1, "mage_bonus_charge", TacticalSide.Player, new TacticalPosition(2, 0))
+    with { ManaMax = 100.0 };
+Require(mageChargeUnit.HeroClass == "Маг", "battle units retain their hero class for class-triggered effects");
+var mageChargeBattle = BattleState.Create(new[]
+{
+    mageChargeUnit,
+    MakeUnit("mage_charge_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var mageNotChargedByMatch3 = mageChargeBattle
+    .ApplyRuneEffect(Effect(RuneEffectKind.Mana, 0, rune: RuneType.Blue), synergyModifiers: mageFiveModifiers)
+    .Units.First(unit => unit.UnitId == "mage_bonus_charge");
+Require(Math.Abs(mageNotChargedByMatch3.CurrentMana - 2.0) < 1e-9, "Mage 5 does not add bonus charge from blue match-3");
+var mageChargedByMatch4 = mageChargeBattle
+    .ApplyRuneEffect(Effect(RuneEffectKind.Mana, 0, rune: RuneType.Blue, tier: RuneMatchTier.Match4, matchedRunesCount: 4), synergyModifiers: mageFiveModifiers)
+    .Units.First(unit => unit.UnitId == "mage_bonus_charge");
+Require(Math.Abs(mageChargedByMatch4.CurrentMana - (2.0 + SynergyModifiers.MageBlueMatch4BonusMana)) < 1e-9, "Mage 5 grants extra mana to a deterministic mage from blue match-4");
 
 var abyssalCaster = mageUnit with { UnitId = "abyssal_caster" };
 var abyssalAbilityBattle = BattleState.Create(

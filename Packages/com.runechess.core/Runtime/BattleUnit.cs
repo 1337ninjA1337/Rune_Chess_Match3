@@ -32,7 +32,8 @@ public sealed record BattleUnit(
     int SummonMillisecondsRemaining = 0,
     double DodgeChance = 0.0,
     int AttacksReceived = 0,
-    bool IsSummoned = false
+    bool IsSummoned = false,
+    string HeroClass = ""
 )
 {
     public bool IsAlive => CurrentHealth > 0.0;
@@ -88,7 +89,8 @@ public sealed record BattleUnit(
             AbilitiesCast: 0,
             ActiveAbility: definition.AbilityForStars(stars),
             PassiveEffect: passive,
-            DodgeChance: synergyModifiers.DodgeChance
+            DodgeChance: synergyModifiers.DodgeChance,
+            HeroClass: definition.Class
         );
     }
 
