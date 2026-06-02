@@ -230,6 +230,10 @@ Require(EconomyConfig.Default.BuyXpCost == 4 && EconomyConfig.Default.XpPerPurch
 Require(afterXp.Gold == 0, "buying XP spends configured gold");
 Require(afterXp.Xp == 4, "buying XP adds configured XP");
 RequireThrows(() => (afterPlace with { Gold = 3 }).BuyXp(), "buying XP rejects insufficient gold");
+Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: 5, currentGold: 30, eventBonus: 2) == 11, "gold income sums base, win, streak, interest, and event bonuses");
+Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0) == 3, "gold income works without optional bonuses");
+RequireThrows(() => EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: -1, currentGold: 0), "gold income rejects negative streaks");
+RequireThrows(() => EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: 0, currentGold: -1), "gold income rejects negative current gold");
 
 var inCombat = afterXp.StartCombat(1337);
 Require(inCombat.Phase == RunPhase.Combat, "start combat changes phase");
