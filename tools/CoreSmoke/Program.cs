@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 17, "hero catalog starts with the first seventeen MVP heroes");
+Require(HeroCatalog.All.Count == 18, "hero catalog starts with the first eighteen MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -861,6 +861,13 @@ Require(catalogMagmaBrute.Faction == "Дикие" && catalogMagmaBrute.Class == 
 Require(catalogMagmaBrute.RuneAffinity == RuneType.Red && catalogMagmaBrute.Role == HeroRole.Bruiser, "magma brute is a red-rune bruiser");
 Require(catalogMagmaBrute.AttackType == "melee" && catalogMagmaBrute.Targeting == "nearest", "magma brute uses melee nearest targeting");
 Require(catalogMagmaBrute.AbilityForStars(1).Kind == HeroAbilityKind.PhysicalDamage, "bruiser heroes get an active physical-damage ability");
+var catalogCurseWeaver = HeroCatalog.Get("curse_weaver");
+Require(catalogCurseWeaver.Name == "Ткач Проклятий", "curse weaver uses the GDD display name");
+Require(catalogCurseWeaver.Rarity == HeroRarity.Epic && catalogCurseWeaver.Cost == 4, "curse weaver is a four-cost epic hero");
+Require(catalogCurseWeaver.Faction == "Бездонные" && catalogCurseWeaver.Class == "Маг", "curse weaver belongs to the Abyss Mage line");
+Require(catalogCurseWeaver.RuneAffinity == RuneType.Purple && catalogCurseWeaver.Role == HeroRole.Caster, "curse weaver is a purple-rune caster");
+Require(catalogCurseWeaver.PreferredEffectKind == RuneEffectKind.MagicDamage, "a purple caster prefers magic-damage rune effects");
+Require(catalogCurseWeaver.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

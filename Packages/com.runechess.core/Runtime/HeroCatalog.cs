@@ -397,6 +397,29 @@ namespace RuneChess.Core
                 ManaMax: 70)
         );
 
+        public static HeroDefinition CurseWeaver { get; } = new(
+            Id: "curse_weaver",
+            Name: "Ткач Проклятий",
+            Rarity: HeroRarity.Epic,
+            Cost: 4,
+            Faction: "Бездонные",
+            Class: "Маг",
+            RuneAffinity: RuneType.Purple,
+            Role: HeroRole.Caster,
+            AttackType: "ranged",
+            Targeting: "two_nearest_enemies",
+            Stars: 1,
+            Ability: "Связывает врагов, разделяя получаемый ими урон.",
+            Passive: "Сплетение теней: проклятые враги получают больше магического урона.",
+            BaseStats: new HeroStats(
+                BaseHealth: 560,
+                Attack: 60,
+                Armor: 3,
+                MagicResist: 6,
+                BaseAttackSpeed: 0.8,
+                ManaMax: 80)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -415,7 +438,8 @@ namespace RuneChess.Core
             VoidOracle,
             DroneMarshal,
             PhaseAssassin,
-            MagmaBrute
+            MagmaBrute,
+            CurseWeaver
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
