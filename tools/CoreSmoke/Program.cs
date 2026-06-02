@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 16, "hero catalog starts with the first sixteen MVP heroes");
+Require(HeroCatalog.All.Count == 17, "hero catalog starts with the first seventeen MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -854,6 +854,13 @@ Require(catalogPhaseAssassin.RuneAffinity == RuneType.White && catalogPhaseAssas
 Require(catalogPhaseAssassin.AttackType == "melee" && catalogPhaseAssassin.Targeting == "farthest_enemy", "phase assassin jumps to the farthest enemy");
 Require(catalogPhaseAssassin.PreferredEffectKind == RuneEffectKind.CommanderEnergy, "a white assassin prefers commander-energy rune effects");
 Require(catalogPhaseAssassin.AbilityForStars(1).Kind == HeroAbilityKind.PhysicalDamage, "assassin heroes get an active physical-damage ability");
+var catalogMagmaBrute = HeroCatalog.Get("magma_brute");
+Require(catalogMagmaBrute.Name == "Магмовый Громила", "magma brute uses the GDD display name");
+Require(catalogMagmaBrute.Rarity == HeroRarity.Epic && catalogMagmaBrute.Cost == 4, "magma brute is a four-cost epic hero");
+Require(catalogMagmaBrute.Faction == "Дикие" && catalogMagmaBrute.Class == "Берсерк", "magma brute belongs to the Wild Berserker line");
+Require(catalogMagmaBrute.RuneAffinity == RuneType.Red && catalogMagmaBrute.Role == HeroRole.Bruiser, "magma brute is a red-rune bruiser");
+Require(catalogMagmaBrute.AttackType == "melee" && catalogMagmaBrute.Targeting == "nearest", "magma brute uses melee nearest targeting");
+Require(catalogMagmaBrute.AbilityForStars(1).Kind == HeroAbilityKind.PhysicalDamage, "bruiser heroes get an active physical-damage ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

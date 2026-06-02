@@ -374,6 +374,29 @@ namespace RuneChess.Core
                 ManaMax: 60)
         );
 
+        public static HeroDefinition MagmaBrute { get; } = new(
+            Id: "magma_brute",
+            Name: "Магмовый Громила",
+            Rarity: HeroRarity.Epic,
+            Cost: 4,
+            Faction: "Дикие",
+            Class: "Берсерк",
+            RuneAffinity: RuneType.Red,
+            Role: HeroRole.Bruiser,
+            AttackType: "melee",
+            Targeting: "nearest",
+            Stars: 1,
+            Ability: "Наносит урон вокруг себя и получает ярость.",
+            Passive: "Раскаленная кровь: чем ниже здоровье, тем выше скорость атаки.",
+            BaseStats: new HeroStats(
+                BaseHealth: 820,
+                Attack: 68,
+                Armor: 6,
+                MagicResist: 4,
+                BaseAttackSpeed: 0.9,
+                ManaMax: 70)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -391,7 +414,8 @@ namespace RuneChess.Core
             BulwarkCaptain,
             VoidOracle,
             DroneMarshal,
-            PhaseAssassin
+            PhaseAssassin,
+            MagmaBrute
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
