@@ -948,6 +948,14 @@ var abyssalFourProgress = new[]
 var abyssalFourModifiers = SynergyModifiers.FromProgress(abyssalFourProgress);
 Require(abyssalFourModifiers.AbyssalPurpleRuneBonusDamage, "four Abyssal heroes unlock purple-rune bonus damage");
 
+var mechanistOpeningDroneBoard = new List<BoardHero>
+{
+    new(new HeroInstance("mech2_gs", "gear_squire", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("mech2_st", "spark_tinker", 1), new TacticalPosition(3, 0))
+};
+var mechanistOpeningDroneModifiers = SynergyModifiers.ForTeam(mechanistOpeningDroneBoard);
+Require(mechanistOpeningDroneModifiers.MechanistOpeningDrone, "two Mechanist heroes unlock the opening drone");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
@@ -1009,6 +1017,36 @@ var attackingAlly = afterVictory.Units.First(unit => unit.UnitId == "ally_a");
 Require(Math.Abs(attackingAlly.CurrentHealth - 100.0) < 1e-9, "the unharmed ally keeps full health");
 Require(Math.Abs(attackingAlly.CurrentMana - CombatFormulas.ManaFromAttack) < 1e-9, "an attacking unit gains attack mana");
 Require(attackingAlly.AbilitiesCast == 0, "a unit below max mana does not cast");
+
+var mechanistDroneBattle = BattleState.Create(
+    new[]
+    {
+        MakeUnit("mech_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+        MakeUnit("mech_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+    },
+    playerSynergyModifiers: mechanistOpeningDroneModifiers);
+var playerDrone = mechanistDroneBattle.Units.Single(unit => unit.UnitId == "mechanist_drone_player");
+Require(playerDrone.Side == TacticalSide.Player && playerDrone.Position.IsBackline, "Mechanist 2 spawns a player drone in a backline cell");
+Require(playerDrone.IsRanged && Math.Abs(playerDrone.MaxHealth - BattleState.MechanistDroneHealth) < 1e-9, "Mechanist 2 drone uses the configured ranged drone stats");
+Require(Math.Abs(playerDrone.Attack - BattleState.MechanistDroneAttack) < 1e-9, "Mechanist 2 drone has the configured attack");
+
+var enemyMechanistDroneBattle = BattleState.Create(
+    new[]
+    {
+        MakeUnit("enemy_mech_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+        MakeUnit("enemy_mech_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+    },
+    enemySynergyModifiers: mechanistOpeningDroneModifiers);
+var enemyDrone = enemyMechanistDroneBattle.Units.Single(unit => unit.UnitId == "mechanist_drone_enemy");
+Require(enemyDrone.Side == TacticalSide.Enemy && enemyDrone.Position.IsBackline, "Mechanist 2 can spawn an enemy-side drone");
+
+var occupiedBacklineBattle = BattleState.Create(
+    Enumerable.Range(0, TacticalField.Mvp.Columns)
+        .Select(column => MakeUnit($"occupied_backline_{column}", TacticalSide.Player, new TacticalPosition(3, column), 100, 100, 0, 1.0, 100.0))
+        .Concat(new[] { MakeUnit("occupied_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0) })
+        .ToArray(),
+    playerSynergyModifiers: mechanistOpeningDroneModifiers);
+Require(!occupiedBacklineBattle.Units.Any(unit => unit.UnitId.StartsWith("mechanist_drone_player", StringComparison.Ordinal)), "Mechanist 2 skips drone spawn when the backline is full");
 
 var battleDefeat = BattleState.Create(new[]
 {

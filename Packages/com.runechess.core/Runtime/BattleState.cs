@@ -23,6 +23,9 @@ public sealed record BattleState(
 )
 {
     public const double DefaultDurationSeconds = 60.0;
+    public const double MechanistDroneHealth = 60.0;
+    public const double MechanistDroneAttack = 10.0;
+    public const double MechanistDroneAttacksPerSecond = 1.0;
 
     public IEnumerable<BattleUnit> AliveUnits => Units.Where(unit => unit.IsAlive);
     public IEnumerable<BattleUnit> AliveAllies => AliveUnits.Where(unit => unit.Side == TacticalSide.Player);
@@ -46,8 +49,12 @@ public sealed record BattleState(
             throw new ArgumentOutOfRangeException(nameof(durationSeconds), "Battle duration must be positive.");
         }
 
+        var battleUnits = units.ToList();
+        AddMechanistOpeningDrone(battleUnits, TacticalSide.Player, playerSynergyModifiers);
+        AddMechanistOpeningDrone(battleUnits, TacticalSide.Enemy, enemySynergyModifiers);
+
         return new BattleState(
-            units.ToList(),
+            battleUnits,
             0.0,
             durationSeconds,
             BattleOutcome.Ongoing,
@@ -401,6 +408,71 @@ public sealed record BattleState(
         {
             Power = effect.Power * (1.0 + SynergyModifiers.AbyssalPurpleRuneDamageBonus)
         };
+    }
+
+    private static void AddMechanistOpeningDrone(
+        List<BattleUnit> units,
+        TacticalSide side,
+        SynergyModifiers synergyModifiers)
+    {
+        if (!synergyModifiers.MechanistOpeningDrone)
+        {
+            return;
+        }
+
+        var position = SelectMechanistDronePosition(units, side);
+        if (position is null)
+        {
+            return;
+        }
+
+        var attacksPerSecond = CombatFormulas.CalculateAttacksPerSecond(MechanistDroneAttacksPerSecond);
+        units.Add(new BattleUnit(
+            UnitId: CreateMechanistDroneUnitId(units, side),
+            Side: side,
+            Position: position.Value,
+            MaxHealth: MechanistDroneHealth,
+            CurrentHealth: MechanistDroneHealth,
+            Attack: MechanistDroneAttack,
+            Armor: 0.0,
+            MagicResist: 0.0,
+            AttacksPerSecond: attacksPerSecond,
+            CurrentMana: 0.0,
+            ManaMax: 0.0,
+            Shield: 0.0,
+            AttackType: BattleAttackType.Ranged,
+            AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
+            AbilitiesCast: 0));
+    }
+
+    private static TacticalPosition? SelectMechanistDronePosition(List<BattleUnit> units, TacticalSide side)
+    {
+        foreach (var position in TacticalField.Mvp.CreateCells(side)
+            .Where(position => position.IsBackline && !units.Any(unit => unit.Position.Equals(position)))
+            .OrderBy(position => Math.Abs(position.Column - ((TacticalField.Mvp.Columns - 1) / 2.0)))
+            .ThenBy(position => position.Column))
+        {
+            return position;
+        }
+
+        return null;
+    }
+
+    private static string CreateMechanistDroneUnitId(List<BattleUnit> units, TacticalSide side)
+    {
+        var prefix = side == TacticalSide.Player ? "mechanist_drone_player" : "mechanist_drone_enemy";
+        if (units.All(unit => !unit.UnitId.Equals(prefix, StringComparison.OrdinalIgnoreCase)))
+        {
+            return prefix;
+        }
+
+        var index = 2;
+        while (units.Any(unit => unit.UnitId.Equals($"{prefix}_{index}", StringComparison.OrdinalIgnoreCase)))
+        {
+            index += 1;
+        }
+
+        return $"{prefix}_{index}";
     }
 
     private static int SelectTargetIndex(IReadOnlyList<BattleUnit> units, BattleUnit attacker)
