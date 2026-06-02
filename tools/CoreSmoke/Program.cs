@@ -1190,6 +1190,22 @@ var defenderFrontlineUnit = BattleUnit.FromHero(ironGuardDefinition, 1, "defende
 Require(Math.Abs(defenderFrontlineUnit.MaxHealth - 115.0) < 1e-9 && Math.Abs(defenderFrontlineUnit.CurrentHealth - 115.0) < 1e-9, "Defender 2 grants +15 percent health to frontline units");
 var defenderBacklineUnit = BattleUnit.FromHero(ironGuardDefinition, 1, "defender_back", TacticalSide.Player, new TacticalPosition(3, 0), defenderHealthModifiers);
 Require(Math.Abs(defenderBacklineUnit.MaxHealth - 100.0) < 1e-9, "Defender 2 does not grant health to backline units");
+var warlordFirstDefender = BattleUnit.FromHero(catalogIronGuard, 1, "warlord_first_defender", TacticalSide.Player, new TacticalPosition(2, 0))
+    with { CurrentHealth = 300.0 };
+var warlordSecondDefender = BattleUnit.FromHero(catalogGearSquire, 1, "warlord_second_defender", TacticalSide.Player, new TacticalPosition(2, 1));
+var warlordEnemy = MakeUnit("warlord_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0);
+var warlordBattle = BattleState.Create(
+    new[] { warlordSecondDefender, warlordFirstDefender, warlordEnemy },
+    playerCommander: CommanderCatalog.Warlord.CreateInitialState());
+var buffedWarlordDefender = warlordBattle.Units.Single(unit => unit.UnitId == "warlord_first_defender");
+var untouchedSecondDefender = warlordBattle.Units.Single(unit => unit.UnitId == "warlord_second_defender");
+Require(Math.Abs(buffedWarlordDefender.MaxHealth - (warlordFirstDefender.MaxHealth * 1.2)) < 1e-9, "Warlord grants +20 percent max health to the first defender");
+Require(Math.Abs(buffedWarlordDefender.HealthPercent - warlordFirstDefender.HealthPercent) < 1e-9, "Warlord preserves the first defender's current health ratio");
+Require(Math.Abs(untouchedSecondDefender.MaxHealth - warlordSecondDefender.MaxHealth) < 1e-9, "Warlord does not buff additional defenders");
+var nonWarlordBattle = BattleState.Create(
+    new[] { warlordFirstDefender, warlordEnemy },
+    playerCommander: CommanderCatalog.Alchemist.CreateInitialState());
+Require(Math.Abs(nonWarlordBattle.Units.Single(unit => unit.UnitId == "warlord_first_defender").MaxHealth - warlordFirstDefender.MaxHealth) < 1e-9, "non-Warlord commanders do not apply the defender health passive");
 
 var battleVictory = BattleState.Create(new[]
 {

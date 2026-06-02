@@ -35,6 +35,7 @@ public sealed record BattleState(
     public const int MechanistTurretDurationMilliseconds = 6000;
     public const double SpiritIllusionStatMultiplier = 0.35;
     public const int SpiritIllusionDurationMilliseconds = 5000;
+    public const double WarlordFirstDefenderHealthBonus = 0.20;
 
     public IEnumerable<BattleUnit> AliveUnits => Units.Where(unit => unit.IsAlive);
     public IEnumerable<BattleUnit> AliveAllies => AliveUnits.Where(unit => unit.Side == TacticalSide.Player);
@@ -46,7 +47,9 @@ public sealed record BattleState(
         IReadOnlyList<BattleUnit> units,
         double durationSeconds = DefaultDurationSeconds,
         SynergyModifiers playerSynergyModifiers = default,
-        SynergyModifiers enemySynergyModifiers = default)
+        SynergyModifiers enemySynergyModifiers = default,
+        CommanderState? playerCommander = null,
+        CommanderState? enemyCommander = null)
     {
         if (units is null)
         {
@@ -63,6 +66,8 @@ public sealed record BattleState(
         AddMechanistOpeningDrone(battleUnits, TacticalSide.Enemy, enemySynergyModifiers);
         ApplySpiritDodgeChance(battleUnits, TacticalSide.Player, playerSynergyModifiers);
         ApplySpiritDodgeChance(battleUnits, TacticalSide.Enemy, enemySynergyModifiers);
+        ApplyWarlordFirstDefenderHealth(battleUnits, TacticalSide.Player, playerCommander);
+        ApplyWarlordFirstDefenderHealth(battleUnits, TacticalSide.Enemy, enemyCommander);
 
         return new BattleState(
             battleUnits,
@@ -1132,6 +1137,41 @@ public sealed record BattleState(
     private static int ComparePosition(TacticalPosition a, TacticalPosition b)
     {
         return a.Row != b.Row ? a.Row.CompareTo(b.Row) : a.Column.CompareTo(b.Column);
+    }
+
+    private static void ApplyWarlordFirstDefenderHealth(
+        List<BattleUnit> units,
+        TacticalSide side,
+        CommanderState? commander)
+    {
+        if (commander?.Id != CommanderCatalog.Warlord.Id)
+        {
+            return;
+        }
+
+        var defender = units
+            .Select((unit, index) => new { Unit = unit, Index = index })
+            .Where(item => item.Unit.Side == side
+                && !item.Unit.IsSummoned
+                && item.Unit.HeroClass.Equals(ClassCatalog.Defender.Name, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(item => item.Unit.Position.IsFrontline)
+            .ThenBy(item => item.Unit.Position.Row)
+            .ThenBy(item => item.Unit.Position.Column)
+            .FirstOrDefault();
+        if (defender is null)
+        {
+            return;
+        }
+
+        var unit = defender.Unit;
+        var healthMultiplier = 1.0 + WarlordFirstDefenderHealthBonus;
+        var healthRatio = unit.MaxHealth <= 0.0 ? 0.0 : unit.CurrentHealth / unit.MaxHealth;
+        var maxHealth = unit.MaxHealth * healthMultiplier;
+        units[defender.Index] = unit with
+        {
+            MaxHealth = maxHealth,
+            CurrentHealth = maxHealth * healthRatio
+        };
     }
 }
 }
