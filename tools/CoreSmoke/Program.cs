@@ -929,6 +929,14 @@ var wildFourBoard = new List<BoardHero>
 var wildFourModifiers = SynergyModifiers.ForTeam(wildFourBoard);
 Require(wildFourModifiers.WildChainReactionLifesteal, "four Wild heroes unlock chain-reaction lifesteal");
 
+var abyssalWeaknessBoard = new List<BoardHero>
+{
+    new(new HeroInstance("abyss2_aa", "abyss_acolyte", 1), new TacticalPosition(3, 0)),
+    new(new HeroInstance("abyss2_vo", "void_oracle", 1), new TacticalPosition(3, 1))
+};
+var abyssalWeaknessModifiers = SynergyModifiers.ForTeam(abyssalWeaknessBoard);
+Require(abyssalWeaknessModifiers.AbyssalAbilityWeakness, "two Abyssal heroes unlock ability-applied weakness");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
@@ -1078,6 +1086,42 @@ var activeEnemy = afterActiveDamage.Units.First(unit => unit.UnitId == "ability_
 Require(activeMage.AbilitiesCast == 1 && Math.Abs(activeMage.CurrentMana) < 1e-9, "active ability casts when blue mana fills the bar");
 Require(Math.Abs(activeEnemy.CurrentHealth - 60.0) < 1e-9, "active caster ability deals magic damage to an enemy");
 
+var abyssalCaster = mageUnit with { UnitId = "abyssal_caster" };
+var abyssalAbilityBattle = BattleState.Create(
+    new[]
+    {
+        abyssalCaster,
+        MakeUnit("abyssal_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 50, 1.0, 100.0)
+    },
+    playerSynergyModifiers: abyssalWeaknessModifiers);
+var abyssalAfterCast = abyssalAbilityBattle.AddManaFromBlueRunes(TacticalSide.Player, 1);
+var abyssalDebuffedEnemy = abyssalAfterCast.Units.First(unit => unit.UnitId == "abyssal_enemy");
+Require(abyssalDebuffedEnemy.HasActiveWeakness, "Abyssal 2 applies weakness when an allied ability hits");
+Require(Math.Abs(abyssalDebuffedEnemy.WeaknessAttackPenaltyFraction - SynergyModifiers.AbyssalAbilityWeaknessAttackPenalty) < 1e-9, "Abyssal 2 weakness uses the configured attack penalty");
+Require(abyssalDebuffedEnemy.WeaknessMillisecondsRemaining == SynergyModifiers.AbyssalAbilityWeaknessDurationMilliseconds, "Abyssal 2 weakness uses the configured temporary duration");
+
+var abyssalSupportDefinition = ironGuardDefinition with
+{
+    Id = "void_oracle",
+    Name = "Void Oracle",
+    Role = HeroRole.Support,
+    RuneAffinity = RuneType.Green,
+    AttackType = "ranged",
+    BaseStats = new HeroStats(BaseHealth: 80, Attack: 10, Armor: 0, MagicResist: 0, BaseAttackSpeed: 1.0, ManaMax: 10)
+};
+var abyssalSupport = BattleUnit.FromHero(abyssalSupportDefinition, 1, "abyssal_support", TacticalSide.Player, new TacticalPosition(2, 0))
+    with { CurrentMana = 8.0 };
+var abyssalSupportBattle = BattleState.Create(
+    new[]
+    {
+        abyssalSupport,
+        MakeUnit("abyssal_wounded", TacticalSide.Player, new TacticalPosition(3, 0), 100, 50, 0, 1.0, 100.0),
+        MakeUnit("abyssal_support_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 50, 1.0, 100.0)
+    },
+    playerSynergyModifiers: abyssalWeaknessModifiers);
+var abyssalAfterSupportCast = abyssalSupportBattle.AddManaFromBlueRunes(TacticalSide.Player, 1);
+Require(abyssalAfterSupportCast.Units.First(unit => unit.UnitId == "abyssal_support_enemy").HasActiveWeakness, "Abyssal 2 applies weakness from support abilities too");
+
 var shieldCaster = BattleUnit.FromHero(ironGuardDefinition, 1, "shield_active", TacticalSide.Player, new TacticalPosition(2, 0))
     with { CurrentMana = 56.0 };
 var activeShieldBattle = BattleState.Create(new[]
@@ -1167,6 +1211,34 @@ var wildExpiredAlly = wildExpiryBattle
     .Tick((SynergyModifiers.WildChainLifestealDurationMilliseconds / 1000.0) + 0.1)
     .Units.First(u => u.UnitId == "wild_expire_ally");
 Require(!wildExpiredAlly.HasActiveLifesteal, "Wild 4 lifesteal expires after its temporary duration");
+
+var weaknessDamageBattle = BattleState.Create(new[]
+{
+    MakeUnit("weakness_target_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("weakness_attacker", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 50, 1.0, 0.0)
+        with
+        {
+            WeaknessAttackPenaltyFraction = SynergyModifiers.AbyssalAbilityWeaknessAttackPenalty,
+            WeaknessMillisecondsRemaining = SynergyModifiers.AbyssalAbilityWeaknessDurationMilliseconds
+        }
+});
+var weaknessHitAlly = weaknessDamageBattle.Tick(0.5).Units.First(u => u.UnitId == "weakness_target_ally");
+Require(Math.Abs(weaknessHitAlly.CurrentHealth - 55.0) < 1e-9, "Abyssal weakness reduces basic attack damage");
+
+var weaknessExpiryBattle = BattleState.Create(new[]
+{
+    MakeUnit("weakness_expiry_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("weakness_expiring_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 50, 1.0, 100.0)
+        with
+        {
+            WeaknessAttackPenaltyFraction = SynergyModifiers.AbyssalAbilityWeaknessAttackPenalty,
+            WeaknessMillisecondsRemaining = SynergyModifiers.AbyssalAbilityWeaknessDurationMilliseconds
+        }
+});
+var weaknessExpiredEnemy = weaknessExpiryBattle
+    .Tick((SynergyModifiers.AbyssalAbilityWeaknessDurationMilliseconds / 1000.0) + 0.1)
+    .Units.First(u => u.UnitId == "weakness_expiring_enemy");
+Require(!weaknessExpiredEnemy.HasActiveWeakness, "Abyssal weakness expires after its temporary duration");
 
 var massHealBattle = BattleState.Create(new[]
 {

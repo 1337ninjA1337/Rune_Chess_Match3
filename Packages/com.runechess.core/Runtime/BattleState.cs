@@ -17,7 +17,9 @@ public sealed record BattleState(
     double ElapsedSeconds,
     double DurationSeconds,
     BattleOutcome Outcome,
-    double CommanderEnergy = 0.0
+    double CommanderEnergy = 0.0,
+    SynergyModifiers PlayerSynergyModifiers = default,
+    SynergyModifiers EnemySynergyModifiers = default
 )
 {
     public const double DefaultDurationSeconds = 60.0;
@@ -28,7 +30,11 @@ public sealed record BattleState(
     public bool IsResolved => Outcome != BattleOutcome.Ongoing;
     public double RemainingSeconds => Math.Max(0.0, DurationSeconds - ElapsedSeconds);
 
-    public static BattleState Create(IReadOnlyList<BattleUnit> units, double durationSeconds = DefaultDurationSeconds)
+    public static BattleState Create(
+        IReadOnlyList<BattleUnit> units,
+        double durationSeconds = DefaultDurationSeconds,
+        SynergyModifiers playerSynergyModifiers = default,
+        SynergyModifiers enemySynergyModifiers = default)
     {
         if (units is null)
         {
@@ -40,7 +46,14 @@ public sealed record BattleState(
             throw new ArgumentOutOfRangeException(nameof(durationSeconds), "Battle duration must be positive.");
         }
 
-        return new BattleState(units.ToList(), 0.0, durationSeconds, BattleOutcome.Ongoing);
+        return new BattleState(
+            units.ToList(),
+            0.0,
+            durationSeconds,
+            BattleOutcome.Ongoing,
+            CommanderEnergy: 0.0,
+            PlayerSynergyModifiers: playerSynergyModifiers,
+            EnemySynergyModifiers: enemySynergyModifiers);
     }
 
     /// <summary>Sum of current health fractions across the units that started on a side (dead units count as 0).</summary>
@@ -108,7 +121,7 @@ public sealed record BattleState(
                 continue;
             }
 
-            var rawDamage = CombatFormulas.CalculatePhysicalDamage(attacker.Attack, target.Armor);
+            var rawDamage = CombatFormulas.CalculatePhysicalDamage(attacker.EffectiveAttack, target.Armor);
             var absorbed = CombatFormulas.DamageAfterShield(rawDamage, target.Shield);
             var remainingShield = CombatFormulas.ShieldAfterDamage(target.Shield, rawDamage);
             var newHealth = Math.Max(0.0, target.CurrentHealth - absorbed);
@@ -122,25 +135,38 @@ public sealed record BattleState(
                 Shield = remainingShield,
                 CurrentMana = targetMana
             };
-            TryCastAbility(units, targetIndex);
+            TryCastAbility(units, targetIndex, ModifiersForSide(target.Side), ModifiersForSide(attacker.Side));
 
-            var lifestealHealing = attacker.HasActiveLifesteal
-                ? absorbed * attacker.LifestealFraction
+            var updatedAttacker = units[attackerIndex];
+            if (!updatedAttacker.IsAlive)
+            {
+                continue;
+            }
+
+            var lifestealHealing = updatedAttacker.HasActiveLifesteal
+                ? absorbed * updatedAttacker.LifestealFraction
                 : 0.0;
 
-            units[attackerIndex] = attacker with
+            units[attackerIndex] = updatedAttacker with
             {
                 CurrentHealth = lifestealHealing > 0.0
-                    ? CombatFormulas.ApplyHealing(attacker.CurrentHealth, lifestealHealing, attacker.MaxHealth)
-                    : attacker.CurrentHealth,
-                CurrentMana = Math.Min(attacker.ManaMax, attacker.CurrentMana + CombatFormulas.ManaFromAttack),
-                AttackCooldownRemaining = attacker.AttackInterval
+                    ? CombatFormulas.ApplyHealing(updatedAttacker.CurrentHealth, lifestealHealing, updatedAttacker.MaxHealth)
+                    : updatedAttacker.CurrentHealth,
+                CurrentMana = Math.Min(updatedAttacker.ManaMax, updatedAttacker.CurrentMana + CombatFormulas.ManaFromAttack),
+                AttackCooldownRemaining = updatedAttacker.AttackInterval
             };
-            TryCastAbility(units, attackerIndex);
+            TryCastAbility(units, attackerIndex, ModifiersForSide(updatedAttacker.Side), ModifiersForSide(target.Side));
         }
 
         var elapsed = Math.Min(DurationSeconds, ElapsedSeconds + deltaSeconds);
-        return new BattleState(units, elapsed, DurationSeconds, ResolveOutcome(units, elapsed, DurationSeconds), CommanderEnergy);
+        return new BattleState(
+            units,
+            elapsed,
+            DurationSeconds,
+            ResolveOutcome(units, elapsed, DurationSeconds),
+            CommanderEnergy,
+            PlayerSynergyModifiers,
+            EnemySynergyModifiers);
     }
 
     /// <summary>
@@ -187,23 +213,25 @@ public sealed record BattleState(
         var units = Units.ToList();
         var enemySide = casterSide == TacticalSide.Player ? TacticalSide.Enemy : TacticalSide.Player;
         var commanderGain = (double)effect.CommanderEnergy;
+        var casterSynergyModifiers = ResolveSynergyModifiers(casterSide, synergyModifiers);
+        var enemySynergyModifiers = ModifiersForSide(enemySide);
 
         switch (effect.Kind)
         {
             case RuneEffectKind.PhysicalDamage:
-                ApplyDamage(units, enemySide, effect, physical: true);
+                ApplyDamage(units, enemySide, effect, physical: true, enemySynergyModifiers, casterSynergyModifiers);
                 break;
             case RuneEffectKind.MagicDamage:
-                ApplyDamage(units, enemySide, effect, physical: false);
+                ApplyDamage(units, enemySide, effect, physical: false, enemySynergyModifiers, casterSynergyModifiers);
                 break;
             case RuneEffectKind.Healing:
                 ApplyRuneHealing(units, casterSide, effect);
                 break;
             case RuneEffectKind.Shield:
-                ApplyRuneShield(units, casterSide, effect, synergyModifiers);
+                ApplyRuneShield(units, casterSide, effect, casterSynergyModifiers);
                 break;
             case RuneEffectKind.Mana:
-                ApplyRuneMana(units, casterSide, effect.Power, effect.IsMassEffect);
+                ApplyRuneMana(units, casterSide, effect.Power, effect.IsMassEffect, casterSynergyModifiers, enemySynergyModifiers);
                 break;
             case RuneEffectKind.CommanderEnergy:
                 commanderGain += effect.Power;
@@ -212,10 +240,17 @@ public sealed record BattleState(
                 throw new ArgumentOutOfRangeException(nameof(effect), effect.Kind, "Unknown rune effect kind.");
         }
 
-        ApplyWildChainLifesteal(units, casterSide, effect, synergyModifiers);
+        ApplyWildChainLifesteal(units, casterSide, effect, casterSynergyModifiers);
 
         var outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds);
-        return new BattleState(units, ElapsedSeconds, DurationSeconds, outcome, CommanderEnergy + commanderGain);
+        return new BattleState(
+            units,
+            ElapsedSeconds,
+            DurationSeconds,
+            outcome,
+            CommanderEnergy + commanderGain,
+            PlayerSynergyModifiers,
+            EnemySynergyModifiers);
     }
 
     /// <summary>Grants blue-rune mana (matchedBlueRunes * 8) to a side's frontmost living unit.</summary>
@@ -258,12 +293,16 @@ public sealed record BattleState(
         {
             CurrentMana = Math.Min(unit.ManaMax, unit.CurrentMana + mana)
         };
-        TryCastAbility(units, targetIndex);
+        TryCastAbility(units, targetIndex, ModifiersForSide(side), ModifiersForSide(OpposingSide(side)));
 
         return this with { Units = units, Outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds) };
     }
 
-    private static void TryCastAbility(List<BattleUnit> units, int casterIndex)
+    private static void TryCastAbility(
+        List<BattleUnit> units,
+        int casterIndex,
+        SynergyModifiers casterSynergyModifiers,
+        SynergyModifiers opposingSynergyModifiers)
     {
         var caster = units[casterIndex];
         if (!caster.IsAlive || caster.ManaMax <= 0.0 || !CombatFormulas.IsAbilityReady(caster.CurrentMana, caster.ManaMax))
@@ -280,30 +319,51 @@ public sealed record BattleState(
 
         if (caster.ActiveAbility.HasEffect)
         {
-            ApplyHeroAbility(units, caster);
+            ApplyHeroAbility(units, caster, casterSynergyModifiers, opposingSynergyModifiers);
         }
     }
 
-    private static void ApplyHeroAbility(List<BattleUnit> units, BattleUnit caster)
+    private static void ApplyHeroAbility(
+        List<BattleUnit> units,
+        BattleUnit caster,
+        SynergyModifiers casterSynergyModifiers,
+        SynergyModifiers opposingSynergyModifiers)
     {
-        var enemySide = caster.Side == TacticalSide.Player ? TacticalSide.Enemy : TacticalSide.Player;
+        var enemySide = OpposingSide(caster.Side);
         var ability = caster.ActiveAbility;
+        List<int> debuffTargets;
 
         switch (ability.Kind)
         {
             case HeroAbilityKind.None:
                 return;
             case HeroAbilityKind.PhysicalDamage:
-                ApplyDamage(units, enemySide, AbilityEffect(RuneEffectKind.PhysicalDamage, ability.Power), physical: true);
+                debuffTargets = ApplyDamage(
+                    units,
+                    enemySide,
+                    AbilityEffect(RuneEffectKind.PhysicalDamage, ability.Power),
+                    physical: true,
+                    opposingSynergyModifiers,
+                    casterSynergyModifiers);
+                ApplyAbyssalWeakness(units, debuffTargets, casterSynergyModifiers);
                 return;
             case HeroAbilityKind.MagicDamage:
-                ApplyDamage(units, enemySide, AbilityEffect(RuneEffectKind.MagicDamage, ability.Power), physical: false);
+                debuffTargets = ApplyDamage(
+                    units,
+                    enemySide,
+                    AbilityEffect(RuneEffectKind.MagicDamage, ability.Power),
+                    physical: false,
+                    opposingSynergyModifiers,
+                    casterSynergyModifiers);
+                ApplyAbyssalWeakness(units, debuffTargets, casterSynergyModifiers);
                 return;
             case HeroAbilityKind.Healing:
                 ApplyRuneHealing(units, caster.Side, AbilityEffect(RuneEffectKind.Healing, ability.Power));
+                ApplyAbyssalWeakness(units, SingleBy(units, enemySide, unit => unit.CurrentHealth), casterSynergyModifiers);
                 return;
             case HeroAbilityKind.Shield:
-                ApplyRuneShield(units, caster.Side, AbilityEffect(RuneEffectKind.Shield, ability.Power), SynergyModifiers.None);
+                ApplyRuneShield(units, caster.Side, AbilityEffect(RuneEffectKind.Shield, ability.Power), casterSynergyModifiers);
+                ApplyAbyssalWeakness(units, SingleBy(units, enemySide, unit => unit.CurrentHealth), casterSynergyModifiers);
                 return;
             default:
                 throw new ArgumentOutOfRangeException(nameof(caster), ability.Kind, "Unknown hero ability kind.");
@@ -429,7 +489,13 @@ public sealed record BattleState(
         return units.Where(unit => unit.Side == side).Sum(unit => unit.HealthPercent);
     }
 
-    private static void ApplyDamage(List<BattleUnit> units, TacticalSide enemySide, RuneEffect effect, bool physical)
+    private static List<int> ApplyDamage(
+        List<BattleUnit> units,
+        TacticalSide enemySide,
+        RuneEffect effect,
+        bool physical,
+        SynergyModifiers damagedSideSynergyModifiers,
+        SynergyModifiers opposingSynergyModifiers)
     {
         var targets = effect.IsMassEffect
             ? AliveIndices(units, enemySide)
@@ -454,8 +520,10 @@ public sealed record BattleState(
                 Shield = remainingShield,
                 CurrentMana = mana
             };
-            TryCastAbility(units, index);
+            TryCastAbility(units, index, damagedSideSynergyModifiers, opposingSynergyModifiers);
         }
+
+        return targets;
     }
 
     private static void ApplyRuneHealing(List<BattleUnit> units, TacticalSide side, RuneEffect effect)
@@ -540,7 +608,41 @@ public sealed record BattleState(
         }
     }
 
-    private static void ApplyRuneMana(List<BattleUnit> units, TacticalSide side, double amount, bool mass)
+    private static void ApplyAbyssalWeakness(
+        List<BattleUnit> units,
+        IEnumerable<int> targetIndices,
+        SynergyModifiers synergyModifiers)
+    {
+        if (!synergyModifiers.AbyssalAbilityWeakness)
+        {
+            return;
+        }
+
+        foreach (var index in targetIndices)
+        {
+            var unit = units[index];
+            if (!unit.IsAlive)
+            {
+                continue;
+            }
+
+            units[index] = unit with
+            {
+                WeaknessAttackPenaltyFraction = Math.Max(
+                    unit.WeaknessAttackPenaltyFraction,
+                    SynergyModifiers.AbyssalAbilityWeaknessAttackPenalty),
+                WeaknessMillisecondsRemaining = SynergyModifiers.AbyssalAbilityWeaknessDurationMilliseconds
+            };
+        }
+    }
+
+    private static void ApplyRuneMana(
+        List<BattleUnit> units,
+        TacticalSide side,
+        double amount,
+        bool mass,
+        SynergyModifiers sideSynergyModifiers,
+        SynergyModifiers opposingSynergyModifiers)
     {
         var targets = mass
             ? AliveIndices(units, side)
@@ -553,7 +655,7 @@ public sealed record BattleState(
             {
                 CurrentMana = Math.Min(unit.ManaMax, unit.CurrentMana + amount)
             };
-            TryCastAbility(units, index);
+            TryCastAbility(units, index, sideSynergyModifiers, opposingSynergyModifiers);
         }
     }
 
@@ -607,17 +709,37 @@ public sealed record BattleState(
 
     private static BattleUnit AdvanceTimedBuffs(BattleUnit unit, int elapsedMilliseconds)
     {
-        if (!unit.HasActiveLifesteal)
+        if (!unit.HasActiveLifesteal && !unit.HasActiveWeakness)
         {
             return unit;
         }
 
-        var remaining = Math.Max(0, unit.LifestealMillisecondsRemaining - elapsedMilliseconds);
+        var lifestealRemaining = Math.Max(0, unit.LifestealMillisecondsRemaining - elapsedMilliseconds);
+        var weaknessRemaining = Math.Max(0, unit.WeaknessMillisecondsRemaining - elapsedMilliseconds);
         return unit with
         {
-            LifestealFraction = remaining > 0 ? unit.LifestealFraction : 0.0,
-            LifestealMillisecondsRemaining = remaining
+            LifestealFraction = lifestealRemaining > 0 ? unit.LifestealFraction : 0.0,
+            LifestealMillisecondsRemaining = lifestealRemaining,
+            WeaknessAttackPenaltyFraction = weaknessRemaining > 0 ? unit.WeaknessAttackPenaltyFraction : 0.0,
+            WeaknessMillisecondsRemaining = weaknessRemaining
         };
+    }
+
+    private SynergyModifiers ResolveSynergyModifiers(TacticalSide side, SynergyModifiers overrideModifiers)
+    {
+        return overrideModifiers.Equals(SynergyModifiers.None)
+            ? ModifiersForSide(side)
+            : overrideModifiers;
+    }
+
+    private SynergyModifiers ModifiersForSide(TacticalSide side)
+    {
+        return side == TacticalSide.Player ? PlayerSynergyModifiers : EnemySynergyModifiers;
+    }
+
+    private static TacticalSide OpposingSide(TacticalSide side)
+    {
+        return side == TacticalSide.Player ? TacticalSide.Enemy : TacticalSide.Player;
     }
 
     private static int SecondsToMilliseconds(double seconds)

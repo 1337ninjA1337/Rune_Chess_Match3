@@ -26,12 +26,16 @@ public sealed record BattleUnit(
     HeroAbility ActiveAbility = default,
     HeroPassive PassiveEffect = default,
     double LifestealFraction = 0.0,
-    int LifestealMillisecondsRemaining = 0
+    int LifestealMillisecondsRemaining = 0,
+    double WeaknessAttackPenaltyFraction = 0.0,
+    int WeaknessMillisecondsRemaining = 0
 )
 {
     public bool IsAlive => CurrentHealth > 0.0;
     public bool IsRanged => AttackType == BattleAttackType.Ranged;
     public bool HasActiveLifesteal => LifestealFraction > 0.0 && LifestealMillisecondsRemaining > 0;
+    public bool HasActiveWeakness => WeaknessAttackPenaltyFraction > 0.0 && WeaknessMillisecondsRemaining > 0;
+    public double EffectiveAttack => Attack * (HasActiveWeakness ? 1.0 - WeaknessAttackPenaltyFraction : 1.0);
     public double HealthPercent => MaxHealth <= 0.0 ? 0.0 : CurrentHealth / MaxHealth;
     public double AttackInterval => CombatFormulas.CalculateAttackInterval(AttacksPerSecond);
 
