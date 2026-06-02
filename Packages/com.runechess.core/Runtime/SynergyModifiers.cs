@@ -11,22 +11,34 @@ namespace RuneChess.Core
     public readonly struct SynergyModifiers : IEquatable<SynergyModifiers>
     {
         public const double EmpireArmorBonus = 0.10;
+        public const double WildAttackSpeedBonus = 0.10;
 
         private readonly double armorMultiplier;
+        private readonly double attackSpeedMultiplier;
         private readonly bool empireYellowRuneFrontlineShield;
 
-        public SynergyModifiers(double armorMultiplier, bool empireYellowRuneFrontlineShield = false)
+        public SynergyModifiers(
+            double armorMultiplier,
+            double attackSpeedMultiplier = 1.0,
+            bool empireYellowRuneFrontlineShield = false)
         {
             if (armorMultiplier <= 0.0)
             {
                 throw new ArgumentOutOfRangeException(nameof(armorMultiplier), "Synergy armor multiplier must be positive.");
             }
 
+            if (attackSpeedMultiplier <= 0.0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(attackSpeedMultiplier), "Synergy attack speed multiplier must be positive.");
+            }
+
             this.armorMultiplier = armorMultiplier;
+            this.attackSpeedMultiplier = attackSpeedMultiplier;
             this.empireYellowRuneFrontlineShield = empireYellowRuneFrontlineShield;
         }
 
         public double ArmorMultiplier => armorMultiplier <= 0.0 ? 1.0 : armorMultiplier;
+        public double AttackSpeedMultiplier => attackSpeedMultiplier <= 0.0 ? 1.0 : attackSpeedMultiplier;
         public bool EmpireYellowRuneFrontlineShield => empireYellowRuneFrontlineShield;
 
         public static SynergyModifiers None { get; } = new(1.0);
@@ -54,8 +66,15 @@ namespace RuneChess.Core
                 armorMultiplier *= 1.0 + EmpireArmorBonus;
             }
 
+            var attackSpeedMultiplier = 1.0;
+            if (HasActiveTier(progress, FactionCatalog.Wild.Id, requiredCount: 2))
+            {
+                attackSpeedMultiplier *= 1.0 + WildAttackSpeedBonus;
+            }
+
             return new SynergyModifiers(
                 armorMultiplier,
+                attackSpeedMultiplier,
                 empireYellowRuneFrontlineShield: HasActiveTier(progress, FactionCatalog.Empire.Id, requiredCount: 4));
         }
 
@@ -68,13 +87,15 @@ namespace RuneChess.Core
 
             return stats with
             {
-                Armor = stats.Armor * ArmorMultiplier
+                Armor = stats.Armor * ArmorMultiplier,
+                BaseAttackSpeed = stats.BaseAttackSpeed * AttackSpeedMultiplier
             };
         }
 
         public bool Equals(SynergyModifiers other)
         {
             return Math.Abs(ArmorMultiplier - other.ArmorMultiplier) < 1e-9
+                && Math.Abs(AttackSpeedMultiplier - other.AttackSpeedMultiplier) < 1e-9
                 && EmpireYellowRuneFrontlineShield == other.EmpireYellowRuneFrontlineShield;
         }
 
@@ -85,7 +106,7 @@ namespace RuneChess.Core
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(ArmorMultiplier, EmpireYellowRuneFrontlineShield);
+            return HashCode.Combine(ArmorMultiplier, AttackSpeedMultiplier, EmpireYellowRuneFrontlineShield);
         }
 
         private static bool HasActiveTier(

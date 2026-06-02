@@ -909,6 +909,16 @@ var empireFourBoard = new List<BoardHero>
 var empireFourModifiers = SynergyModifiers.ForTeam(empireFourBoard);
 Require(empireFourModifiers.EmpireYellowRuneFrontlineShield, "four Empire heroes unlock the yellow-rune frontline shield modifier");
 
+var wildAttackSpeedBoard = new List<BoardHero>
+{
+    new(new HeroInstance("wild2_wc", "wild_claw", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("wild2_ts", "thorn_shaman", 1), new TacticalPosition(3, 0))
+};
+var wildAttackSpeedModifiers = SynergyModifiers.ForTeam(wildAttackSpeedBoard);
+Require(Math.Abs(wildAttackSpeedModifiers.AttackSpeedMultiplier - 1.10) < 1e-9, "two Wild heroes unlock the +10 percent attack-speed modifier");
+var wildHastedClaw = BattleUnit.FromHero(catalogWildClaw, 1, "wild_hasted_claw", TacticalSide.Player, new TacticalPosition(2, 0), wildAttackSpeedModifiers);
+Require(Math.Abs(wildHastedClaw.AttacksPerSecond - 0.99) < 1e-9, "Wild 2 increases battle-unit attack speed");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
