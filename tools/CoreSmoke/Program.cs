@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 7, "hero catalog starts with the first seven MVP heroes");
+Require(HeroCatalog.All.Count == 8, "hero catalog starts with the first eight MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -789,6 +789,14 @@ Require(catalogRuneApprentice.RuneAffinity == RuneType.Blue && catalogRuneAppren
 Require(catalogRuneApprentice.AttackType == "ranged" && catalogRuneApprentice.Targeting == "two_nearest_enemies", "rune apprentice strikes two enemies at range");
 Require(catalogRuneApprentice.PreferredEffectKind == RuneEffectKind.Mana, "a blue hero prefers mana rune effects");
 Require(catalogRuneApprentice.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
+var catalogGearSquire = HeroCatalog.Get("gear_squire");
+Require(catalogGearSquire.Name == "Шестеренный Сквайр", "gear squire uses the GDD display name");
+Require(catalogGearSquire.Rarity == HeroRarity.Rare && catalogGearSquire.Cost == 2, "gear squire is a two-cost rare hero");
+Require(catalogGearSquire.Faction == "Механисты" && catalogGearSquire.Class == "Защитник", "gear squire belongs to the Mechanist Defender line");
+Require(catalogGearSquire.RuneAffinity == RuneType.Yellow && catalogGearSquire.Role == HeroRole.Tank, "gear squire is a yellow-rune tank");
+Require(catalogGearSquire.AttackType == "melee" && catalogGearSquire.Targeting == "nearest", "gear squire uses melee nearest targeting");
+Require(catalogGearSquire.PreferredEffectKind == RuneEffectKind.Shield, "a yellow tank prefers shield rune effects");
+Require(catalogGearSquire.AbilityForStars(1).Kind == HeroAbilityKind.Shield, "tank heroes get an active shield ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

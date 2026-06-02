@@ -167,6 +167,29 @@ namespace RuneChess.Core
                 ManaMax: 70)
         );
 
+        public static HeroDefinition GearSquire { get; } = new(
+            Id: "gear_squire",
+            Name: "Шестеренный Сквайр",
+            Rarity: HeroRarity.Rare,
+            Cost: 2,
+            Faction: "Механисты",
+            Class: "Защитник",
+            RuneAffinity: RuneType.Yellow,
+            Role: HeroRole.Tank,
+            AttackType: "melee",
+            Targeting: "nearest",
+            Stars: 1,
+            Ability: "Ставит малую турель-щит.",
+            Passive: "Сборка на ходу: восстанавливает немного брони со временем.",
+            BaseStats: new HeroStats(
+                BaseHealth: 780,
+                Attack: 42,
+                Armor: 9,
+                MagicResist: 4,
+                BaseAttackSpeed: 0.7,
+                ManaMax: 80)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -175,7 +198,8 @@ namespace RuneChess.Core
             WildClaw,
             ThornShaman,
             MistCutthroat,
-            RuneApprentice
+            RuneApprentice,
+            GearSquire
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
