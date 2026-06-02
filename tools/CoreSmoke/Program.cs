@@ -1810,6 +1810,29 @@ var lethalRuneBattle = BattleState.Create(new[]
 Require(lethalRuneBattle.ApplyRuneEffects(new[] { Effect(RuneEffectKind.PhysicalDamage, 50) }).Outcome == BattleOutcome.PlayerVictory, "rune damage that kills the last enemy wins the battle");
 RequireThrows(() => fxBattle.ApplyRuneEffect(null!), "applying a rune effect rejects null");
 
+// App-level single-scene navigation model (GDD UI screen flow).
+var navigation = AppNavigationState.AtMainMenu;
+Require(navigation.Current == AppScreen.MainMenu && navigation.Previous is null, "a new app session starts on the main menu");
+Require(navigation.CanNavigateTo(AppScreen.LevelSelect), "the main menu can open level select");
+Require(navigation.CanNavigateTo(AppScreen.CommanderSelect), "the main menu can open commander select");
+Require(!navigation.CanNavigateTo(AppScreen.Combat), "the main menu cannot jump straight into combat");
+var atLevelSelect = navigation.NavigateTo(AppScreen.LevelSelect);
+Require(atLevelSelect.Current == AppScreen.LevelSelect && atLevelSelect.Previous == AppScreen.MainMenu, "navigation records the previous screen");
+Require(atLevelSelect.Back().Current == AppScreen.MainMenu, "navigation can go back to the previous screen");
+var fullLoop = atLevelSelect
+    .NavigateTo(AppScreen.Preparation)
+    .NavigateTo(AppScreen.Combat)
+    .NavigateTo(AppScreen.LevelComplete);
+Require(fullLoop.Current == AppScreen.LevelComplete, "menu -> level select -> preparation -> combat -> results stays in one flow");
+Require(fullLoop.CanNavigateTo(AppScreen.Preparation), "level results can advance to the next level without leaving the run");
+Require(fullLoop.NavigateTo(AppScreen.RunSummary).Current == AppScreen.RunSummary, "level results can finish into the run summary");
+RequireThrows(() => navigation.NavigateTo(AppScreen.Combat), "illegal screen transitions are rejected");
+Require(AppNavigationState.ScreenForPhase(RunPhase.Preparation) == AppScreen.Preparation, "preparation phase maps to the preparation screen");
+Require(AppNavigationState.ScreenForPhase(RunPhase.Combat) == AppScreen.Combat, "combat phase maps to the combat screen");
+Require(AppNavigationState.ScreenForPhase(RunPhase.Reward) == AppScreen.LevelComplete, "reward phase maps to the level results screen");
+Require(AppNavigationState.ScreenForPhase(RunPhase.Victory) == AppScreen.RunSummary, "victory maps to the run summary screen");
+Require(AppNavigationState.ScreenForPhase(RunPhase.Defeat) == AppScreen.RunSummary, "defeat maps to the run summary screen");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
