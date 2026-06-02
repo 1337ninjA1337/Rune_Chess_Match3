@@ -420,6 +420,29 @@ namespace RuneChess.Core
                 ManaMax: 80)
         );
 
+        public static HeroDefinition ClockworkSaint { get; } = new(
+            Id: "clockwork_saint",
+            Name: "Заводной Святой",
+            Rarity: HeroRarity.Epic,
+            Cost: 4,
+            Faction: "Механисты",
+            Class: "Целитель",
+            RuneAffinity: RuneType.Green,
+            Role: HeroRole.Healer,
+            AttackType: "ranged",
+            Targeting: "lowest_health_ally",
+            Stars: 1,
+            Ability: "Лечит всю команду импульсами.",
+            Passive: "Тактовый ритм: лечение усиливается со временем боя.",
+            BaseStats: new HeroStats(
+                BaseHealth: 620,
+                Attack: 42,
+                Armor: 4,
+                MagicResist: 6,
+                BaseAttackSpeed: 0.85,
+                ManaMax: 90)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -439,7 +462,8 @@ namespace RuneChess.Core
             DroneMarshal,
             PhaseAssassin,
             MagmaBrute,
-            CurseWeaver
+            CurseWeaver,
+            ClockworkSaint
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(

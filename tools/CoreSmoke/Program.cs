@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 18, "hero catalog starts with the first eighteen MVP heroes");
+Require(HeroCatalog.All.Count == 19, "hero catalog starts with the first nineteen MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -868,6 +868,13 @@ Require(catalogCurseWeaver.Faction == "Бездонные" && catalogCurseWeaver
 Require(catalogCurseWeaver.RuneAffinity == RuneType.Purple && catalogCurseWeaver.Role == HeroRole.Caster, "curse weaver is a purple-rune caster");
 Require(catalogCurseWeaver.PreferredEffectKind == RuneEffectKind.MagicDamage, "a purple caster prefers magic-damage rune effects");
 Require(catalogCurseWeaver.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
+var catalogClockworkSaint = HeroCatalog.Get("clockwork_saint");
+Require(catalogClockworkSaint.Name == "Заводной Святой", "clockwork saint uses the GDD display name");
+Require(catalogClockworkSaint.Rarity == HeroRarity.Epic && catalogClockworkSaint.Cost == 4, "clockwork saint is a four-cost epic hero");
+Require(catalogClockworkSaint.Faction == "Механисты" && catalogClockworkSaint.Class == "Целитель", "clockwork saint belongs to the Mechanist Healer line");
+Require(catalogClockworkSaint.RuneAffinity == RuneType.Green && catalogClockworkSaint.Role == HeroRole.Healer, "clockwork saint is a green-rune healer");
+Require(catalogClockworkSaint.PreferredEffectKind == RuneEffectKind.Healing, "a green healer prefers healing rune effects");
+Require(catalogClockworkSaint.AbilityForStars(1).Kind == HeroAbilityKind.Healing, "healer heroes get an active healing ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(
