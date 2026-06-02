@@ -172,6 +172,10 @@ Each implementation task should include the cheapest relevant verification:
 - manual portrait layout check in the Unity Game view;
 - cloud iOS build only when we need device/App Store validation.
 
-## Known Product Issue
+## Resolved Product Decision: class count
 
-The GDD MVP scope says "6 classes", while the detailed class list contains 7 classes. The task list already tracks this discrepancy under P0 "Фракции и классы"; do not resolve it implicitly while building unrelated systems.
+The GDD MVP scope summary says "6 classes", while the detailed class list enumerates 7 (Защитник, Убийца, Маг, Стрелок, Целитель, Призыватель, Берсерк). Per the codex rule that the GDD is the source of truth, the explicit detailed list wins over the summary count, so the MVP ships **7 classes**. This is encoded in `ClassCatalog` (7 entries). Only Защитник, Маг and Убийца carry GDD-defined synergy breakpoints today; the other four are real classes with no class synergy yet. The "6 classes" line in the GDD summary should be corrected to "7 classes" on the next GDD edit pass.
+
+## Synergy data layer
+
+Faction and class synergies live as pure data in `FactionCatalog`, `ClassCatalog` and the shared `SynergyDefinition`/`SynergyTier` records. `SynergyCalculator` counts distinct heroes per faction/class (a hero counts once regardless of star level, like standard auto-battler traits) and reports active tiers plus the next breakpoint. Applying the individual synergy effects to combat is tracked separately under P0 "Фракции и классы".

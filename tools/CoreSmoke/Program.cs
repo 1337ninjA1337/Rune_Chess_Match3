@@ -847,6 +847,39 @@ Require(HeroCatalog.All.Count(hero => hero.Faction == "Бездонные") == 4
 Require(HeroCatalog.All.Count(hero => hero.Faction == "Механисты") == 4, "MVP roster has four Mechanist heroes");
 Require(HeroCatalog.All.Count(hero => hero.Faction == "Духи") == 4, "MVP roster has four Spirit heroes");
 
+Require(FactionCatalog.All.Count == 5, "MVP defines five factions");
+Require(ClassCatalog.All.Count == 7, "MVP class list resolves to seven classes");
+Require(FactionCatalog.All.All(faction => HeroCatalog.All.Any(hero => hero.Faction == faction.Name)), "every faction has at least one catalog hero");
+Require(HeroCatalog.All.All(hero => FactionCatalog.TryGet(hero.Faction, out _)), "every catalog hero maps to a known faction");
+Require(HeroCatalog.All.All(hero => ClassCatalog.TryGet(hero.Class, out _)), "every catalog hero maps to a known class");
+Require(FactionCatalog.Get("Империя").Tiers.Count == 2, "Empire faction has two synergy tiers");
+Require(ClassCatalog.Get("Маг").Tiers[0].RequiredCount == 3, "Mage synergy starts at three mages");
+Require(ClassCatalog.Get("Убийца").Tiers[1].RequiredCount == 6, "Assassin synergy peaks at six assassins");
+Require(ClassCatalog.Get("Стрелок").Tiers.Count == 0, "Marksman carries no MVP class synergy tier");
+RequireThrows(() => FactionCatalog.Get("Эльфы"), "faction lookup rejects unknown names");
+
+Require(SynergyCalculator.EvaluateByHeroIds(Array.Empty<string>()).Count == 0, "an empty board produces no synergies");
+
+var empirePairSynergies = SynergyCalculator.EvaluateByHeroIds(new[] { "iron_guard", "oath_archer" });
+var empireSynergy = empirePairSynergies.Single(progress => progress.Definition.Name == "Империя");
+Require(empireSynergy.UnitCount == 2 && empireSynergy.ActiveTiers.Count == 1, "two Empire heroes activate the first Empire tier");
+Require(empireSynergy.NextTier is not null && empireSynergy.NextTier.RequiredCount == 4, "the next Empire tier needs four heroes");
+
+var duplicateSynergies = SynergyCalculator.EvaluateByHeroIds(new[] { "iron_guard", "iron_guard" });
+Require(duplicateSynergies.Single(progress => progress.Definition.Name == "Империя").UnitCount == 1, "duplicate hero ids count once for synergies");
+
+var mageSynergies = SynergyCalculator.EvaluateByHeroIds(new[] { "rune_apprentice", "spark_tinker", "abyss_acolyte" });
+var mageSynergy = mageSynergies.Single(progress => progress.Definition.Name == "Маг");
+Require(mageSynergy.IsActive && mageSynergy.ActiveTiers.Count == 1, "three mages activate the mage synergy");
+
+var synergyBoard = new List<BoardHero>
+{
+    new(new HeroInstance("syn_def_1", "iron_guard", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("syn_def_2", "bulwark_captain", 2), new TacticalPosition(2, 1))
+};
+var defenderSynergy = SynergyCalculator.ActiveSynergies(synergyBoard).Single(progress => progress.Definition.Name == "Защитник");
+Require(defenderSynergy.UnitCount == 2 && defenderSynergy.IsActive, "two defenders on the board activate the defender synergy");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
