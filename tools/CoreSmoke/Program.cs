@@ -13,6 +13,23 @@ Require(state.Bench.Count == 0, "new run starts with empty bench");
 Require(state.Shop.Offers.Count == 3, "new run starts with a shop");
 Require(state.Artifacts.Count == 0, "new run starts without artifacts");
 
+// Commander model (GDD "Командиры").
+Require(CommanderCatalog.All.Count == 3, "the MVP ships three commanders");
+var runeArchon = CommanderCatalog.Get("rune_archon");
+Require(runeArchon.Name == "Архонт Рун", "rune archon commander has its GDD name");
+Require(runeArchon.Passive == "Каждое третье match-4 комбо создает дополнительную синюю руну.", "rune archon passive matches the GDD");
+Require(runeArchon.MaxEnergy == 100 && runeArchon.RecommendedStyles.Count > 0, "a commander defines an energy bar and recommended styles");
+Require(!string.IsNullOrWhiteSpace(runeArchon.StartingBonus), "a commander defines a starting bonus");
+Require(CommanderCatalog.Get("warlord").Passive.Contains("+20%"), "warlord commander buffs the first defender's health");
+Require(CommanderCatalog.Get("alchemist").Passive.Contains("золото"), "alchemist commander rewards gold for chain reactions");
+var runeArchonState = runeArchon.CreateInitialState();
+Require(runeArchonState.Id == "rune_archon" && runeArchonState.Energy == 0 && runeArchonState.MaxEnergy == 100, "a commander builds an empty runtime energy bar");
+Require(CommanderCatalog.TryGet("RUNE_ARCHON", out _), "commander lookup is case-insensitive");
+Require(!CommanderCatalog.TryGet("unknown_commander", out _), "commander lookup rejects unknown ids");
+RequireThrows(() => CommanderCatalog.Get("unknown_commander"), "commander get throws on unknown ids");
+RequireThrows(() => new CommanderDefinition("", "Name", "Passive", 100, "Bonus", Array.Empty<string>()), "commander definition rejects a blank id");
+RequireThrows(() => new CommanderDefinition("id", "Name", "Passive", 0, "Bonus", Array.Empty<string>()), "commander definition rejects a non-positive energy bar");
+
 var afterBuy = state.BuyHero(0);
 Require(afterBuy.Gold == 5, "buying a common hero spends gold");
 Require(afterBuy.Bench.Count == 1, "bought hero goes to bench");
