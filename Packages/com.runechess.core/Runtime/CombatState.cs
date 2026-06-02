@@ -16,7 +16,8 @@ namespace RuneChess.Core
         bool EarnedChainFourGoldBonus = false,
         double LastCommanderEnergyGain = 0.0,
         int LastMatch4ComboCount = 0,
-        int LastBonusBlueRunesCreated = 0
+        int LastBonusBlueRunesCreated = 0,
+        bool HadChainReaction = false
     )
     {
         public const int DefaultDurationSeconds = 60;
@@ -114,6 +115,7 @@ namespace RuneChess.Core
             var matchedRunesCount = resolution.TotalMatchedRunesCount;
             var resolvedComboDepth = comboDepth + resolution.MaxComboDepth;
             var matchPower = resolution.GetTotalMatchPower(comboDepth);
+            var hadChainReaction = resolution.ReactionCount > 0;
             var earnedChainFourBonus = resolution.Steps.Any(step =>
                 step.ChainNumber >= ChainFourGoldBonusMinimumChainNumber);
             var commanderEnergyGain = resolution.Steps.Sum(step => step.CommanderEnergyGain);
@@ -135,7 +137,8 @@ namespace RuneChess.Core
                 EarnedChainFourGoldBonus = EarnedChainFourGoldBonus || earnedChainFourBonus,
                 LastCommanderEnergyGain = commanderEnergyGain,
                 LastMatch4ComboCount = match4ComboCount,
-                LastBonusBlueRunesCreated = 0
+                LastBonusBlueRunesCreated = 0,
+                HadChainReaction = HadChainReaction || hadChainReaction
             };
         }
 

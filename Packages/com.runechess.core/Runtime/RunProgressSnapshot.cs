@@ -22,7 +22,7 @@ namespace RuneChess.Core
         string? DefeatReason
     )
     {
-        public const int CurrentVersion = 8;
+        public const int CurrentVersion = 9;
 
         public static RunProgressSnapshot Capture(RunState state)
         {
@@ -97,7 +97,8 @@ namespace RuneChess.Core
         bool EarnedChainFourGoldBonus,
         double LastCommanderEnergyGain,
         int LastMatch4ComboCount,
-        int LastBonusBlueRunesCreated
+        int LastBonusBlueRunesCreated,
+        bool HadChainReaction
     )
     {
         public static CombatProgressSnapshot Capture(CombatState state)
@@ -129,7 +130,8 @@ namespace RuneChess.Core
                 EarnedChainFourGoldBonus: state.EarnedChainFourGoldBonus,
                 LastCommanderEnergyGain: state.LastCommanderEnergyGain,
                 LastMatch4ComboCount: state.LastMatch4ComboCount,
-                LastBonusBlueRunesCreated: state.LastBonusBlueRunesCreated
+                LastBonusBlueRunesCreated: state.LastBonusBlueRunesCreated,
+                HadChainReaction: state.HadChainReaction
             );
         }
 
@@ -181,7 +183,8 @@ namespace RuneChess.Core
                 EarnedChainFourGoldBonus: EarnedChainFourGoldBonus,
                 LastCommanderEnergyGain: LastCommanderEnergyGain,
                 LastMatch4ComboCount: LastMatch4ComboCount,
-                LastBonusBlueRunesCreated: LastBonusBlueRunesCreated
+                LastBonusBlueRunesCreated: LastBonusBlueRunesCreated,
+                HadChainReaction: HadChainReaction
             );
         }
     }

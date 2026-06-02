@@ -23,6 +23,7 @@ namespace RuneChess.Core
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
         private const int RuneArchonMatch4CombosPerBlueRune = 3;
+        private const int AlchemistChainReactionGoldBonus = 1;
 
         public PveRoundDefinition CurrentRoundDefinition => PveRunSchedule.GetRound(Round);
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
@@ -463,6 +464,9 @@ namespace RuneChess.Core
             var chainGoldBonus = Combat?.EarnedChainFourGoldBonus == true
                 ? CombatState.ChainFourGoldBonus
                 : 0;
+            var alchemistGoldBonus = Commander.Id == CommanderCatalog.Alchemist.Id && Combat?.HadChainReaction == true
+                ? AlchemistChainReactionGoldBonus
+                : 0;
             if (resolvedGoldReward < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(goldReward), "Gold reward cannot be negative.");
@@ -470,7 +474,7 @@ namespace RuneChess.Core
 
             return this with
             {
-                Gold = Gold + resolvedGoldReward + chainGoldBonus,
+                Gold = Gold + resolvedGoldReward + chainGoldBonus + alchemistGoldBonus,
                 Phase = IsFinalRound ? RunPhase.Victory : RunPhase.Reward,
                 Combat = null,
                 DefeatReason = null

@@ -215,6 +215,7 @@ Require(!combat.IsSwapOnCooldown, "new combat allows an immediate rune swap");
 Require(combat.SecondsSinceLastRuneSwap == 0, "new combat starts with a fresh rune-swap idle timer");
 Require(combat.SlowdownMillisecondsRemaining == 0, "new combat starts without slowdown");
 Require(!combat.EarnedChainFourGoldBonus, "new combat starts without a chain 4+ gold bonus");
+Require(!combat.HadChainReaction, "new combat starts without a recorded chain reaction");
 Require(!combat.IsCombatSlowed, "new combat runs at normal speed");
 Require(combat.CombatSpeedPercent == CombatState.NormalCombatSpeedPercent, "normal combat speed is 100 percent");
 Require(!combat.ShouldShowMatchHint, "new combat does not show a match hint immediately");
@@ -279,6 +280,7 @@ Require(restoredCombat.EarnedChainFourGoldBonus == savedCombat.EarnedChainFourGo
 Require(Math.Abs(restoredCombat.LastCommanderEnergyGain - savedCombat.LastCommanderEnergyGain) < 1e-9, "restored progress preserves last commander energy gain");
 Require(restoredCombat.LastMatch4ComboCount == savedCombat.LastMatch4ComboCount, "restored progress preserves last match-4 combo count");
 Require(restoredCombat.LastBonusBlueRunesCreated == savedCombat.LastBonusBlueRunesCreated, "restored progress preserves last bonus blue rune count");
+Require(restoredCombat.HadChainReaction == savedCombat.HadChainReaction, "restored progress preserves chain reaction state");
 Require(restoredCombat.RuneBoard[0, 0] == savedCombat.RuneBoard[0, 0], "restored progress preserves rune board");
 var greatSnapshotPoint = new BoardPoint(2, 3);
 var greatSnapshotBoard = new Match3Board(Match3Board.CreateCells()
@@ -308,6 +310,23 @@ var chainGoldReward = (inCombat with
 }).ClaimReward(2);
 Require(chainGoldReward.Gold == inCombat.Gold + 2 + CombatState.ChainFourGoldBonus, "chain 4+ grants one bonus gold after combat");
 Require(chainGoldReward.Combat is null, "claiming a chain 4+ reward still clears combat state");
+var alchemistChainReward = (RunState.NewRun("alchemist") with
+{
+    Phase = RunPhase.Combat,
+    Combat = combat with { HadChainReaction = true }
+}).ClaimReward(2);
+Require(alchemistChainReward.Gold == alchemistRun.Gold + 2 + 1, "Alchemist gains one gold after a round with any chain reaction");
+var alchemistNoChainReward = (RunState.NewRun("alchemist") with
+{
+    Phase = RunPhase.Combat,
+    Combat = combat
+}).ClaimReward(2);
+Require(alchemistNoChainReward.Gold == alchemistRun.Gold + 2, "Alchemist gains no passive gold without a chain reaction");
+var nonAlchemistChainReward = (inCombat with
+{
+    Combat = combat with { HadChainReaction = true }
+}).ClaimReward(2);
+Require(nonAlchemistChainReward.Gold == inCombat.Gold + 2, "non-Alchemist commanders do not gain chain-reaction gold");
 
 var nextRound = reward.AdvanceRound("round_02_scouts");
 Require(nextRound.Round == 2, "advancing reward starts the next round");
