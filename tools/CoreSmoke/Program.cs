@@ -236,6 +236,10 @@ Require(EconomyConfig.Default.WinBonus == 1 && EconomyConfig.Default.CalculateGo
 Require(EconomyConfig.Default.CalculateStreakBonus(2) == 0, "streak bonus is zero before three wins");
 Require(EconomyConfig.Default.CalculateStreakBonus(3) == 1, "streak bonus adds one gold at three wins");
 Require(EconomyConfig.Default.CalculateStreakBonus(5) == 2, "streak bonus adds two gold at five wins");
+Require(EconomyConfig.Default.CalculateInterestBonus(0) == 0, "interest bonus is zero below ten gold");
+Require(EconomyConfig.Default.CalculateInterestBonus(10) == 1, "interest bonus adds one gold per ten saved gold");
+Require(EconomyConfig.Default.CalculateInterestBonus(29) == 2, "interest bonus floors partial ten-gold steps");
+Require(EconomyConfig.Default.CalculateInterestBonus(30) == 3 && EconomyConfig.Default.CalculateInterestBonus(99) == 3, "interest bonus caps at three gold");
 Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0) == 3, "gold income works without optional bonuses");
 RequireThrows(() => EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: -1, currentGold: 0), "gold income rejects negative streaks");
 RequireThrows(() => EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: 0, currentGold: -1), "gold income rejects negative current gold");
