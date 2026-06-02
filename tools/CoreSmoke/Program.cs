@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 10, "hero catalog starts with the first ten MVP heroes");
+Require(HeroCatalog.All.Count == 11, "hero catalog starts with the first eleven MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -811,6 +811,13 @@ Require(catalogAbyssAcolyte.Faction == "Бездонные" && catalogAbyssAcoly
 Require(catalogAbyssAcolyte.RuneAffinity == RuneType.Purple && catalogAbyssAcolyte.Role == HeroRole.Caster, "abyss acolyte is a purple-rune caster");
 Require(catalogAbyssAcolyte.PreferredEffectKind == RuneEffectKind.MagicDamage, "a purple caster prefers magic-damage rune effects");
 Require(catalogAbyssAcolyte.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
+var catalogSpiritDuelist = HeroCatalog.Get("spirit_duelist");
+Require(catalogSpiritDuelist.Name == "Духовный Дуэлянт", "spirit duelist uses the GDD display name");
+Require(catalogSpiritDuelist.Rarity == HeroRarity.Rare && catalogSpiritDuelist.Cost == 2, "spirit duelist is a two-cost rare hero");
+Require(catalogSpiritDuelist.Faction == "Духи" && catalogSpiritDuelist.Class == "Берсерк", "spirit duelist belongs to the Spirit Berserker line");
+Require(catalogSpiritDuelist.RuneAffinity == RuneType.White && catalogSpiritDuelist.Role == HeroRole.Bruiser, "spirit duelist is a white-rune bruiser");
+Require(catalogSpiritDuelist.PreferredEffectKind == RuneEffectKind.CommanderEnergy, "a white hero prefers commander-energy rune effects");
+Require(catalogSpiritDuelist.AbilityForStars(1).Kind == HeroAbilityKind.PhysicalDamage, "bruiser heroes get an active physical-damage ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

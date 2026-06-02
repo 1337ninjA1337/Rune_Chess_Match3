@@ -236,6 +236,29 @@ namespace RuneChess.Core
                 ManaMax: 70)
         );
 
+        public static HeroDefinition SpiritDuelist { get; } = new(
+            Id: "spirit_duelist",
+            Name: "Духовный Дуэлянт",
+            Rarity: HeroRarity.Rare,
+            Cost: 2,
+            Faction: "Духи",
+            Class: "Берсерк",
+            RuneAffinity: RuneType.White,
+            Role: HeroRole.Bruiser,
+            AttackType: "melee",
+            Targeting: "nearest",
+            Stars: 1,
+            Ability: "Создает иллюзию себя на короткое время.",
+            Passive: "Призрачный шаг: небольшой шанс уклонения от атак.",
+            BaseStats: new HeroStats(
+                BaseHealth: 720,
+                Attack: 56,
+                Armor: 5,
+                MagicResist: 4,
+                BaseAttackSpeed: 0.95,
+                ManaMax: 60)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -247,7 +270,8 @@ namespace RuneChess.Core
             RuneApprentice,
             GearSquire,
             SparkTinker,
-            AbyssAcolyte
+            AbyssAcolyte,
+            SpiritDuelist
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
