@@ -365,7 +365,7 @@ namespace RuneChess.Presentation
             navigationState = AppNavigationState.AtMainMenu
                 .NavigateTo(AppScreen.LevelSelect)
                 .NavigateTo(AppScreen.Preparation);
-            StartGame();
+            ShowPreparationScreen();
         }
 
         private void ShowMainMenu()
@@ -386,7 +386,7 @@ namespace RuneChess.Presentation
                 return;
             }
 
-            navigationState = AppNavigationState.AtMainMenu.NavigateTo(AppScreen.LevelSelect);
+            SetNavigationForScreen(AppScreen.LevelSelect);
             ClearChildren(contentRoot);
             AddLevelSelectScreen(contentRoot);
         }
@@ -550,7 +550,7 @@ namespace RuneChess.Presentation
             navigationState = navigationState.Current == AppScreen.LevelSelect
                 ? navigationState.NavigateTo(AppScreen.Preparation)
                 : AppNavigationState.AtMainMenu.NavigateTo(AppScreen.LevelSelect).NavigateTo(AppScreen.Preparation);
-            StartGame();
+            ShowPreparationScreen();
         }
 
         private void SelectMainMenuDestination(AppScreen screen)
@@ -672,16 +672,184 @@ namespace RuneChess.Presentation
             }
         }
 
-        private void StartGame()
+        private void ShowPreparationScreen()
         {
             if (contentRoot == null)
             {
                 return;
             }
 
+            SetNavigationForScreen(AppScreen.Preparation);
+            ClearChildren(contentRoot);
+            AddHeader(contentRoot);
+            AddPreparationPanel(contentRoot);
+            AddScreenNavigationRow(
+                contentRoot,
+                "К уровням",
+                "MAP",
+                ShowLevelSelectScreen,
+                "Начать бой",
+                "COMBAT",
+                ShowCombatScreen);
+        }
+
+        private void ShowCombatScreen()
+        {
+            if (contentRoot == null)
+            {
+                return;
+            }
+
+            SetNavigationForScreen(AppScreen.Combat);
             ClearChildren(contentRoot);
             ResetMatch3Board();
+            AddHeader(contentRoot);
+            AddBattlePanel(contentRoot);
             AddRunePanel(contentRoot);
+            AddRuneEffectStrip(contentRoot);
+            AddScreenNavigationRow(
+                contentRoot,
+                "Подготовка",
+                "BACK",
+                ShowPreparationScreen,
+                "Завершить",
+                "REWARD",
+                ShowRewardScreen);
+        }
+
+        private void ShowRewardScreen()
+        {
+            if (contentRoot == null)
+            {
+                return;
+            }
+
+            SetNavigationForScreen(AppScreen.LevelComplete);
+            ClearChildren(contentRoot);
+            AddHeader(contentRoot);
+            AddRewardSummaryPanel(contentRoot);
+            AddScreenNavigationRow(
+                contentRoot,
+                "К уровням",
+                "MAP",
+                ShowLevelSelectScreen,
+                "Дальше",
+                "NEXT",
+                ShowPreparationScreen);
+        }
+
+        private void SetNavigationForScreen(AppScreen screen)
+        {
+            if (navigationState.Current == screen)
+            {
+                return;
+            }
+
+            if (navigationState.CanNavigateTo(screen))
+            {
+                navigationState = navigationState.NavigateTo(screen);
+                return;
+            }
+
+            switch (screen)
+            {
+                case AppScreen.MainMenu:
+                    navigationState = AppNavigationState.AtMainMenu;
+                    break;
+                case AppScreen.LevelSelect:
+                    navigationState = AppNavigationState.AtMainMenu.NavigateTo(AppScreen.LevelSelect);
+                    break;
+                case AppScreen.Preparation:
+                    navigationState = AppNavigationState.AtMainMenu
+                        .NavigateTo(AppScreen.LevelSelect)
+                        .NavigateTo(AppScreen.Preparation);
+                    break;
+                case AppScreen.Combat:
+                    navigationState = AppNavigationState.AtMainMenu
+                        .NavigateTo(AppScreen.LevelSelect)
+                        .NavigateTo(AppScreen.Preparation)
+                        .NavigateTo(AppScreen.Combat);
+                    break;
+                case AppScreen.LevelComplete:
+                    navigationState = AppNavigationState.AtMainMenu
+                        .NavigateTo(AppScreen.LevelSelect)
+                        .NavigateTo(AppScreen.Preparation)
+                        .NavigateTo(AppScreen.Combat)
+                        .NavigateTo(AppScreen.LevelComplete);
+                    break;
+                default:
+                    navigationState = AppNavigationState.AtMainMenu;
+                    break;
+            }
+        }
+
+        private void AddScreenNavigationRow(
+            Transform parent,
+            string leftLabel,
+            string leftMeta,
+            Action leftAction,
+            string rightLabel,
+            string rightMeta,
+            Action rightAction)
+        {
+            var row = CreatePanel("Screen Navigation Row", parent, Color.clear);
+            AddLayoutElement(row, 58);
+
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 7;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+
+            CreateMenuButton(row.transform, leftLabel, leftMeta, GameColors.Button, false, leftAction);
+            CreateMenuButton(row.transform, rightLabel, rightMeta, GameColors.ButtonPrimary, true, rightAction);
+        }
+
+        private void AddRewardSummaryPanel(Transform parent)
+        {
+            var round = runState.CurrentRoundDefinition;
+            var panel = CreatePanel("Level Complete Panel", parent, GameColors.PanelDeep);
+            AddLayoutElement(panel, 354);
+            AddOutline(panel, GameColors.WithAlpha(GameColors.Gold, 0.72f));
+
+            var stack = panel.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(10, 10, 10, 10);
+            stack.spacing = 8;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            AddPanelHeader(panel.transform, "НАГРАДА УРОВНЯ", $"ROUND {round.Round} COMPLETE");
+            CreateText(round.EnemyName, panel.transform, 20, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateText(round.DesignGoal, panel.transform, 11, GameColors.Muted, TextAnchor.MiddleCenter);
+
+            var stats = CreatePanel("Reward Stats", panel.transform, Color.clear);
+            AddLayoutElement(stats, 52);
+
+            var statsLayout = stats.AddComponent<HorizontalLayoutGroup>();
+            statsLayout.spacing = 6;
+            statsLayout.childAlignment = TextAnchor.MiddleCenter;
+            statsLayout.childControlWidth = true;
+            statsLayout.childForceExpandWidth = true;
+
+            CreateStatusPill(stats.transform, "MATCHES", runeMovesUsed.ToString(), GameColors.Mana);
+            CreateStatusPill(stats.transform, "POWER", runeScore.ToString(), GameColors.Commander);
+            CreateStatusPill(stats.transform, "GOLD", round.BaseGoldReward.ToString(), GameColors.Gold);
+
+            var reward = new LevelCard(
+                round.Round,
+                round.Type,
+                round.EnemyName,
+                round.DesignGoal,
+                round.BaseGoldReward,
+                round.RoundReward,
+                round.DifficultyTier,
+                round.HasCombat,
+                LevelCardStatus.Current);
+
+            CreateText(reward.RewardSummary, panel.transform, 13, GameColors.Gold, TextAnchor.MiddleCenter);
+            CreateText($"FLOW: {navigationState.Previous?.ToString().ToUpperInvariant() ?? "COMBAT"} > {navigationState.Current.ToString().ToUpperInvariant()}", panel.transform, 9, GameColors.Muted, TextAnchor.MiddleCenter);
         }
 
         private void AddHeader(Transform parent)
