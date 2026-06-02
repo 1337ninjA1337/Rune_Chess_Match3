@@ -121,13 +121,37 @@ namespace RuneChess.Core
                 ManaMax: 75)
         );
 
+        public static HeroDefinition MistCutthroat { get; } = new(
+            Id: "mist_cutthroat",
+            Name: "Туманный Резчик",
+            Rarity: HeroRarity.Rare,
+            Cost: 2,
+            Faction: "Духи",
+            Class: "Убийца",
+            RuneAffinity: RuneType.Purple,
+            Role: HeroRole.Assassin,
+            AttackType: "melee",
+            Targeting: "farthest_enemy",
+            Stars: 1,
+            Ability: "Прыгает к дальнему врагу и наносит крит.",
+            Passive: "Тень убийцы: повышенный шанс критического удара по задней линии.",
+            BaseStats: new HeroStats(
+                BaseHealth: 480,
+                Attack: 78,
+                Armor: 2,
+                MagicResist: 3,
+                BaseAttackSpeed: 1.0,
+                ManaMax: 55)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
             OathArcher,
             FieldMedic,
             WildClaw,
-            ThornShaman
+            ThornShaman,
+            MistCutthroat
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(

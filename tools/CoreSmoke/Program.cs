@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 5, "hero catalog starts with the first five MVP heroes");
+Require(HeroCatalog.All.Count == 6, "hero catalog starts with the first six MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -772,6 +772,15 @@ Require(catalogThornShaman.Faction == "Дикие" && catalogThornShaman.Class =
 Require(catalogThornShaman.RuneAffinity == RuneType.Green && catalogThornShaman.Role == HeroRole.Summoner, "thorn shaman is a green-rune summoner");
 Require(catalogThornShaman.AttackType == "ranged" && catalogThornShaman.Targeting == "summon_slot", "thorn shaman uses summon-slot targeting");
 Require(Math.Abs(catalogThornShaman.BaseStats.ManaMax - 75.0) < 1e-9, "thorn shaman has summoner mana stats");
+var catalogMistCutthroat = HeroCatalog.Get("mist_cutthroat");
+Require(catalogMistCutthroat.Name == "Туманный Резчик", "mist cutthroat uses the GDD display name");
+Require(catalogMistCutthroat.Rarity == HeroRarity.Rare && catalogMistCutthroat.Cost == 2, "mist cutthroat is a two-cost rare hero");
+Require(catalogMistCutthroat.Faction == "Духи" && catalogMistCutthroat.Class == "Убийца", "mist cutthroat belongs to the Spirit Assassin line");
+Require(catalogMistCutthroat.RuneAffinity == RuneType.Purple && catalogMistCutthroat.Role == HeroRole.Assassin, "mist cutthroat is a purple-rune assassin");
+Require(catalogMistCutthroat.AttackType == "melee" && catalogMistCutthroat.Targeting == "farthest_enemy", "mist cutthroat jumps to the farthest enemy");
+Require(catalogMistCutthroat.PreferredEffectKind == RuneEffectKind.MagicDamage, "a purple hero prefers magic-damage rune effects");
+Require(catalogMistCutthroat.AbilityForStars(1).Kind == HeroAbilityKind.PhysicalDamage, "assassin heroes get an active physical-damage ability");
+Require(Math.Abs(catalogMistCutthroat.BaseStats.Attack - 78.0) < 1e-9, "mist cutthroat has assassin attack stats");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(
