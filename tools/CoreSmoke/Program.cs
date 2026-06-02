@@ -63,6 +63,8 @@ var afterBuy = state.BuyHero(0);
 Require(afterBuy.Gold == 4, "buying a common hero spends gold");
 Require(afterBuy.Bench.Count == 1, "bought hero goes to bench");
 Require(afterBuy.Shop.Offers.Count == 2, "bought shop offer is removed");
+RequireThrows(() => state.BuyHero(-1), "buying rejects an invalid shop offer index");
+RequireThrows(() => (state with { Gold = 0 }).BuyHero(0), "buying rejects offers the player cannot afford");
 var fullBenchState = state with
 {
     Gold = 10,
