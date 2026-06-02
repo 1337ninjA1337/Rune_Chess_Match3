@@ -289,6 +289,13 @@ namespace RuneChess.Core
             };
         }
 
+        public RunState LevelUp(EconomyConfig? economy = null)
+        {
+            EnsurePreparationPhase();
+            var config = economy ?? EconomyConfig.Default;
+            return LevelUp(config.GetXpCostForNextLevel(PlayerLevel));
+        }
+
         public RunState RerollShop(IReadOnlyList<ShopOffer> nextOffers, EconomyConfig? economy = null)
         {
             EnsurePreparationPhase();

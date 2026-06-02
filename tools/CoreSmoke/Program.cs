@@ -230,6 +230,15 @@ Require(EconomyConfig.Default.BuyXpCost == 4 && EconomyConfig.Default.XpPerPurch
 Require(afterXp.Gold == 0, "buying XP spends configured gold");
 Require(afterXp.Xp == 4, "buying XP adds configured XP");
 RequireThrows(() => (afterPlace with { Gold = 3 }).BuyXp(), "buying XP rejects insufficient gold");
+Require(EconomyConfig.Default.MaxPlayerLevel == 5, "default economy config supports five player levels");
+Require(string.Join(",", Enumerable.Range(1, 5).Select(EconomyConfig.Default.GetXpThresholdForLevel)) == "0,4,8,12,16", "player levels use the configured XP thresholds");
+Require(EconomyConfig.Default.GetXpCostForNextLevel(1) == 4, "level 1 advances at four banked XP");
+var leveledByConfig = afterXp.LevelUp();
+Require(leveledByConfig.PlayerLevel == 2 && leveledByConfig.Xp == 0, "level-up uses the configured XP threshold for the next level");
+RequireThrows(() => state.LevelUp(), "configured level-up rejects insufficient XP");
+RequireThrows(() => (state with { PlayerLevel = 5, Xp = 100 }).LevelUp(), "configured level-up rejects the max player level");
+RequireThrows(() => EconomyConfig.Default.GetXpThresholdForLevel(0), "XP thresholds reject levels below one");
+RequireThrows(() => EconomyConfig.Default.GetXpThresholdForLevel(6), "XP thresholds reject levels above five");
 Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: 5, currentGold: 30, eventBonus: 2) == 11, "gold income sums base, win, streak, interest, and event bonuses");
 Require(EconomyConfig.Default.BaseIncome == 3, "base income is three gold after combat");
 Require(EconomyConfig.Default.WinBonus == 1 && EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: 0, currentGold: 0) == 4, "win bonus adds one gold for victory");
