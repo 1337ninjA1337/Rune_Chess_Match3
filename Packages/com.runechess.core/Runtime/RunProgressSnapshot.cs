@@ -22,7 +22,7 @@ namespace RuneChess.Core
         string? DefeatReason
     )
     {
-        public const int CurrentVersion = 7;
+        public const int CurrentVersion = 8;
 
         public static RunProgressSnapshot Capture(RunState state)
         {
@@ -95,7 +95,9 @@ namespace RuneChess.Core
         int SecondsSinceLastRuneSwap,
         int SlowdownMillisecondsRemaining,
         bool EarnedChainFourGoldBonus,
-        double LastCommanderEnergyGain
+        double LastCommanderEnergyGain,
+        int LastMatch4ComboCount,
+        int LastBonusBlueRunesCreated
     )
     {
         public static CombatProgressSnapshot Capture(CombatState state)
@@ -125,7 +127,9 @@ namespace RuneChess.Core
                 SecondsSinceLastRuneSwap: state.SecondsSinceLastRuneSwap,
                 SlowdownMillisecondsRemaining: state.SlowdownMillisecondsRemaining,
                 EarnedChainFourGoldBonus: state.EarnedChainFourGoldBonus,
-                LastCommanderEnergyGain: state.LastCommanderEnergyGain
+                LastCommanderEnergyGain: state.LastCommanderEnergyGain,
+                LastMatch4ComboCount: state.LastMatch4ComboCount,
+                LastBonusBlueRunesCreated: state.LastBonusBlueRunesCreated
             );
         }
 
@@ -175,7 +179,9 @@ namespace RuneChess.Core
                 SecondsSinceLastRuneSwap: SecondsSinceLastRuneSwap,
                 SlowdownMillisecondsRemaining: SlowdownMillisecondsRemaining,
                 EarnedChainFourGoldBonus: EarnedChainFourGoldBonus,
-                LastCommanderEnergyGain: LastCommanderEnergyGain
+                LastCommanderEnergyGain: LastCommanderEnergyGain,
+                LastMatch4ComboCount: LastMatch4ComboCount,
+                LastBonusBlueRunesCreated: LastBonusBlueRunesCreated
             );
         }
     }

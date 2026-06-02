@@ -6,7 +6,8 @@ namespace RuneChess.Core
         string Id,
         string Name,
         double Energy,
-        double MaxEnergy
+        double MaxEnergy,
+        int Match4CombosTowardPassive = 0
     )
     {
         public string Id { get; init; } = string.IsNullOrWhiteSpace(Id)
@@ -24,6 +25,10 @@ namespace RuneChess.Core
         public double MaxEnergy { get; init; } = MaxEnergy > 0.0
             ? MaxEnergy
             : throw new ArgumentOutOfRangeException(nameof(MaxEnergy), "Commander energy bar must be positive.");
+
+        public int Match4CombosTowardPassive { get; init; } = Match4CombosTowardPassive >= 0
+            ? Match4CombosTowardPassive
+            : throw new ArgumentOutOfRangeException(nameof(Match4CombosTowardPassive), "Commander passive progress cannot be negative.");
 
         public double EnergyFillRatio => Math.Clamp(Energy / MaxEnergy, 0.0, 1.0);
         public bool IsEnergyFull => Energy >= MaxEnergy;
@@ -51,6 +56,23 @@ namespace RuneChess.Core
             }
 
             return this with { Energy = Energy - amount };
+        }
+
+        public CommanderState AddMatch4Combos(int count, int triggerEvery, out int triggerCount)
+        {
+            if (count < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count), "Match-4 combo count cannot be negative.");
+            }
+
+            if (triggerEvery <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(triggerEvery), "Commander passive trigger threshold must be positive.");
+            }
+
+            var total = Match4CombosTowardPassive + count;
+            triggerCount = total / triggerEvery;
+            return this with { Match4CombosTowardPassive = total % triggerEvery };
         }
     }
 }

@@ -86,6 +86,7 @@ namespace RuneChess.Core
         public int MatchedRunesCount => MatchedCells.Count;
         public int MatchPower => GetMatchPower();
         public double CommanderEnergyGain => Effects.Sum(RuneEffects.GetCommanderEnergyGain);
+        public int Match4ComboCount => Effects.Count(effect => effect.Tier == RuneMatchTier.Match4);
 
         public int GetMatchPower(int comboDepthOffset = 0)
         {
@@ -365,6 +366,23 @@ namespace RuneChess.Core
         public Match3Board RemoveMatches()
         {
             return RemoveRunes(FindMatches());
+        }
+
+        public Match3Board ReplaceRune(BoardPoint point, RuneType rune, bool isGreatRune = false)
+        {
+            if (!Contains(point))
+            {
+                throw new ArgumentOutOfRangeException(nameof(point), "Board coordinates are outside the 7x7 board.");
+            }
+
+            if (IsEmpty(point))
+            {
+                throw new InvalidOperationException("Cannot replace an empty rune cell.");
+            }
+
+            var replaced = cells.ToArray();
+            replaced[Index(point.Row, point.Column)] = new RuneCell(rune, isGreatRune);
+            return new Match3Board(replaced);
         }
 
         public Match3Board RemoveRunes(IReadOnlyCollection<BoardPoint> points)

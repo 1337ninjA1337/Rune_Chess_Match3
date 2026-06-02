@@ -35,6 +35,9 @@ Require(Math.Abs(state.Commander.EnergyFillRatio - 0.2) < 1e-9, "commander state
 Require(!state.Commander.IsEnergyFull, "commander energy bar reports when it is not full");
 Require(new CommanderState("test_commander", "Test", 95, 100).GainEnergy(10).IsEnergyFull, "commander energy gain clamps at the energy bar maximum");
 Require(Math.Abs(new CommanderState("test_commander", "Test", 50, 100).SpendEnergy(25).Energy - 25.0) < 1e-9, "commander energy can be spent from the bar");
+var commanderAfterMatch4s = new CommanderState("test_commander", "Test", 0, 100, Match4CombosTowardPassive: 2)
+    .AddMatch4Combos(1, 3, out var commanderPassiveTriggers);
+Require(commanderPassiveTriggers == 1 && commanderAfterMatch4s.Match4CombosTowardPassive == 0, "commander passive progress triggers every configured match-4 count");
 Require(CommanderCatalog.TryGet("RUNE_ARCHON", out _), "commander lookup is case-insensitive");
 Require(!CommanderCatalog.TryGet("unknown_commander", out _), "commander lookup rejects unknown ids");
 RequireThrows(() => CommanderCatalog.Get("unknown_commander"), "commander get throws on unknown ids");
@@ -274,6 +277,8 @@ Require(restoredCombat.SecondsSinceLastRuneSwap == savedCombat.SecondsSinceLastR
 Require(restoredCombat.SlowdownMillisecondsRemaining == savedCombat.SlowdownMillisecondsRemaining, "restored progress preserves combat slowdown");
 Require(restoredCombat.EarnedChainFourGoldBonus == savedCombat.EarnedChainFourGoldBonus, "restored progress preserves chain 4+ gold bonus state");
 Require(Math.Abs(restoredCombat.LastCommanderEnergyGain - savedCombat.LastCommanderEnergyGain) < 1e-9, "restored progress preserves last commander energy gain");
+Require(restoredCombat.LastMatch4ComboCount == savedCombat.LastMatch4ComboCount, "restored progress preserves last match-4 combo count");
+Require(restoredCombat.LastBonusBlueRunesCreated == savedCombat.LastBonusBlueRunesCreated, "restored progress preserves last bonus blue rune count");
 Require(restoredCombat.RuneBoard[0, 0] == savedCombat.RuneBoard[0, 0], "restored progress preserves rune board");
 var greatSnapshotPoint = new BoardPoint(2, 3);
 var greatSnapshotBoard = new Match3Board(Match3Board.CreateCells()
@@ -469,6 +474,10 @@ Require(firstHint.From == legalMatchA && firstHint.To == legalMatchB, "board hin
 Require(!noMatchSwapBoard.TryCreateMoveHint(swapA, swapB, out var missingHint) && missingHint is null, "move hint rejects no-match swaps");
 var legalMatchResult = legalMatchBoard.SwapIfCreatesMatch(legalMatchA, legalMatchB);
 Require(legalMatchResult.FindMatches().Contains(legalMatchA), "created match includes one of the swapped runes");
+var replacedRuneBoard = legalMatchBoard.ReplaceRune(new BoardPoint(0, 3), RuneType.Blue);
+Require(replacedRuneBoard[new BoardPoint(0, 3)] == RuneType.Blue, "board replacement can place a specific rune");
+Require(legalMatchBoard[new BoardPoint(0, 3)] != RuneType.Blue, "board replacement does not mutate the source board");
+RequireThrows(() => legalMatchBoard.ReplaceRune(new BoardPoint(9, 9), RuneType.Blue), "board replacement rejects out-of-board cells");
 var whiteEnergyBoard = CreatePatternBoard(
     (new BoardPoint(0, 0), RuneType.White),
     (new BoardPoint(0, 1), RuneType.Blue),
@@ -493,6 +502,34 @@ var whiteEnergyRun = state with
 var afterWhiteEnergySwap = whiteEnergyRun.SwapRunes(legalMatchA, legalMatchB);
 Require(afterWhiteEnergySwap.Combat?.LastCommanderEnergyGain >= 3.0, "white rune swaps record commander energy gained from the match");
 Require(Math.Abs(afterWhiteEnergySwap.Commander.Energy - (whiteEnergyRun.Commander.Energy + (afterWhiteEnergySwap.Combat?.LastCommanderEnergyGain ?? 0.0))) < 1e-9, "white rune swaps fill the commander energy bar");
+var match4SwapBoard = CreatePatternBoard(
+    (new BoardPoint(0, 0), RuneType.Red),
+    (new BoardPoint(0, 1), RuneType.Blue),
+    (new BoardPoint(0, 2), RuneType.Red),
+    (new BoardPoint(0, 3), RuneType.Red),
+    (new BoardPoint(1, 1), RuneType.Red)
+);
+var runeArchonReadyRun = state with
+{
+    Commander = state.Commander with { Match4CombosTowardPassive = 2 },
+    Phase = RunPhase.Combat,
+    Combat = new CombatState(
+        RuneBoard: match4SwapBoard,
+        Match3MovesUsed: 0,
+        LastMatchedRunesCount: 0,
+        LastComboDepth: 0,
+        LastMatchPower: 0,
+        DurationSeconds: CombatState.DefaultDurationSeconds,
+        ElapsedSeconds: 0,
+        GlobalCooldownMillisecondsRemaining: 0,
+        SecondsSinceLastRuneSwap: 0,
+        SlowdownMillisecondsRemaining: 0)
+};
+var afterRuneArchonMatch4 = runeArchonReadyRun.SwapRunes(legalMatchA, legalMatchB);
+var archonCombat = afterRuneArchonMatch4.Combat ?? throw new InvalidOperationException("Smoke check failed: rune archon combat missing");
+Require(archonCombat.LastMatch4ComboCount >= 1, "match-4 swaps record match-4 combo count");
+Require(archonCombat.LastBonusBlueRunesCreated >= 1, "Rune Archon creates a bonus blue rune on every third match-4 combo");
+Require(afterRuneArchonMatch4.Commander.Match4CombosTowardPassive == (2 + archonCombat.LastMatch4ComboCount) % 3, "Rune Archon match-4 passive progress carries remainder forward");
 var smallScoredCombat = new CombatState(
     RuneBoard: legalMatchBoard,
     Match3MovesUsed: 0,
@@ -620,6 +657,7 @@ Require(chainResolution.Steps[0].ComboDepth == 0, "initial match starts at combo
 Require(chainResolution.Steps[0].ChainNumber == 1, "initial match is chain number one for effect bonuses");
 Require(chainResolution.Steps[0].MatchPower == 3, "initial chain step calculates base matchPower");
 Require(chainResolution.Steps[0].Effects.Count == 1, "chain step stores resolved rune effects");
+Require(chainResolution.Steps[0].Match4ComboCount == 0, "chain step reports zero match-4 combos for match-3 effects");
 Require(chainResolution.Steps[1].ComboDepth == 1, "refill-created match increments combo depth");
 Require(chainResolution.Steps[1].ChainNumber == 2, "first chain reaction is chain number two for bonuses");
 Require(chainResolution.Steps[1].MatchPower == 4, "chain reaction matchPower includes combo depth");
@@ -685,6 +723,7 @@ var redMatch4Group = redMatch4Board.FindMatchGroups().Single();
 Require(redMatch4Group.Size == 4, "four in a row is a single four-rune group");
 Require(redMatch4Group.Tier == RuneMatchTier.Match4, "four matched runes are a match-4 group");
 var match4Effect = RuneEffectResolver.Resolve(redMatch4Group, 1);
+Require(redMatch4Board.ResolveChainReactions(99).Steps[0].Match4ComboCount == 1, "chain steps count match-4 effects");
 Require(match4Effect.ChargesHero, "match-4 charges a suitable hero");
 Require(!match4Effect.CreatesGreatRune, "match-4 does not create a great rune");
 Require(Math.Abs(match4Effect.Power - 4.0) < 1e-9, "match-4 base power equals its matchPower");

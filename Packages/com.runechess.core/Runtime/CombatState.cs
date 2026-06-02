@@ -14,7 +14,9 @@ namespace RuneChess.Core
         int SecondsSinceLastRuneSwap,
         int SlowdownMillisecondsRemaining,
         bool EarnedChainFourGoldBonus = false,
-        double LastCommanderEnergyGain = 0.0
+        double LastCommanderEnergyGain = 0.0,
+        int LastMatch4ComboCount = 0,
+        int LastBonusBlueRunesCreated = 0
     )
     {
         public const int DefaultDurationSeconds = 60;
@@ -115,6 +117,7 @@ namespace RuneChess.Core
             var earnedChainFourBonus = resolution.Steps.Any(step =>
                 step.ChainNumber >= ChainFourGoldBonusMinimumChainNumber);
             var commanderEnergyGain = resolution.Steps.Sum(step => step.CommanderEnergyGain);
+            var match4ComboCount = resolution.Steps.Sum(step => step.Match4ComboCount);
             var slowdownMilliseconds = ShouldTriggerLargeComboSlowdown(matchedRunesCount, resolvedComboDepth)
                 ? LargeComboSlowdownMilliseconds
                 : 0;
@@ -130,7 +133,35 @@ namespace RuneChess.Core
                 SecondsSinceLastRuneSwap = 0,
                 SlowdownMillisecondsRemaining = Math.Max(SlowdownMillisecondsRemaining, slowdownMilliseconds),
                 EarnedChainFourGoldBonus = EarnedChainFourGoldBonus || earnedChainFourBonus,
-                LastCommanderEnergyGain = commanderEnergyGain
+                LastCommanderEnergyGain = commanderEnergyGain,
+                LastMatch4ComboCount = match4ComboCount,
+                LastBonusBlueRunesCreated = 0
+            };
+        }
+
+        public CombatState AddBonusBlueRunes(int count)
+        {
+            if (count < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count), "Bonus rune count cannot be negative.");
+            }
+
+            var board = RuneBoard;
+            var created = 0;
+            for (var i = 0; i < count; i += 1)
+            {
+                if (!TryPlaceBonusRune(board, RuneType.Blue, out board))
+                {
+                    break;
+                }
+
+                created += 1;
+            }
+
+            return this with
+            {
+                RuneBoard = board,
+                LastBonusBlueRunesCreated = created
             };
         }
 
@@ -142,6 +173,38 @@ namespace RuneChess.Core
         private static int AddClamped(int a, int b)
         {
             return a > int.MaxValue - b ? int.MaxValue : a + b;
+        }
+
+        private static bool TryPlaceBonusRune(Match3Board board, RuneType rune, out Match3Board updated)
+        {
+            foreach (var point in Match3Board.CreateCells())
+            {
+                if (board.IsGreatRune(point) || board[point] == rune)
+                {
+                    continue;
+                }
+
+                var candidate = board.ReplaceRune(point, rune);
+                if (candidate.FindMatches().Count == 0)
+                {
+                    updated = candidate;
+                    return true;
+                }
+            }
+
+            foreach (var point in Match3Board.CreateCells())
+            {
+                if (board.IsGreatRune(point) || board[point] == rune)
+                {
+                    continue;
+                }
+
+                updated = board.ReplaceRune(point, rune);
+                return true;
+            }
+
+            updated = board;
+            return false;
         }
     }
 }

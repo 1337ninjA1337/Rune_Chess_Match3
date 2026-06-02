@@ -22,6 +22,7 @@ namespace RuneChess.Core
     )
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
+        private const int RuneArchonMatch4CombosPerBlueRune = 3;
 
         public PveRoundDefinition CurrentRoundDefinition => PveRunSchedule.GetRound(Round);
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
@@ -349,10 +350,24 @@ namespace RuneChess.Core
             }
 
             var nextCombat = Combat.SwapRunes(a, b, comboDepth);
+            var nextCommander = Commander.GainEnergy(nextCombat.LastCommanderEnergyGain);
+            if (nextCommander.Id == CommanderCatalog.RuneArchon.Id && nextCombat.LastMatch4ComboCount > 0)
+            {
+                nextCommander = nextCommander.AddMatch4Combos(
+                    nextCombat.LastMatch4ComboCount,
+                    RuneArchonMatch4CombosPerBlueRune,
+                    out var blueRuneTriggers);
+
+                if (blueRuneTriggers > 0)
+                {
+                    nextCombat = nextCombat.AddBonusBlueRunes(blueRuneTriggers);
+                }
+            }
+
             return this with
             {
                 Combat = nextCombat,
-                Commander = Commander.GainEnergy(nextCombat.LastCommanderEnergyGain)
+                Commander = nextCommander
             };
         }
 
