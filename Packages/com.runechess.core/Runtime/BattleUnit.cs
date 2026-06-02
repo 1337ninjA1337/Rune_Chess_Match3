@@ -67,7 +67,7 @@ public sealed record BattleUnit(
 
         var baseStats = definition.StatsForStars(stars);
         var passive = definition.PassiveForStars(stars);
-        var stats = synergyModifiers.ApplyToStats(HeroPassives.ApplyToStats(baseStats, passive, position));
+        var stats = synergyModifiers.ApplyToStats(HeroPassives.ApplyToStats(baseStats, passive, position), position);
         var attacksPerSecond = CombatFormulas.CalculateAttacksPerSecond(stats.BaseAttackSpeed);
         var startingMana = HeroPassives.CalculateStartingMana(stats, passive);
 

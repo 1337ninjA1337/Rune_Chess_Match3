@@ -20,10 +20,12 @@ namespace RuneChess.Core
         public const double SpiritDodgeChanceBonus = 0.10;
         public const double MageAbilityDamageBonus = 0.20;
         public const double MageBlueMatch4BonusMana = 16.0;
+        public const double DefenderFrontlineHealthBonus = 0.15;
 
         private readonly double armorMultiplier;
         private readonly double attackSpeedMultiplier;
         private readonly double abilityDamageMultiplier;
+        private readonly double frontlineHealthMultiplier;
         private readonly bool empireYellowRuneFrontlineShield;
         private readonly bool wildChainReactionLifesteal;
         private readonly bool abyssalAbilityWeakness;
@@ -38,6 +40,7 @@ namespace RuneChess.Core
             double armorMultiplier,
             double attackSpeedMultiplier = 1.0,
             double abilityDamageMultiplier = 1.0,
+            double frontlineHealthMultiplier = 1.0,
             bool empireYellowRuneFrontlineShield = false,
             bool wildChainReactionLifesteal = false,
             bool abyssalAbilityWeakness = false,
@@ -63,6 +66,11 @@ namespace RuneChess.Core
                 throw new ArgumentOutOfRangeException(nameof(abilityDamageMultiplier), "Synergy ability damage multiplier must be positive.");
             }
 
+            if (frontlineHealthMultiplier <= 0.0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(frontlineHealthMultiplier), "Synergy frontline health multiplier must be positive.");
+            }
+
             if (dodgeChance < 0.0 || dodgeChance > 1.0)
             {
                 throw new ArgumentOutOfRangeException(nameof(dodgeChance), "Synergy dodge chance must be between zero and one.");
@@ -71,6 +79,7 @@ namespace RuneChess.Core
             this.armorMultiplier = armorMultiplier;
             this.attackSpeedMultiplier = attackSpeedMultiplier;
             this.abilityDamageMultiplier = abilityDamageMultiplier;
+            this.frontlineHealthMultiplier = frontlineHealthMultiplier;
             this.empireYellowRuneFrontlineShield = empireYellowRuneFrontlineShield;
             this.wildChainReactionLifesteal = wildChainReactionLifesteal;
             this.abyssalAbilityWeakness = abyssalAbilityWeakness;
@@ -85,6 +94,7 @@ namespace RuneChess.Core
         public double ArmorMultiplier => armorMultiplier <= 0.0 ? 1.0 : armorMultiplier;
         public double AttackSpeedMultiplier => attackSpeedMultiplier <= 0.0 ? 1.0 : attackSpeedMultiplier;
         public double AbilityDamageMultiplier => abilityDamageMultiplier <= 0.0 ? 1.0 : abilityDamageMultiplier;
+        public double FrontlineHealthMultiplier => frontlineHealthMultiplier <= 0.0 ? 1.0 : frontlineHealthMultiplier;
         public bool EmpireYellowRuneFrontlineShield => empireYellowRuneFrontlineShield;
         public bool WildChainReactionLifesteal => wildChainReactionLifesteal;
         public bool AbyssalAbilityWeakness => abyssalAbilityWeakness;
@@ -132,10 +142,17 @@ namespace RuneChess.Core
                 abilityDamageMultiplier *= 1.0 + MageAbilityDamageBonus;
             }
 
+            var frontlineHealthMultiplier = 1.0;
+            if (HasActiveTier(progress, ClassCatalog.Defender.Id, requiredCount: 2))
+            {
+                frontlineHealthMultiplier *= 1.0 + DefenderFrontlineHealthBonus;
+            }
+
             return new SynergyModifiers(
                 armorMultiplier,
                 attackSpeedMultiplier,
                 abilityDamageMultiplier,
+                frontlineHealthMultiplier,
                 empireYellowRuneFrontlineShield: HasActiveTier(progress, FactionCatalog.Empire.Id, requiredCount: 4),
                 wildChainReactionLifesteal: HasActiveTier(progress, FactionCatalog.Wild.Id, requiredCount: 4),
                 abyssalAbilityWeakness: HasActiveTier(progress, FactionCatalog.Abyssal.Id, requiredCount: 2),
@@ -149,6 +166,11 @@ namespace RuneChess.Core
 
         public HeroStats ApplyToStats(HeroStats stats)
         {
+            return ApplyToStats(stats, default);
+        }
+
+        public HeroStats ApplyToStats(HeroStats stats, TacticalPosition position)
+        {
             if (stats is null)
             {
                 throw new ArgumentNullException(nameof(stats));
@@ -156,6 +178,7 @@ namespace RuneChess.Core
 
             return stats with
             {
+                BaseHealth = stats.BaseHealth * (position.IsInsideMvpField && position.IsFrontline ? FrontlineHealthMultiplier : 1.0),
                 Armor = stats.Armor * ArmorMultiplier,
                 BaseAttackSpeed = stats.BaseAttackSpeed * AttackSpeedMultiplier
             };
@@ -166,6 +189,7 @@ namespace RuneChess.Core
             return Math.Abs(ArmorMultiplier - other.ArmorMultiplier) < 1e-9
                 && Math.Abs(AttackSpeedMultiplier - other.AttackSpeedMultiplier) < 1e-9
                 && Math.Abs(AbilityDamageMultiplier - other.AbilityDamageMultiplier) < 1e-9
+                && Math.Abs(FrontlineHealthMultiplier - other.FrontlineHealthMultiplier) < 1e-9
                 && EmpireYellowRuneFrontlineShield == other.EmpireYellowRuneFrontlineShield
                 && WildChainReactionLifesteal == other.WildChainReactionLifesteal
                 && AbyssalAbilityWeakness == other.AbyssalAbilityWeakness
@@ -188,11 +212,11 @@ namespace RuneChess.Core
                 ArmorMultiplier,
                 AttackSpeedMultiplier,
                 AbilityDamageMultiplier,
+                FrontlineHealthMultiplier,
                 EmpireYellowRuneFrontlineShield,
                 WildChainReactionLifesteal,
                 AbyssalAbilityWeakness,
-                AbyssalPurpleRuneBonusDamage,
-                HashCode.Combine(MechanistOpeningDrone, MechanistMatch4Turret, DodgeChance, SpiritWhiteRuneIllusion, MageBlueMatch4BonusCharge));
+                HashCode.Combine(AbyssalPurpleRuneBonusDamage, MechanistOpeningDrone, MechanistMatch4Turret, DodgeChance, SpiritWhiteRuneIllusion, MageBlueMatch4BonusCharge));
         }
 
         private static bool HasActiveTier(

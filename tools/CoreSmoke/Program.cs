@@ -884,6 +884,8 @@ var synergyBoard = new List<BoardHero>
 };
 var defenderSynergy = SynergyCalculator.ActiveSynergies(synergyBoard).Single(progress => progress.Definition.Name == "Защитник");
 Require(defenderSynergy.UnitCount == 2 && defenderSynergy.IsActive, "two defenders on the board activate the defender synergy");
+var defenderHealthModifiers = SynergyModifiers.ForTeam(synergyBoard);
+Require(Math.Abs(defenderHealthModifiers.FrontlineHealthMultiplier - 1.15) < 1e-9, "two defenders unlock the +15 percent frontline health modifier");
 
 var singleEmpireBoard = new List<BoardHero>
 {
@@ -1037,6 +1039,10 @@ var spiritDodgerUnit = BattleUnit.FromHero(catalogSpiritDuelist, 1, "spirit_dodg
 Require(Math.Abs(spiritDodgerUnit.DodgeChance - SynergyModifiers.SpiritDodgeChanceBonus) < 1e-9, "Spirit 2 dodge chance applies when building battle units");
 var backlineGuardUnit = BattleUnit.FromHero(ironGuardDefinition, 1, "ig_back", TacticalSide.Player, new TacticalPosition(3, 1));
 Require(Math.Abs(backlineGuardUnit.Armor - 25.0) < 1e-9, "frontline guard does not modify backline armor");
+var defenderFrontlineUnit = BattleUnit.FromHero(ironGuardDefinition, 1, "defender_front", TacticalSide.Player, new TacticalPosition(2, 0), defenderHealthModifiers);
+Require(Math.Abs(defenderFrontlineUnit.MaxHealth - 115.0) < 1e-9 && Math.Abs(defenderFrontlineUnit.CurrentHealth - 115.0) < 1e-9, "Defender 2 grants +15 percent health to frontline units");
+var defenderBacklineUnit = BattleUnit.FromHero(ironGuardDefinition, 1, "defender_back", TacticalSide.Player, new TacticalPosition(3, 0), defenderHealthModifiers);
+Require(Math.Abs(defenderBacklineUnit.MaxHealth - 100.0) < 1e-9, "Defender 2 does not grant health to backline units");
 
 var battleVictory = BattleState.Create(new[]
 {
