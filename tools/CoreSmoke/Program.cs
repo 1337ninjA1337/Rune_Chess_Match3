@@ -410,6 +410,7 @@ var levelThreeNextRound = (reward with { PlayerLevel = 3 }).AdvanceRound("round_
 Require(levelThreeNextRound.Shop.Offers.Count == 4, "level 3 next-round shop refresh uses four offers");
 Require(PveRunSchedule.Rounds.Count == 10, "MVP PvE schedule has 10 rounds");
 Require(PveRunSchedule.GetRound(1).EnemyId == state.NextEnemyId, "new run uses the first scheduled enemy");
+Require(PveRunSchedule.GetRound(1).PreventsRunDefeat, "tutorial round prevents full run defeat");
 RequireThrows(() => PveRunSchedule.GetRound(11), "round 11 is outside the MVP schedule");
 
 var scheduledRun = RunState.NewRun()
@@ -444,21 +445,25 @@ Require(finalReward.IsFinalRound, "final reward is marked as the final round");
 Require(finalReward.IsRunWon, "final reward exposes a run win flag");
 Require(finalReward.IsRunComplete, "victory marks the run complete");
 
-var healthDefeat = RunState.NewRun().ApplyRunDamage(20);
+var tutorialDamageProtection = RunState.NewRun().ApplyRunDamage(20);
+Require(tutorialDamageProtection.RunHealth == 1 && tutorialDamageProtection.Phase == RunPhase.Preparation, "tutorial round run damage cannot defeat the run");
+var tutorialCombatProtection = inCombat.ResolveCombatDefeat("tutorial_loss");
+Require(tutorialCombatProtection.Phase == RunPhase.Reward && tutorialCombatProtection.DefeatReason is null, "tutorial combat defeat advances without ending the run");
+var healthDefeat = (RunState.NewRun() with { Round = 2 }).ApplyRunDamage(20);
 Require(healthDefeat.Phase == RunPhase.Defeat, "run health depletion causes defeat");
 Require(healthDefeat.IsRunLost, "health defeat exposes a run loss flag");
 Require(healthDefeat.IsRunComplete, "health defeat marks the run complete");
 Require(healthDefeat.DefeatReason == "run_health_depleted", "health defeat records a reason");
 
-var combatDefeat = afterPlace.StartCombat().ResolveCombatDefeat("all_allies_defeated");
+var combatDefeat = (afterPlace with { Round = 2 }).StartCombat().ResolveCombatDefeat("all_allies_defeated");
 Require(combatDefeat.Phase == RunPhase.Defeat, "combat condition failure causes defeat");
 Require(combatDefeat.Combat is null, "combat defeat clears combat state");
 Require(combatDefeat.IsRunLost, "combat defeat exposes a run loss flag");
 Require(combatDefeat.DefeatReason == "all_allies_defeated", "combat defeat records a reason");
 RequireThrows(() => afterPlace.ResolveCombatDefeat(), "combat defeat cannot be resolved outside combat");
-RequireThrows(() => afterPlace.StartCombat().ResolveCombatDefeat(" "), "combat defeat requires a reason");
+RequireThrows(() => (afterPlace with { Round = 2 }).StartCombat().ResolveCombatDefeat(" "), "combat defeat requires a reason");
 
-var defeatedByAllies = afterPlace.StartCombat(1337).ResolveCombatTick(1, allAlliesDefeated: true);
+var defeatedByAllies = (afterPlace with { Round = 2 }).StartCombat(1337).ResolveCombatTick(1, allAlliesDefeated: true);
 Require(defeatedByAllies.Phase == RunPhase.Defeat, "all allies defeated resolves combat defeat");
 Require(defeatedByAllies.DefeatReason == "all_allies_defeated", "allies defeat records a reason");
 
@@ -466,7 +471,7 @@ var rewardedByEnemies = afterPlace.StartCombat(1337).ResolveCombatTick(1, allEne
 Require(rewardedByEnemies.Phase == RunPhase.Reward, "all enemies defeated resolves combat victory");
 Require(rewardedByEnemies.Gold == afterPlace.Gold + 1, "combat victory tick grants reward");
 
-var timerDefeat = afterPlace.StartCombat(1337, 5)
+var timerDefeat = (afterPlace with { Round = 2 }).StartCombat(1337, 5)
     .ResolveCombatTick(5, playerHealthPercent: 40, enemyHealthPercent: 60);
 Require(timerDefeat.Phase == RunPhase.Defeat, "expired timer with enemy health advantage causes defeat");
 Require(timerDefeat.DefeatReason == "timer_enemy_health_advantage", "timer defeat records a reason");

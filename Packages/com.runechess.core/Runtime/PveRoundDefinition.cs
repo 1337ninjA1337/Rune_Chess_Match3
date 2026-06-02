@@ -4,6 +4,7 @@ namespace RuneChess.Core
         int Round,
         string EnemyId,
         int CombatRuneSeed,
-        int BaseGoldReward
+        int BaseGoldReward,
+        bool PreventsRunDefeat = false
     );
 }

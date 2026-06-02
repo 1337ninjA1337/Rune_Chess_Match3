@@ -431,7 +431,8 @@ namespace RuneChess.Core
                 throw new ArgumentOutOfRangeException(nameof(damage), "Run damage cannot be negative.");
             }
 
-            var nextHealth = Math.Max(0, RunHealth - damage);
+            var minimumHealth = CurrentRoundDefinition.PreventsRunDefeat ? 1 : 0;
+            var nextHealth = Math.Max(minimumHealth, RunHealth - damage);
             return this with
             {
                 RunHealth = nextHealth,
@@ -451,6 +452,16 @@ namespace RuneChess.Core
             if (string.IsNullOrWhiteSpace(defeatReason))
             {
                 throw new ArgumentException("Defeat reason is required.", nameof(defeatReason));
+            }
+
+            if (CurrentRoundDefinition.PreventsRunDefeat)
+            {
+                return this with
+                {
+                    Phase = RunPhase.Reward,
+                    Combat = null,
+                    DefeatReason = null
+                };
             }
 
             return this with

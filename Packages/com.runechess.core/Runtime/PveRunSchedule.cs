@@ -10,7 +10,7 @@ namespace RuneChess.Core
 
         public static IReadOnlyList<PveRoundDefinition> Rounds { get; } = new List<PveRoundDefinition>
         {
-            new(1, "round_01_training_band", 1337, 2),
+            new(1, "round_01_training_band", 1337, 2, PreventsRunDefeat: true),
             new(2, "round_02_scouts", 1438, 2),
             new(3, "round_03_shield_line", 1539, 3),
             new(4, "round_04_rune_poachers", 1640, 3),
