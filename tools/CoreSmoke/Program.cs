@@ -233,6 +233,9 @@ RequireThrows(() => (afterPlace with { Gold = 3 }).BuyXp(), "buying XP rejects i
 Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: 5, currentGold: 30, eventBonus: 2) == 11, "gold income sums base, win, streak, interest, and event bonuses");
 Require(EconomyConfig.Default.BaseIncome == 3, "base income is three gold after combat");
 Require(EconomyConfig.Default.WinBonus == 1 && EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: 0, currentGold: 0) == 4, "win bonus adds one gold for victory");
+Require(EconomyConfig.Default.CalculateStreakBonus(2) == 0, "streak bonus is zero before three wins");
+Require(EconomyConfig.Default.CalculateStreakBonus(3) == 1, "streak bonus adds one gold at three wins");
+Require(EconomyConfig.Default.CalculateStreakBonus(5) == 2, "streak bonus adds two gold at five wins");
 Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0) == 3, "gold income works without optional bonuses");
 RequireThrows(() => EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: -1, currentGold: 0), "gold income rejects negative streaks");
 RequireThrows(() => EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: 0, currentGold: -1), "gold income rejects negative current gold");
