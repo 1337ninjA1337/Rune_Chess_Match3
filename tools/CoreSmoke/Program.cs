@@ -7,6 +7,7 @@ Require(state.RunHealth == 100, "new run starts with full run health");
 Require(state.Gold == 5, "new run starts with configured gold");
 Require(state.Xp == 0, "new run starts with zero XP");
 Require(state.PlayerLevel == 1, "new run starts at player level 1");
+Require(EconomyConfig.Default.StartingPlayerLevel == 1, "default economy config starts the player at level 1");
 Require(state.Commander.Id == CommanderCatalog.Default.Id, "new run starts with the catalog default commander");
 Require(state.Commander.Energy == 20, "the default commander starting bonus grants initial commander energy");
 Require(state.Team.Count == 0, "new run starts with empty team");
