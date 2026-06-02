@@ -1833,6 +1833,20 @@ Require(AppNavigationState.ScreenForPhase(RunPhase.Reward) == AppScreen.LevelCom
 Require(AppNavigationState.ScreenForPhase(RunPhase.Victory) == AppScreen.RunSummary, "victory maps to the run summary screen");
 Require(AppNavigationState.ScreenForPhase(RunPhase.Defeat) == AppScreen.RunSummary, "defeat maps to the run summary screen");
 
+// Level-select view-model built from the schedule and run progress (GDD level cards).
+var levelCards = LevelSelectModel.Build(currentRound: 3);
+Require(levelCards.Count == 10, "level select lists every scheduled round");
+Require(levelCards[0].Status == LevelCardStatus.Completed, "rounds before the current one read as completed");
+Require(levelCards[2].Status == LevelCardStatus.Current, "the current round is selectable");
+Require(levelCards[3].Status == LevelCardStatus.Locked, "later rounds are locked");
+Require(levelCards[0].Type == PveRoundType.Tutorial && levelCards[0].RewardSummary.Contains("герой 1 стоимости"), "round 1 card shows the tutorial reward");
+Require(levelCards[7].RewardSummary.Contains("редкий артефакт") && levelCards[7].RewardSummary.Contains("7 золота"), "round 8 card shows the boss reward");
+Require(levelCards[8].RewardSummary.Contains("бесплатный reroll"), "round 9 card shows the free reroll reward");
+Require(levelCards[9].RewardSummary == "Победа в забеге", "round 10 card shows the run victory reward");
+Require(LevelSelectModel.Build(currentRound: 5, runComplete: true)[9].Status == LevelCardStatus.Completed, "a completed run marks every round done");
+Require(LevelSelectModel.Build(RunState.NewRun())[0].Status == LevelCardStatus.Current, "a new run highlights round one");
+RequireThrows(() => LevelSelectModel.Build(currentRound: 11), "level select rejects rounds outside the schedule");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
