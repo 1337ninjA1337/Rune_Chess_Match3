@@ -13,6 +13,7 @@ Require(state.Commander.Id == CommanderCatalog.Default.Id, "new run starts with 
 Require(state.Commander.Energy == 20, "the default commander starting bonus grants initial commander energy");
 Require(state.Team.Count == 0, "new run starts with empty team");
 Require(state.Bench.Count == 0, "new run starts with empty bench");
+Require(EconomyConfig.Default.StartingBenchSize == 6, "default economy config uses a six-slot bench");
 Require(state.Shop.Offers.Count == 3, "new run starts with a shop");
 Require(EconomyConfig.Default.GetShopSizeForLevel(1) == 3, "level 1 shop has three offers");
 Require(EconomyConfig.Default.GetShopSizeForLevel(2) == 3, "level 2 shop has three offers");
@@ -62,6 +63,14 @@ var afterBuy = state.BuyHero(0);
 Require(afterBuy.Gold == 4, "buying a common hero spends gold");
 Require(afterBuy.Bench.Count == 1, "bought hero goes to bench");
 Require(afterBuy.Shop.Offers.Count == 2, "bought shop offer is removed");
+var fullBenchState = state with
+{
+    Gold = 10,
+    Bench = Enumerable.Range(0, EconomyConfig.Default.StartingBenchSize)
+        .Select(index => new HeroInstance($"bench_full_{index}", "iron_guard", 1))
+        .ToList()
+};
+RequireThrows(() => fullBenchState.BuyHero(0), "buying a hero is blocked when the six-slot bench is full");
 var levelThreeRun = state with { PlayerLevel = 3 };
 var levelThreeReroll = levelThreeRun.RerollShop(ShopState.ForPlayerLevel(3).Offers);
 Require(levelThreeReroll.Shop.Offers.Count == 4 && levelThreeReroll.Gold == 3, "level 3 reroll uses a four-offer shop");

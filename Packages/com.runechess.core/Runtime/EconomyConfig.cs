@@ -27,7 +27,7 @@ namespace RuneChess.Core
             StartingGold: 5,
             StartingXp: 0,
             StartingPlayerLevel: 1,
-            StartingBenchSize: 8,
+            StartingBenchSize: 6,
             StartingShopSize: 3,
             RerollCost: 2,
             BuyXpCost: 4,
