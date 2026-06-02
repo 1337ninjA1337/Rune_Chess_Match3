@@ -305,6 +305,29 @@ namespace RuneChess.Core
                 ManaMax: 90)
         );
 
+        public static HeroDefinition VoidOracle { get; } = new(
+            Id: "void_oracle",
+            Name: "Оракул Пустоты",
+            Rarity: HeroRarity.Epic,
+            Cost: 3,
+            Faction: "Бездонные",
+            Class: "Целитель",
+            RuneAffinity: RuneType.Green,
+            Role: HeroRole.Support,
+            AttackType: "ranged",
+            Targeting: "lowest_health_ally",
+            Stars: 1,
+            Ability: "Лечит союзника и проклинает атакующего врага.",
+            Passive: "Эхо бездны: исцеление накладывает слабый дебафф на врага рядом.",
+            BaseStats: new HeroStats(
+                BaseHealth: 600,
+                Attack: 40,
+                Armor: 3,
+                MagicResist: 6,
+                BaseAttackSpeed: 0.85,
+                ManaMax: 80)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -319,7 +342,8 @@ namespace RuneChess.Core
             AbyssAcolyte,
             SpiritDuelist,
             DuskRanger,
-            BulwarkCaptain
+            BulwarkCaptain,
+            VoidOracle
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
