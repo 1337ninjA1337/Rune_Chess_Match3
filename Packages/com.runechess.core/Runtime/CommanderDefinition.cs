@@ -5,21 +5,17 @@ namespace RuneChess.Core
 {
     /// <summary>
     /// Static design data for a commander - the player's avatar from the GDD
-    /// "Командиры" section. Each commander has a unique passive and its own energy
-    /// bar. The runtime energy lives in <see cref="CommanderState"/>; this record holds
-    /// the immutable definition used for commander selection and display.
-    ///
-    /// GDD note: the GDD defines each commander's passive but does not yet specify a
-    /// concrete starting bonus. The <see cref="StartingBonus"/> field is required by the
-    /// MVP commander model, so the catalog ships short descriptive text; the mechanical
-    /// starting-bonus effects are tracked as a separate clarification task.
+    /// "Командиры" section. Each commander has a unique passive, its own energy bar,
+    /// and a small concrete starting bonus for the MVP run setup. The runtime energy
+    /// lives in <see cref="CommanderState"/>; this record holds the immutable definition
+    /// used for commander selection and display.
     /// </summary>
     public sealed record CommanderDefinition(
         string Id,
         string Name,
         string Passive,
         int MaxEnergy,
-        string StartingBonus,
+        CommanderStartingBonus StartingBonus,
         IReadOnlyList<string> RecommendedStyles
     )
     {
@@ -34,6 +30,9 @@ namespace RuneChess.Core
         public int MaxEnergy { get; init; } = MaxEnergy > 0
             ? MaxEnergy
             : throw new ArgumentOutOfRangeException(nameof(MaxEnergy), "Commander energy bar must be positive.");
+
+        public CommanderStartingBonus StartingBonus { get; init; } = StartingBonus
+            ?? throw new ArgumentNullException(nameof(StartingBonus));
 
         public IReadOnlyList<string> RecommendedStyles { get; init; } = RecommendedStyles ?? Array.Empty<string>();
 

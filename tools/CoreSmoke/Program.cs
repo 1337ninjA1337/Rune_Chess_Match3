@@ -8,6 +8,7 @@ Require(state.Gold == 6, "new run starts with configured gold");
 Require(state.Xp == 0, "new run starts with zero XP");
 Require(state.PlayerLevel == 1, "new run starts at player level 1");
 Require(state.Commander.Id == CommanderCatalog.Default.Id, "new run starts with the catalog default commander");
+Require(state.Commander.Energy == 20, "the default commander starting bonus grants initial commander energy");
 Require(state.Team.Count == 0, "new run starts with empty team");
 Require(state.Bench.Count == 0, "new run starts with empty bench");
 Require(state.Shop.Offers.Count == 3, "new run starts with a shop");
@@ -20,7 +21,10 @@ Require(runeArchon.Name == "Архонт Рун", "rune archon commander has its
 Require(CommanderCatalog.Default.Id == "rune_archon", "the catalog default commander matches the GDD commander list");
 Require(runeArchon.Passive == "Каждое третье match-4 комбо создает дополнительную синюю руну.", "rune archon passive matches the GDD");
 Require(runeArchon.MaxEnergy == 100 && runeArchon.RecommendedStyles.Count > 0, "a commander defines an energy bar and recommended styles");
-Require(!string.IsNullOrWhiteSpace(runeArchon.StartingBonus), "a commander defines a starting bonus");
+Require(runeArchon.StartingBonus.Kind == CommanderStartingBonusKind.CommanderEnergy && runeArchon.StartingBonus.Amount == 20, "rune archon starts with commander energy");
+Require(CommanderCatalog.Get("warlord").StartingBonus.HeroId == "iron_guard", "warlord starts with a frontline defender");
+Require(RunState.NewRun(CommanderCatalog.Get("warlord").CreateInitialState()).Bench.Single().HeroId == "iron_guard", "bench-hero commander bonus is applied to a new run");
+Require(RunState.NewRun(CommanderCatalog.Get("alchemist").CreateInitialState()).Gold == 8, "gold commander bonus is applied to a new run");
 Require(CommanderCatalog.Get("warlord").Passive.Contains("+20%"), "warlord commander buffs the first defender's health");
 Require(CommanderCatalog.Get("alchemist").Passive.Contains("золото"), "alchemist commander rewards gold for chain reactions");
 var runeArchonState = runeArchon.CreateInitialState();
@@ -28,8 +32,11 @@ Require(runeArchonState.Id == "rune_archon" && runeArchonState.Energy == 0 && ru
 Require(CommanderCatalog.TryGet("RUNE_ARCHON", out _), "commander lookup is case-insensitive");
 Require(!CommanderCatalog.TryGet("unknown_commander", out _), "commander lookup rejects unknown ids");
 RequireThrows(() => CommanderCatalog.Get("unknown_commander"), "commander get throws on unknown ids");
-RequireThrows(() => new CommanderDefinition("", "Name", "Passive", 100, "Bonus", Array.Empty<string>()), "commander definition rejects a blank id");
-RequireThrows(() => new CommanderDefinition("id", "Name", "Passive", 0, "Bonus", Array.Empty<string>()), "commander definition rejects a non-positive energy bar");
+RequireThrows(() => new CommanderDefinition("", "Name", "Passive", 100, new CommanderStartingBonus("Bonus", CommanderStartingBonusKind.Gold, Amount: 1), Array.Empty<string>()), "commander definition rejects a blank id");
+RequireThrows(() => new CommanderDefinition("id", "Name", "Passive", 0, new CommanderStartingBonus("Bonus", CommanderStartingBonusKind.Gold, Amount: 1), Array.Empty<string>()), "commander definition rejects a non-positive energy bar");
+RequireThrows(() => new CommanderStartingBonus("", CommanderStartingBonusKind.Gold, Amount: 1), "commander starting bonus rejects a blank description");
+RequireThrows(() => new CommanderStartingBonus("Bad", CommanderStartingBonusKind.Gold, Amount: 0), "commander starting bonus rejects non-positive gold");
+RequireThrows(() => new CommanderStartingBonus("Bad", CommanderStartingBonusKind.BenchHero), "commander starting bonus rejects missing bench hero id");
 
 var afterBuy = state.BuyHero(0);
 Require(afterBuy.Gold == 5, "buying a common hero spends gold");

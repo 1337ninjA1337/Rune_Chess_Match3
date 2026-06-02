@@ -15,7 +15,10 @@ namespace RuneChess.Core
             Name: "Архонт Рун",
             Passive: "Каждое третье match-4 комбо создает дополнительную синюю руну.",
             MaxEnergy: 100,
-            StartingBonus: "Склонность к синим рунам и способностям магов.",
+            StartingBonus: new CommanderStartingBonus(
+                Description: "Начинает забег с 20 энергии командира.",
+                Kind: CommanderStartingBonusKind.CommanderEnergy,
+                Amount: 20),
             RecommendedStyles: Array.AsReadOnly(new[] { "Маги", "Синие руны", "Способности" }));
 
         public static CommanderDefinition Warlord { get; } = new(
@@ -23,7 +26,10 @@ namespace RuneChess.Core
             Name: "Воевода",
             Passive: "Первый защитник в каждом бою получает +20% здоровья.",
             MaxEnergy: 100,
-            StartingBonus: "Усиленная передняя линия в начале боя.",
+            StartingBonus: new CommanderStartingBonus(
+                Description: "Начинает забег с Железным Стражем на скамейке.",
+                Kind: CommanderStartingBonusKind.BenchHero,
+                HeroId: "iron_guard"),
             RecommendedStyles: Array.AsReadOnly(new[] { "Защитники", "Передняя линия", "Танки" }));
 
         public static CommanderDefinition Alchemist { get; } = new(
@@ -31,7 +37,10 @@ namespace RuneChess.Core
             Name: "Алхимик",
             Passive: "После каждого раунда получает +1 золото, если игрок сделал хотя бы одну цепную реакцию.",
             MaxEnergy: 100,
-            StartingBonus: "Дополнительная экономика за цепные реакции.",
+            StartingBonus: new CommanderStartingBonus(
+                Description: "Начинает забег с +2 золота.",
+                Kind: CommanderStartingBonusKind.Gold,
+                Amount: 2),
             RecommendedStyles: Array.AsReadOnly(new[] { "Экономика", "Цепные реакции", "Гибкий состав" }));
 
         public static IReadOnlyList<CommanderDefinition> All { get; } = Array.AsReadOnly(new[]

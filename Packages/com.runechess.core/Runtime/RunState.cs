@@ -36,16 +36,27 @@ namespace RuneChess.Core
         )
         {
             var config = economy ?? EconomyConfig.Default;
+            var selectedCommander = commander ?? CommanderCatalog.Default.CreateInitialState();
+            var selectedCommanderDefinition = CommanderCatalog.TryGet(selectedCommander.Id, out var knownCommander)
+                ? knownCommander
+                : null;
+            var startingGold = config.StartingGold;
+            var startingBench = new List<HeroInstance>();
+
+            if (selectedCommanderDefinition is not null)
+            {
+                ApplyStartingBonus(selectedCommanderDefinition.StartingBonus, ref selectedCommander, ref startingGold, startingBench);
+            }
 
             return new RunState(
                 Round: 1,
                 RunHealth: config.StartingRunHealth,
-                Gold: config.StartingGold,
+                Gold: startingGold,
                 Xp: config.StartingXp,
                 PlayerLevel: config.StartingPlayerLevel,
-                Commander: commander ?? CommanderCatalog.Default.CreateInitialState(),
+                Commander: selectedCommander,
                 Team: new List<BoardHero>(),
-                Bench: new List<HeroInstance>(),
+                Bench: startingBench,
                 Shop: shop ?? ShopState.StartingShop,
                 Artifacts: new List<ArtifactState>(),
                 Phase: RunPhase.Preparation,
@@ -88,6 +99,35 @@ namespace RuneChess.Core
                 Bench = bench,
                 Shop = Shop with { Offers = offers }
             };
+        }
+
+        private static void ApplyStartingBonus(
+            CommanderStartingBonus bonus,
+            ref CommanderState commander,
+            ref int startingGold,
+            List<HeroInstance> startingBench
+        )
+        {
+            switch (bonus.Kind)
+            {
+                case CommanderStartingBonusKind.CommanderEnergy:
+                    commander = commander with
+                    {
+                        Energy = Math.Min(commander.MaxEnergy, commander.Energy + bonus.Amount)
+                    };
+                    break;
+                case CommanderStartingBonusKind.BenchHero:
+                    startingBench.Add(new HeroInstance(
+                        InstanceId: $"starting_{bonus.HeroId}_1",
+                        HeroId: bonus.HeroId!,
+                        Stars: 1));
+                    break;
+                case CommanderStartingBonusKind.Gold:
+                    startingGold += bonus.Amount;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(bonus), "Unknown commander starting bonus kind.");
+            }
         }
 
         public RunState PlaceHeroFromBench(string instanceId, TacticalPosition position)
