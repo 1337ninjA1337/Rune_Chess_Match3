@@ -886,6 +886,16 @@ var defenderSynergy = SynergyCalculator.ActiveSynergies(synergyBoard).Single(pro
 Require(defenderSynergy.UnitCount == 2 && defenderSynergy.IsActive, "two defenders on the board activate the defender synergy");
 var defenderHealthModifiers = SynergyModifiers.ForTeam(synergyBoard);
 Require(Math.Abs(defenderHealthModifiers.FrontlineHealthMultiplier - 1.15) < 1e-9, "two defenders unlock the +15 percent frontline health modifier");
+var defenderFourProgress = new[]
+{
+    new SynergyProgress(
+        ClassCatalog.Defender,
+        4,
+        ClassCatalog.Defender.ActiveTiers(4),
+        ClassCatalog.Defender.NextTier(4))
+};
+var defenderFourModifiers = SynergyModifiers.FromProgress(defenderFourProgress);
+Require(defenderFourModifiers.DefenderYellowRuneArmorBoost, "four defenders unlock yellow-rune armor boosts");
 
 var singleEmpireBoard = new List<BoardHero>
 {
@@ -1391,6 +1401,11 @@ var empireYellowShieldBattle = BattleState.Create(new[]
 var defaultYellowShield = empireYellowShieldBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.Yellow));
 Require(Math.Abs(defaultYellowShield.Units.First(u => u.UnitId == "empire_front_a").Shield - 20.0) < 1e-9, "without Empire 4 a yellow rune shields only the frontmost ally");
 Require(Math.Abs(defaultYellowShield.Units.First(u => u.UnitId == "empire_front_b").Shield) < 1e-9, "without Empire 4 the second frontline ally is not shielded by a single yellow match");
+var defenderYellowArmor = empireYellowShieldBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.Yellow), synergyModifiers: defenderFourModifiers);
+var defenderArmoredFront = defenderYellowArmor.Units.First(u => u.UnitId == "empire_front_a");
+Require(Math.Abs(defenderArmoredFront.Armor - SynergyModifiers.DefenderYellowRuneArmorBonus) < 1e-9, "Defender 4 yellow runes add armor to shielded units");
+var defenderNonYellowArmor = empireYellowShieldBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.White), synergyModifiers: defenderFourModifiers);
+Require(Math.Abs(defenderNonYellowArmor.Units.First(u => u.UnitId == "empire_front_a").Armor) < 1e-9, "Defender 4 armor boost only applies to yellow runes");
 var empireFourYellowShield = empireYellowShieldBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.Yellow), synergyModifiers: empireFourModifiers);
 Require(empireFourYellowShield.Units.Where(u => u.UnitId.StartsWith("empire_front", StringComparison.Ordinal)).All(u => Math.Abs(u.Shield - 20.0) < 1e-9), "Empire 4 yellow runes shield the allied frontline");
 Require(Math.Abs(empireFourYellowShield.Units.First(u => u.UnitId == "empire_back").Shield) < 1e-9, "Empire 4 yellow rune shield does not spill into the backline");

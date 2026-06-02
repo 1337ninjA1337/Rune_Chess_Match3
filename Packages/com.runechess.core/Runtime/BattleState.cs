@@ -860,7 +860,10 @@ public sealed record BattleState(
             var unit = units[index];
             units[index] = unit with
             {
-                Shield = CombatFormulas.CapShield(unit.Shield + effect.Power, unit.MaxHealth)
+                Shield = CombatFormulas.CapShield(unit.Shield + effect.Power, unit.MaxHealth),
+                Armor = ShouldApplyDefenderYellowArmor(effect, synergyModifiers)
+                    ? unit.Armor + SynergyModifiers.DefenderYellowRuneArmorBonus
+                    : unit.Armor
             };
         }
     }
@@ -870,6 +873,13 @@ public sealed record BattleState(
         return !effect.IsMassEffect
             && effect.Rune == RuneType.Yellow
             && synergyModifiers.EmpireYellowRuneFrontlineShield;
+    }
+
+    private static bool ShouldApplyDefenderYellowArmor(RuneEffect effect, SynergyModifiers synergyModifiers)
+    {
+        return effect.Rune == RuneType.Yellow
+            && effect.Kind == RuneEffectKind.Shield
+            && synergyModifiers.DefenderYellowRuneArmorBoost;
     }
 
     private static List<int> FrontlineIndices(List<BattleUnit> units, TacticalSide side)
