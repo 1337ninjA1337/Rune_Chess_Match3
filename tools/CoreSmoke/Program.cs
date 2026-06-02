@@ -919,6 +919,16 @@ Require(Math.Abs(wildAttackSpeedModifiers.AttackSpeedMultiplier - 1.10) < 1e-9, 
 var wildHastedClaw = BattleUnit.FromHero(catalogWildClaw, 1, "wild_hasted_claw", TacticalSide.Player, new TacticalPosition(2, 0), wildAttackSpeedModifiers);
 Require(Math.Abs(wildHastedClaw.AttacksPerSecond - 0.99) < 1e-9, "Wild 2 increases battle-unit attack speed");
 
+var wildFourBoard = new List<BoardHero>
+{
+    new(new HeroInstance("wild4_wc", "wild_claw", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("wild4_ts", "thorn_shaman", 1), new TacticalPosition(3, 0)),
+    new(new HeroInstance("wild4_dr", "dusk_ranger", 1), new TacticalPosition(3, 1)),
+    new(new HeroInstance("wild4_mb", "magma_brute", 1), new TacticalPosition(2, 1))
+};
+var wildFourModifiers = SynergyModifiers.ForTeam(wildFourBoard);
+Require(wildFourModifiers.WildChainReactionLifesteal, "four Wild heroes unlock chain-reaction lifesteal");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
@@ -1135,6 +1145,29 @@ var empireFourYellowShield = empireYellowShieldBattle.ApplyRuneEffect(Effect(Run
 Require(empireFourYellowShield.Units.Where(u => u.UnitId.StartsWith("empire_front", StringComparison.Ordinal)).All(u => Math.Abs(u.Shield - 20.0) < 1e-9), "Empire 4 yellow runes shield the allied frontline");
 Require(Math.Abs(empireFourYellowShield.Units.First(u => u.UnitId == "empire_back").Shield) < 1e-9, "Empire 4 yellow rune shield does not spill into the backline");
 
+var wildLifestealBattle = BattleState.Create(new[]
+{
+    MakeUnit("wild_ls_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 50, 50, 1.0, 0.0),
+    MakeUnit("wild_ls_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var wildChainBuffed = wildLifestealBattle.ApplyRuneEffect(Effect(RuneEffectKind.Mana, 0, chainNumber: 2), synergyModifiers: wildFourModifiers);
+var wildBuffedAlly = wildChainBuffed.Units.First(u => u.UnitId == "wild_ls_ally");
+Require(wildBuffedAlly.HasActiveLifesteal, "Wild 4 grants lifesteal after a chain reaction");
+Require(wildBuffedAlly.LifestealMillisecondsRemaining == SynergyModifiers.WildChainLifestealDurationMilliseconds, "Wild 4 lifesteal uses the configured temporary duration");
+var wildAfterAttack = wildChainBuffed.Tick(0.5).Units.First(u => u.UnitId == "wild_ls_ally");
+Require(Math.Abs(wildAfterAttack.CurrentHealth - 57.5) < 1e-9, "Wild 4 lifesteal heals the attacker from basic attack damage");
+
+var wildExpiryBattle = BattleState.Create(new[]
+{
+    MakeUnit("wild_expire_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 50, 0, 1.0, 100.0),
+    MakeUnit("wild_expire_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var wildExpiredAlly = wildExpiryBattle
+    .ApplyRuneEffect(Effect(RuneEffectKind.Mana, 0, chainNumber: 2), synergyModifiers: wildFourModifiers)
+    .Tick((SynergyModifiers.WildChainLifestealDurationMilliseconds / 1000.0) + 0.1)
+    .Units.First(u => u.UnitId == "wild_expire_ally");
+Require(!wildExpiredAlly.HasActiveLifesteal, "Wild 4 lifesteal expires after its temporary duration");
+
 var massHealBattle = BattleState.Create(new[]
 {
     MakeUnit("m1", TacticalSide.Player, new TacticalPosition(2, 0), 100, 40, 0, 1.0, 100.0),
@@ -1219,6 +1252,7 @@ static RuneEffect Effect(
     double power,
     bool mass = false,
     int commanderEnergy = 0,
+    int chainNumber = 1,
     RuneType rune = RuneType.Red)
 {
     return new RuneEffect(
@@ -1226,7 +1260,7 @@ static RuneEffect Effect(
         Kind: kind,
         Tier: RuneMatchTier.Match3,
         MatchedRunesCount: 3,
-        ChainNumber: 1,
+        ChainNumber: chainNumber,
         IsMassEffect: mass,
         ChargesHero: false,
         CreatesGreatRune: false,

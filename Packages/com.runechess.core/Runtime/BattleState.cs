@@ -62,12 +62,13 @@ public sealed record BattleState(
         }
 
         var units = Units.ToList();
+        var elapsedMilliseconds = SecondsToMilliseconds(deltaSeconds);
 
         for (var i = 0; i < units.Count; i += 1)
         {
             if (units[i].IsAlive)
             {
-                units[i] = units[i] with
+                units[i] = AdvanceTimedBuffs(units[i], elapsedMilliseconds) with
                 {
                     AttackCooldownRemaining = Math.Max(0.0, units[i].AttackCooldownRemaining - deltaSeconds)
                 };
@@ -123,8 +124,15 @@ public sealed record BattleState(
             };
             TryCastAbility(units, targetIndex);
 
+            var lifestealHealing = attacker.HasActiveLifesteal
+                ? absorbed * attacker.LifestealFraction
+                : 0.0;
+
             units[attackerIndex] = attacker with
             {
+                CurrentHealth = lifestealHealing > 0.0
+                    ? CombatFormulas.ApplyHealing(attacker.CurrentHealth, lifestealHealing, attacker.MaxHealth)
+                    : attacker.CurrentHealth,
                 CurrentMana = Math.Min(attacker.ManaMax, attacker.CurrentMana + CombatFormulas.ManaFromAttack),
                 AttackCooldownRemaining = attacker.AttackInterval
             };
@@ -203,6 +211,8 @@ public sealed record BattleState(
             default:
                 throw new ArgumentOutOfRangeException(nameof(effect), effect.Kind, "Unknown rune effect kind.");
         }
+
+        ApplyWildChainLifesteal(units, casterSide, effect, synergyModifiers);
 
         var outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds);
         return new BattleState(units, ElapsedSeconds, DurationSeconds, outcome, CommanderEnergy + commanderGain);
@@ -508,6 +518,28 @@ public sealed record BattleState(
         return indices;
     }
 
+    private static void ApplyWildChainLifesteal(
+        List<BattleUnit> units,
+        TacticalSide side,
+        RuneEffect effect,
+        SynergyModifiers synergyModifiers)
+    {
+        if (!synergyModifiers.WildChainReactionLifesteal || effect.ChainNumber < 2)
+        {
+            return;
+        }
+
+        foreach (var index in AliveIndices(units, side))
+        {
+            var unit = units[index];
+            units[index] = unit with
+            {
+                LifestealFraction = Math.Max(unit.LifestealFraction, SynergyModifiers.WildChainLifestealFraction),
+                LifestealMillisecondsRemaining = SynergyModifiers.WildChainLifestealDurationMilliseconds
+            };
+        }
+    }
+
     private static void ApplyRuneMana(List<BattleUnit> units, TacticalSide side, double amount, bool mass)
     {
         var targets = mass
@@ -571,6 +603,28 @@ public sealed record BattleState(
     private static int ManhattanDistance(TacticalPosition a, TacticalPosition b)
     {
         return Math.Abs(a.Row - b.Row) + Math.Abs(a.Column - b.Column);
+    }
+
+    private static BattleUnit AdvanceTimedBuffs(BattleUnit unit, int elapsedMilliseconds)
+    {
+        if (!unit.HasActiveLifesteal)
+        {
+            return unit;
+        }
+
+        var remaining = Math.Max(0, unit.LifestealMillisecondsRemaining - elapsedMilliseconds);
+        return unit with
+        {
+            LifestealFraction = remaining > 0 ? unit.LifestealFraction : 0.0,
+            LifestealMillisecondsRemaining = remaining
+        };
+    }
+
+    private static int SecondsToMilliseconds(double seconds)
+    {
+        return seconds > int.MaxValue / 1000.0
+            ? int.MaxValue
+            : (int)Math.Ceiling(seconds * 1000.0);
     }
 
     private static bool IsAdjacent(TacticalPosition a, TacticalPosition b)
