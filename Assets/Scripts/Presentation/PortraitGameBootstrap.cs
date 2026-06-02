@@ -57,6 +57,7 @@ namespace RuneChess.Presentation
         private string runeStatus = "READY";
         private AppNavigationState navigationState = AppNavigationState.AtMainMenu;
         private Text mainMenuStatusText;
+        private bool isScreenTransitionRunning;
         private bool isRuneAnimationRunning;
         private static PortraitGameBootstrap activeInstance;
 
@@ -365,7 +366,7 @@ namespace RuneChess.Presentation
             navigationState = AppNavigationState.AtMainMenu
                 .NavigateTo(AppScreen.LevelSelect)
                 .NavigateTo(AppScreen.Preparation);
-            ShowPreparationScreen();
+            StartLevelTransitionToPreparation(LevelSelectModel.Build(runState)[runState.Round - 1]);
         }
 
         private void ShowMainMenu()
@@ -550,7 +551,7 @@ namespace RuneChess.Presentation
             navigationState = navigationState.Current == AppScreen.LevelSelect
                 ? navigationState.NavigateTo(AppScreen.Preparation)
                 : AppNavigationState.AtMainMenu.NavigateTo(AppScreen.LevelSelect).NavigateTo(AppScreen.Preparation);
-            ShowPreparationScreen();
+            StartLevelTransitionToPreparation(card);
         }
 
         private void SelectMainMenuDestination(AppScreen screen)
@@ -691,6 +692,77 @@ namespace RuneChess.Presentation
                 "Начать бой",
                 "COMBAT",
                 ShowCombatScreen);
+        }
+
+        private void StartLevelTransitionToPreparation(LevelCard card)
+        {
+            if (isScreenTransitionRunning || contentRoot == null)
+            {
+                return;
+            }
+
+            StartCoroutine(PlayLevelTransitionToPreparation(card));
+        }
+
+        private IEnumerator PlayLevelTransitionToPreparation(LevelCard card)
+        {
+            isScreenTransitionRunning = true;
+
+            var overlay = CreateLevelTransitionOverlay(card, 0f);
+            var group = overlay.GetComponent<CanvasGroup>();
+            yield return FadeCanvasGroup(group, 0f, 1f, 0.18f);
+            yield return new WaitForSeconds(0.42f);
+
+            ShowPreparationScreen();
+
+            overlay = CreateLevelTransitionOverlay(card, 1f);
+            group = overlay.GetComponent<CanvasGroup>();
+            yield return FadeCanvasGroup(group, 1f, 0f, 0.22f);
+            Destroy(overlay);
+
+            isScreenTransitionRunning = false;
+        }
+
+        private GameObject CreateLevelTransitionOverlay(LevelCard card, float alpha)
+        {
+            var overlay = CreatePanel("Level Transition Overlay", contentRoot, GameColors.WithAlpha(GameColors.Background, 0.96f));
+            var layoutElement = overlay.AddComponent<LayoutElement>();
+            layoutElement.ignoreLayout = true;
+            Stretch(overlay);
+            overlay.transform.SetAsLastSibling();
+
+            var group = overlay.AddComponent<CanvasGroup>();
+            group.alpha = alpha;
+            group.blocksRaycasts = true;
+
+            var stack = overlay.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(24, 24, 240, 240);
+            stack.spacing = 8;
+            stack.childAlignment = TextAnchor.MiddleCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            CreateText($"ROUND {card.Round}", overlay.transform, 24, GameColors.Gold, TextAnchor.MiddleCenter);
+            CreateText(card.EnemyName, overlay.transform, 28, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateText(card.DesignGoal, overlay.transform, 13, GameColors.Muted, TextAnchor.MiddleCenter);
+            CreateText(card.RewardSummary, overlay.transform, 11, GameColors.Gold, TextAnchor.MiddleCenter);
+
+            return overlay;
+        }
+
+        private static IEnumerator FadeCanvasGroup(CanvasGroup group, float from, float to, float durationSeconds)
+        {
+            var elapsed = 0f;
+            while (elapsed < durationSeconds)
+            {
+                var progress = Mathf.Clamp01(elapsed / durationSeconds);
+                group.alpha = Mathf.Lerp(from, to, EaseOutCubic(progress));
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            group.alpha = to;
         }
 
         private void ShowCombatScreen()
