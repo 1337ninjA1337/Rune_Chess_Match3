@@ -37,6 +37,7 @@ namespace RuneChess.Core
         private readonly bool spiritWhiteRuneIllusion;
         private readonly bool mageBlueMatch4BonusCharge;
         private readonly bool defenderYellowRuneArmorBoost;
+        private readonly bool assassinBacklineStrike;
 
         public SynergyModifiers(
             double armorMultiplier,
@@ -52,7 +53,8 @@ namespace RuneChess.Core
             double dodgeChance = 0.0,
             bool spiritWhiteRuneIllusion = false,
             bool mageBlueMatch4BonusCharge = false,
-            bool defenderYellowRuneArmorBoost = false)
+            bool defenderYellowRuneArmorBoost = false,
+            bool assassinBacklineStrike = false)
         {
             if (armorMultiplier <= 0.0)
             {
@@ -93,6 +95,7 @@ namespace RuneChess.Core
             this.spiritWhiteRuneIllusion = spiritWhiteRuneIllusion;
             this.mageBlueMatch4BonusCharge = mageBlueMatch4BonusCharge;
             this.defenderYellowRuneArmorBoost = defenderYellowRuneArmorBoost;
+            this.assassinBacklineStrike = assassinBacklineStrike;
         }
 
         public double ArmorMultiplier => armorMultiplier <= 0.0 ? 1.0 : armorMultiplier;
@@ -109,6 +112,7 @@ namespace RuneChess.Core
         public bool SpiritWhiteRuneIllusion => spiritWhiteRuneIllusion;
         public bool MageBlueMatch4BonusCharge => mageBlueMatch4BonusCharge;
         public bool DefenderYellowRuneArmorBoost => defenderYellowRuneArmorBoost;
+        public bool AssassinBacklineStrike => assassinBacklineStrike;
 
         public static SynergyModifiers None { get; } = new(1.0);
 
@@ -167,7 +171,8 @@ namespace RuneChess.Core
                 dodgeChance: HasActiveTier(progress, FactionCatalog.Spirit.Id, requiredCount: 2) ? SpiritDodgeChanceBonus : 0.0,
                 spiritWhiteRuneIllusion: HasActiveTier(progress, FactionCatalog.Spirit.Id, requiredCount: 4),
                 mageBlueMatch4BonusCharge: HasActiveTier(progress, ClassCatalog.Mage.Id, requiredCount: 5),
-                defenderYellowRuneArmorBoost: HasActiveTier(progress, ClassCatalog.Defender.Id, requiredCount: 4));
+                defenderYellowRuneArmorBoost: HasActiveTier(progress, ClassCatalog.Defender.Id, requiredCount: 4),
+                assassinBacklineStrike: HasActiveTier(progress, ClassCatalog.Assassin.Id, requiredCount: 3));
         }
 
         public HeroStats ApplyToStats(HeroStats stats)
@@ -205,7 +210,8 @@ namespace RuneChess.Core
                 && Math.Abs(DodgeChance - other.DodgeChance) < 1e-9
                 && SpiritWhiteRuneIllusion == other.SpiritWhiteRuneIllusion
                 && MageBlueMatch4BonusCharge == other.MageBlueMatch4BonusCharge
-                && DefenderYellowRuneArmorBoost == other.DefenderYellowRuneArmorBoost;
+                && DefenderYellowRuneArmorBoost == other.DefenderYellowRuneArmorBoost
+                && AssassinBacklineStrike == other.AssassinBacklineStrike;
         }
 
         public override bool Equals(object? obj)
@@ -223,7 +229,7 @@ namespace RuneChess.Core
                 EmpireYellowRuneFrontlineShield,
                 WildChainReactionLifesteal,
                 AbyssalAbilityWeakness,
-                HashCode.Combine(AbyssalPurpleRuneBonusDamage, MechanistOpeningDrone, MechanistMatch4Turret, DodgeChance, SpiritWhiteRuneIllusion, MageBlueMatch4BonusCharge, DefenderYellowRuneArmorBoost));
+                HashCode.Combine(AbyssalPurpleRuneBonusDamage, MechanistOpeningDrone, MechanistMatch4Turret, DodgeChance, SpiritWhiteRuneIllusion, MageBlueMatch4BonusCharge, DefenderYellowRuneArmorBoost, AssassinBacklineStrike));
         }
 
         private static bool HasActiveTier(

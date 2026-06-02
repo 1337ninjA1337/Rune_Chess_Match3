@@ -897,6 +897,26 @@ var defenderFourProgress = new[]
 var defenderFourModifiers = SynergyModifiers.FromProgress(defenderFourProgress);
 Require(defenderFourModifiers.DefenderYellowRuneArmorBoost, "four defenders unlock yellow-rune armor boosts");
 
+var assassinThreeProgress = new[]
+{
+    new SynergyProgress(
+        ClassCatalog.Assassin,
+        3,
+        ClassCatalog.Assassin.ActiveTiers(3),
+        ClassCatalog.Assassin.NextTier(3))
+};
+var assassinThreeModifiers = SynergyModifiers.FromProgress(assassinThreeProgress);
+Require(assassinThreeModifiers.AssassinBacklineStrike, "three assassins unlock the backline strike");
+var assassinTwoProgress = new[]
+{
+    new SynergyProgress(
+        ClassCatalog.Assassin,
+        2,
+        ClassCatalog.Assassin.ActiveTiers(2),
+        ClassCatalog.Assassin.NextTier(2))
+};
+Require(!SynergyModifiers.FromProgress(assassinTwoProgress).AssassinBacklineStrike, "two assassins do not unlock the backline strike");
+
 var singleEmpireBoard = new List<BoardHero>
 {
     new(new HeroInstance("empire_single_ig", "iron_guard", 1), new TacticalPosition(2, 0)),
@@ -1181,6 +1201,29 @@ var expiredIllusion = spiritIllusionSpawned
     .Tick((BattleState.SpiritIllusionDurationMilliseconds / 1000.0) + 0.1)
     .Units.First(unit => unit.UnitId == "spirit_illusion_player");
 Require(!expiredIllusion.IsAlive && expiredIllusion.SummonMillisecondsRemaining == 0, "Spirit 4 illusion expires after its temporary duration");
+
+// Assassin 3 synergy: assassins dive past the enemy frontline to the backline.
+var assassinDiveBattle = BattleState.Create(
+    new[]
+    {
+        MakeUnit("dive_assassin", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 50, 1.0, 0.0, 100.0, 0.0, BattleAttackType.Ranged)
+            with { HeroClass = ClassCatalog.Assassin.Name },
+        MakeUnit("dive_front", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0),
+        MakeUnit("dive_back", TacticalSide.Enemy, new TacticalPosition(0, 0), 100, 100, 0, 1.0, 100.0)
+    },
+    playerSynergyModifiers: assassinThreeModifiers);
+var divedState = assassinDiveBattle.Tick(0.5);
+Require(Math.Abs(divedState.Units.First(unit => unit.UnitId == "dive_front").CurrentHealth - 100.0) < 1e-9, "Assassin 3 synergy makes assassins ignore the enemy frontline");
+Require(divedState.Units.First(unit => unit.UnitId == "dive_back").CurrentHealth < 100.0, "Assassin 3 synergy sends assassins at the enemy backline");
+
+var noDiveState = BattleState.Create(new[]
+{
+    MakeUnit("nodive_assassin", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 50, 1.0, 0.0, 100.0, 0.0, BattleAttackType.Ranged)
+        with { HeroClass = ClassCatalog.Assassin.Name },
+    MakeUnit("nodive_front", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("nodive_back", TacticalSide.Enemy, new TacticalPosition(0, 0), 100, 100, 0, 1.0, 100.0)
+}).Tick(0.5);
+Require(noDiveState.Units.First(unit => unit.UnitId == "nodive_front").CurrentHealth < 100.0, "without the synergy assassins still strike the nearest enemy");
 
 var battleDefeat = BattleState.Create(new[]
 {

@@ -117,7 +117,7 @@ public sealed record BattleState(
                 continue;
             }
 
-            var targetIndex = SelectTargetIndex(units, attacker);
+            var targetIndex = SelectTargetIndex(units, attacker, ModifiersForSide(attacker.Side).AssassinBacklineStrike);
             if (targetIndex < 0)
             {
                 continue;
@@ -687,8 +687,18 @@ public sealed record BattleState(
         return $"{prefix}_{index}";
     }
 
-    private static int SelectTargetIndex(IReadOnlyList<BattleUnit> units, BattleUnit attacker)
+    private static int SelectTargetIndex(
+        IReadOnlyList<BattleUnit> units,
+        BattleUnit attacker,
+        bool assassinBacklineStrike = false)
     {
+        // Assassin 3 synergy: assassins ignore the enemy front line and dive the
+        // backline. We only restrict targeting when a living enemy backline unit
+        // exists; otherwise the assassin falls back to the nearest enemy.
+        var diveBackline = assassinBacklineStrike
+            && attacker.HeroClass.Equals(ClassCatalog.Assassin.Name, StringComparison.OrdinalIgnoreCase)
+            && units.Any(unit => unit.IsAlive && unit.Side != attacker.Side && unit.Position.IsBackline);
+
         var best = -1;
         var bestDistance = int.MaxValue;
 
@@ -696,6 +706,11 @@ public sealed record BattleState(
         {
             var candidate = units[i];
             if (!candidate.IsAlive || candidate.Side == attacker.Side)
+            {
+                continue;
+            }
+
+            if (diveBackline && !candidate.Position.IsBackline)
             {
                 continue;
             }
