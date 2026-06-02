@@ -282,6 +282,29 @@ namespace RuneChess.Core
                 ManaMax: 60)
         );
 
+        public static HeroDefinition BulwarkCaptain { get; } = new(
+            Id: "bulwark_captain",
+            Name: "Капитан Бастиона",
+            Rarity: HeroRarity.Epic,
+            Cost: 3,
+            Faction: "Империя",
+            Class: "Защитник",
+            RuneAffinity: RuneType.Yellow,
+            Role: HeroRole.Tank,
+            AttackType: "melee",
+            Targeting: "nearest",
+            Stars: 1,
+            Ability: "Поднимает общий щит для всей передней линии.",
+            Passive: "Командный строй: соседние союзники получают немного брони.",
+            BaseStats: new HeroStats(
+                BaseHealth: 880,
+                Attack: 48,
+                Armor: 10,
+                MagicResist: 6,
+                BaseAttackSpeed: 0.7,
+                ManaMax: 90)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -295,7 +318,8 @@ namespace RuneChess.Core
             SparkTinker,
             AbyssAcolyte,
             SpiritDuelist,
-            DuskRanger
+            DuskRanger,
+            BulwarkCaptain
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(

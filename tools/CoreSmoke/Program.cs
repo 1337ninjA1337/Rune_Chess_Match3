@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 12, "hero catalog starts with the first twelve MVP heroes");
+Require(HeroCatalog.All.Count == 13, "hero catalog starts with the first thirteen MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -825,6 +825,13 @@ Require(catalogDuskRanger.Faction == "Дикие" && catalogDuskRanger.Class == 
 Require(catalogDuskRanger.RuneAffinity == RuneType.Red && catalogDuskRanger.Role == HeroRole.Carry, "dusk ranger is a red-rune carry");
 Require(catalogDuskRanger.AttackType == "ranged" && catalogDuskRanger.Targeting == "current", "dusk ranger uses ranged current-target attacks");
 Require(catalogDuskRanger.AbilityForStars(1).Kind == HeroAbilityKind.PhysicalDamage, "carry heroes get an active physical-damage ability");
+var catalogBulwarkCaptain = HeroCatalog.Get("bulwark_captain");
+Require(catalogBulwarkCaptain.Name == "Капитан Бастиона", "bulwark captain uses the GDD display name");
+Require(catalogBulwarkCaptain.Rarity == HeroRarity.Epic && catalogBulwarkCaptain.Cost == 3, "bulwark captain is a three-cost epic hero");
+Require(catalogBulwarkCaptain.Faction == "Империя" && catalogBulwarkCaptain.Class == "Защитник", "bulwark captain belongs to the Empire Defender line");
+Require(catalogBulwarkCaptain.RuneAffinity == RuneType.Yellow && catalogBulwarkCaptain.Role == HeroRole.Tank, "bulwark captain is a yellow-rune tank");
+Require(catalogBulwarkCaptain.PreferredEffectKind == RuneEffectKind.Shield, "a yellow tank prefers shield rune effects");
+Require(catalogBulwarkCaptain.AbilityForStars(1).Kind == HeroAbilityKind.Shield, "tank heroes get an active shield ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(
