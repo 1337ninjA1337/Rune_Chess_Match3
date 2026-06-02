@@ -240,6 +240,8 @@ Require(EconomyConfig.Default.CalculateInterestBonus(0) == 0, "interest bonus is
 Require(EconomyConfig.Default.CalculateInterestBonus(10) == 1, "interest bonus adds one gold per ten saved gold");
 Require(EconomyConfig.Default.CalculateInterestBonus(29) == 2, "interest bonus floors partial ten-gold steps");
 Require(EconomyConfig.Default.CalculateInterestBonus(30) == 3 && EconomyConfig.Default.CalculateInterestBonus(99) == 3, "interest bonus caps at three gold");
+Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0, eventBonus: 4) == 7, "event bonus can add incoming event gold");
+Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0, eventBonus: -1) == 2, "event bonus can represent an event penalty");
 Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0) == 3, "gold income works without optional bonuses");
 RequireThrows(() => EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: -1, currentGold: 0), "gold income rejects negative streaks");
 RequireThrows(() => EconomyConfig.Default.CalculateGoldIncome(wonCombat: true, winStreak: 0, currentGold: -1), "gold income rejects negative current gold");
