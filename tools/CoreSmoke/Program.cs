@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 14, "hero catalog starts with the first fourteen MVP heroes");
+Require(HeroCatalog.All.Count == 15, "hero catalog starts with the first fifteen MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -839,6 +839,13 @@ Require(catalogVoidOracle.Faction == "Бездонные" && catalogVoidOracle.C
 Require(catalogVoidOracle.RuneAffinity == RuneType.Green && catalogVoidOracle.Role == HeroRole.Support, "void oracle is a green-rune support");
 Require(catalogVoidOracle.PreferredEffectKind == RuneEffectKind.Healing, "a green hero prefers healing rune effects");
 Require(catalogVoidOracle.AbilityForStars(1).Kind == HeroAbilityKind.Healing, "support heroes get an active healing ability");
+var catalogDroneMarshal = HeroCatalog.Get("drone_marshal");
+Require(catalogDroneMarshal.Name == "Маршал Дронов", "drone marshal uses the GDD display name");
+Require(catalogDroneMarshal.Rarity == HeroRarity.Epic && catalogDroneMarshal.Cost == 3, "drone marshal is a three-cost epic hero");
+Require(catalogDroneMarshal.Faction == "Механисты" && catalogDroneMarshal.Class == "Призыватель", "drone marshal belongs to the Mechanist Summoner line");
+Require(catalogDroneMarshal.RuneAffinity == RuneType.Blue && catalogDroneMarshal.Role == HeroRole.Summoner, "drone marshal is a blue-rune summoner");
+Require(catalogDroneMarshal.AttackType == "ranged" && catalogDroneMarshal.Targeting == "summon_slot", "drone marshal uses summon-slot targeting");
+Require(catalogDroneMarshal.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "summoner heroes get an active magic-damage ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

@@ -328,6 +328,29 @@ namespace RuneChess.Core
                 ManaMax: 80)
         );
 
+        public static HeroDefinition DroneMarshal { get; } = new(
+            Id: "drone_marshal",
+            Name: "Маршал Дронов",
+            Rarity: HeroRarity.Epic,
+            Cost: 3,
+            Faction: "Механисты",
+            Class: "Призыватель",
+            RuneAffinity: RuneType.Blue,
+            Role: HeroRole.Summoner,
+            AttackType: "ranged",
+            Targeting: "summon_slot",
+            Stars: 1,
+            Ability: "Призывает двух атакующих дронов.",
+            Passive: "Серийное производство: дроны живут немного дольше.",
+            BaseStats: new HeroStats(
+                BaseHealth: 580,
+                Attack: 46,
+                Armor: 4,
+                MagicResist: 4,
+                BaseAttackSpeed: 0.8,
+                ManaMax: 85)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -343,7 +366,8 @@ namespace RuneChess.Core
             SpiritDuelist,
             DuskRanger,
             BulwarkCaptain,
-            VoidOracle
+            VoidOracle,
+            DroneMarshal
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
