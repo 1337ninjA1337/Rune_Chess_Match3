@@ -138,9 +138,10 @@ namespace RuneChess.Core
             }
         }
 
-        public RunState PlaceHeroFromBench(string instanceId, TacticalPosition position)
+        public RunState PlaceHeroFromBench(string instanceId, TacticalPosition position, EconomyConfig? economy = null)
         {
             EnsurePreparationPhase();
+            var config = economy ?? EconomyConfig.Default;
 
             if (!position.IsInsideMvpField)
             {
@@ -157,7 +158,7 @@ namespace RuneChess.Core
                 throw new InvalidOperationException("That tactical cell is already occupied.");
             }
 
-            if (Team.Count >= PlayerLevel)
+            if (Team.Count >= config.GetHeroLimitForLevel(PlayerLevel))
             {
                 throw new InvalidOperationException("The number of heroes on the field is limited by player level.");
             }

@@ -20,11 +20,15 @@ namespace RuneChess.Core
         int StreakBonusFiveWins,
         int InterestGoldStep,
         int InterestBonusCap,
-        IReadOnlyList<int> PlayerLevelXpThresholds
+        IReadOnlyList<int> PlayerLevelXpThresholds,
+        IReadOnlyList<int> PlayerLevelHeroLimits
     )
     {
         public IReadOnlyList<int> PlayerLevelXpThresholds { get; init; } =
             ValidatePlayerLevelXpThresholds(PlayerLevelXpThresholds);
+
+        public IReadOnlyList<int> PlayerLevelHeroLimits { get; init; } =
+            ValidatePlayerLevelHeroLimits(PlayerLevelHeroLimits);
 
         public int MaxPlayerLevel => PlayerLevelXpThresholds.Count;
 
@@ -46,6 +50,16 @@ namespace RuneChess.Core
             }
 
             return GetXpThresholdForLevel(currentLevel + 1) - GetXpThresholdForLevel(currentLevel);
+        }
+
+        public int GetHeroLimitForLevel(int playerLevel)
+        {
+            if (playerLevel < 1 || playerLevel > PlayerLevelHeroLimits.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(playerLevel), "Player level is outside the configured hero-limit range.");
+            }
+
+            return PlayerLevelHeroLimits[playerLevel - 1];
         }
 
         public int GetShopSizeForLevel(int playerLevel)
@@ -129,6 +143,29 @@ namespace RuneChess.Core
             return thresholds.ToList();
         }
 
+        private static IReadOnlyList<int> ValidatePlayerLevelHeroLimits(IReadOnlyList<int> limits)
+        {
+            if (limits is null || limits.Count == 0)
+            {
+                throw new ArgumentException("At least one player level hero limit is required.", nameof(limits));
+            }
+
+            for (var i = 0; i < limits.Count; i += 1)
+            {
+                if (limits[i] <= 0)
+                {
+                    throw new ArgumentException("Player level hero limits must be positive.", nameof(limits));
+                }
+
+                if (i > 0 && limits[i] < limits[i - 1])
+                {
+                    throw new ArgumentException("Player level hero limits must not decrease.", nameof(limits));
+                }
+            }
+
+            return limits.ToList();
+        }
+
         public static EconomyConfig Default { get; } = new(
             StartingRunHealth: 20,
             StartingGold: 5,
@@ -145,7 +182,8 @@ namespace RuneChess.Core
             StreakBonusFiveWins: 2,
             InterestGoldStep: 10,
             InterestBonusCap: 3,
-            PlayerLevelXpThresholds: Array.AsReadOnly(new[] { 0, 4, 8, 12, 16 })
+            PlayerLevelXpThresholds: Array.AsReadOnly(new[] { 0, 4, 8, 12, 16 }),
+            PlayerLevelHeroLimits: Array.AsReadOnly(new[] { 2, 3, 4, 5, 6 })
         );
     }
 }

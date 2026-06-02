@@ -127,12 +127,16 @@ RequireThrows(
 );
 RequireThrows(() => afterPlace.StartCombat().MoveHeroToBench(boughtHeroId), "moving to bench is blocked during combat");
 
-var twoHeroBench = state.BuyHero(0).BuyHero(0);
-var firstLimitedHeroId = twoHeroBench.Bench[0].InstanceId;
-var secondLimitedHeroId = twoHeroBench.Bench[1].InstanceId;
-var fieldAtLevelCap = twoHeroBench.PlaceHeroFromBench(firstLimitedHeroId, new TacticalPosition(2, 2));
+var threeHeroBench = state.BuyHero(0).BuyHero(0).BuyHero(0);
+var firstLimitedHeroId = threeHeroBench.Bench[0].InstanceId;
+var secondLimitedHeroId = threeHeroBench.Bench[1].InstanceId;
+var thirdLimitedHeroId = threeHeroBench.Bench[2].InstanceId;
+var fieldAtLevelCap = threeHeroBench
+    .PlaceHeroFromBench(firstLimitedHeroId, new TacticalPosition(2, 2))
+    .PlaceHeroFromBench(secondLimitedHeroId, new TacticalPosition(3, 2));
+Require(fieldAtLevelCap.Team.Count == 2, "level 1 allows two heroes on the tactical field");
 RequireThrows(
-    () => fieldAtLevelCap.PlaceHeroFromBench(secondLimitedHeroId, new TacticalPosition(3, 2)),
+    () => fieldAtLevelCap.PlaceHeroFromBench(thirdLimitedHeroId, new TacticalPosition(2, 3)),
     "player level limits the number of fielded heroes"
 );
 
@@ -232,6 +236,7 @@ Require(afterXp.Xp == 4, "buying XP adds configured XP");
 RequireThrows(() => (afterPlace with { Gold = 3 }).BuyXp(), "buying XP rejects insufficient gold");
 Require(EconomyConfig.Default.MaxPlayerLevel == 5, "default economy config supports five player levels");
 Require(string.Join(",", Enumerable.Range(1, 5).Select(EconomyConfig.Default.GetXpThresholdForLevel)) == "0,4,8,12,16", "player levels use the configured XP thresholds");
+Require(string.Join(",", Enumerable.Range(1, 5).Select(EconomyConfig.Default.GetHeroLimitForLevel)) == "2,3,4,5,6", "player levels use the configured field hero limits");
 Require(EconomyConfig.Default.GetXpCostForNextLevel(1) == 4, "level 1 advances at four banked XP");
 var leveledByConfig = afterXp.LevelUp();
 Require(leveledByConfig.PlayerLevel == 2 && leveledByConfig.Xp == 0, "level-up uses the configured XP threshold for the next level");
