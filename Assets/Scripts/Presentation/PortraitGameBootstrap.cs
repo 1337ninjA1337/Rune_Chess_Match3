@@ -1553,7 +1553,7 @@ namespace RuneChess.Presentation
         private void AddPreparationPanel(Transform parent)
         {
             var panel = CreatePanel("Preparation Panel", parent, GameColors.PanelDeep);
-            AddLayoutElement(panel, 212);
+            AddLayoutElement(panel, 514);
             AddOutline(panel, GameColors.Border);
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
@@ -1564,10 +1564,48 @@ namespace RuneChess.Presentation
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            AddPanelHeader(panel.transform, "PREP", "BENCH + SHOP");
-            AddHeroRow(panel.transform, "Bench", Bench, 48, false);
-            AddHeroRow(panel.transform, "Shop", Shop, 62, true);
+            AddPanelHeader(panel.transform, "PREPARATION", $"G{runState.Gold}  LV{runState.PlayerLevel}");
+            AddPreparationTacticalPanel(panel.transform);
+            AddPreparationEconomyRow(panel.transform);
+            AddHeroRow(panel.transform, "Bench", Bench, 54, false);
+            AddHeroRow(panel.transform, "Shop", Shop, 70, true);
             AddActionRow(panel.transform);
+        }
+
+        private void AddPreparationTacticalPanel(Transform parent)
+        {
+            var field = CreatePanel("Preparation Tactical Field", parent, GameColors.Panel);
+            AddLayoutElement(field, 190);
+            AddOutline(field, GameColors.WithAlpha(GameColors.Heal, 0.45f));
+
+            var stack = field.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(7, 7, 6, 6);
+            stack.spacing = 5;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            AddPanelHeader(field.transform, "TACTICAL FIELD", "PLAYER HALF ACTIVE");
+            AddTacticalGrid(field.transform);
+        }
+
+        private void AddPreparationEconomyRow(Transform parent)
+        {
+            var row = CreatePanel("Preparation Economy Row", parent, Color.clear);
+            AddLayoutElement(row, 40);
+
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 6;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+
+            var fieldLimit = EconomyConfig.Default.GetHeroLimitForLevel(runState.PlayerLevel);
+            CreateStatusPill(row.transform, "HP", runState.RunHealth.ToString(), GameColors.Health);
+            CreateStatusPill(row.transform, "GOLD", runState.Gold.ToString(), GameColors.Gold);
+            CreateStatusPill(row.transform, "LV", runState.PlayerLevel.ToString(), GameColors.Mana);
+            CreateStatusPill(row.transform, "FIELD", $"{runState.Team.Count}/{fieldLimit}", GameColors.Heal);
         }
 
         private void AddHeroRow(Transform parent, string label, UnitVisual[] heroes, float height, bool showCost)
@@ -1601,7 +1639,7 @@ namespace RuneChess.Presentation
             CreateActionButton(row.transform, "SHOP", GameColors.Button);
             CreateActionButton(row.transform, "REROLL", GameColors.Button);
             CreateActionButton(row.transform, "XP", GameColors.Button);
-            CreateActionButton(row.transform, "FIGHT", GameColors.ButtonPrimary);
+            CreateActionButton(row.transform, "FIGHT", GameColors.ButtonPrimary, ShowCombatScreen);
         }
 
         private Text AddPanelHeader(Transform parent, string title, string meta)
@@ -1698,11 +1736,21 @@ namespace RuneChess.Presentation
             CreateText(label, stat.transform, 8, accent, TextAnchor.MiddleCenter);
         }
 
-        private void CreateActionButton(Transform parent, string label, Color color)
+        private void CreateActionButton(Transform parent, string label, Color color, Action onClick = null)
         {
-            var button = CreatePanel($"Button {label}", parent, color);
-            AddOutline(button, GameColors.WithAlpha(GameColors.Text, 0.20f));
-            CreateOverlayText(label, button.transform, 11, label == "FIGHT" ? GameColors.Background : GameColors.Text, TextAnchor.MiddleCenter);
+            var buttonObject = CreatePanel($"Button {label}", parent, color);
+            AddOutline(buttonObject, GameColors.WithAlpha(GameColors.Text, 0.20f));
+
+            var image = buttonObject.GetComponent<Image>();
+            image.raycastTarget = onClick != null;
+            if (onClick != null)
+            {
+                var button = buttonObject.AddComponent<Button>();
+                button.targetGraphic = image;
+                button.onClick.AddListener(() => onClick());
+            }
+
+            CreateOverlayText(label, buttonObject.transform, 11, label == "FIGHT" ? GameColors.Background : GameColors.Text, TextAnchor.MiddleCenter);
         }
 
         private TacticalCellState GetDemoCellState(TacticalPosition position)
