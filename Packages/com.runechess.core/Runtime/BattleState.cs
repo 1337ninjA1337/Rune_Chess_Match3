@@ -26,6 +26,10 @@ public sealed record BattleState(
     public const double MechanistDroneHealth = 60.0;
     public const double MechanistDroneAttack = 10.0;
     public const double MechanistDroneAttacksPerSecond = 1.0;
+    public const double MechanistTurretHealth = 80.0;
+    public const double MechanistTurretAttack = 14.0;
+    public const double MechanistTurretAttacksPerSecond = 0.8;
+    public const int MechanistTurretDurationMilliseconds = 6000;
 
     public IEnumerable<BattleUnit> AliveUnits => Units.Where(unit => unit.IsAlive);
     public IEnumerable<BattleUnit> AliveAllies => AliveUnits.Where(unit => unit.Side == TacticalSide.Player);
@@ -249,6 +253,7 @@ public sealed record BattleState(
         }
 
         ApplyWildChainLifesteal(units, casterSide, combatEffect, casterSynergyModifiers);
+        ApplyMechanistMatch4Turret(units, casterSide, combatEffect, casterSynergyModifiers);
 
         var outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds);
         return new BattleState(
@@ -420,7 +425,7 @@ public sealed record BattleState(
             return;
         }
 
-        var position = SelectMechanistDronePosition(units, side);
+        var position = SelectBacklineSpawnPosition(units, side);
         if (position is null)
         {
             return;
@@ -445,7 +450,44 @@ public sealed record BattleState(
             AbilitiesCast: 0));
     }
 
-    private static TacticalPosition? SelectMechanistDronePosition(List<BattleUnit> units, TacticalSide side)
+    private static void ApplyMechanistMatch4Turret(
+        List<BattleUnit> units,
+        TacticalSide side,
+        RuneEffect effect,
+        SynergyModifiers synergyModifiers)
+    {
+        if (!synergyModifiers.MechanistMatch4Turret || effect.Tier != RuneMatchTier.Match4)
+        {
+            return;
+        }
+
+        var position = SelectBacklineSpawnPosition(units, side);
+        if (position is null)
+        {
+            return;
+        }
+
+        var attacksPerSecond = CombatFormulas.CalculateAttacksPerSecond(MechanistTurretAttacksPerSecond);
+        units.Add(new BattleUnit(
+            UnitId: CreateMechanistUnitId(units, side, "mechanist_turret"),
+            Side: side,
+            Position: position.Value,
+            MaxHealth: MechanistTurretHealth,
+            CurrentHealth: MechanistTurretHealth,
+            Attack: MechanistTurretAttack,
+            Armor: 0.0,
+            MagicResist: 0.0,
+            AttacksPerSecond: attacksPerSecond,
+            CurrentMana: 0.0,
+            ManaMax: 0.0,
+            Shield: 0.0,
+            AttackType: BattleAttackType.Ranged,
+            AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
+            AbilitiesCast: 0,
+            SummonMillisecondsRemaining: MechanistTurretDurationMilliseconds));
+    }
+
+    private static TacticalPosition? SelectBacklineSpawnPosition(List<BattleUnit> units, TacticalSide side)
     {
         foreach (var position in TacticalField.Mvp.CreateCells(side)
             .Where(position => position.IsBackline && !units.Any(unit => unit.Position.Equals(position)))
@@ -460,7 +502,12 @@ public sealed record BattleState(
 
     private static string CreateMechanistDroneUnitId(List<BattleUnit> units, TacticalSide side)
     {
-        var prefix = side == TacticalSide.Player ? "mechanist_drone_player" : "mechanist_drone_enemy";
+        return CreateMechanistUnitId(units, side, "mechanist_drone");
+    }
+
+    private static string CreateMechanistUnitId(List<BattleUnit> units, TacticalSide side, string unitKind)
+    {
+        var prefix = side == TacticalSide.Player ? $"{unitKind}_player" : $"{unitKind}_enemy";
         if (units.All(unit => !unit.UnitId.Equals(prefix, StringComparison.OrdinalIgnoreCase)))
         {
             return prefix;
@@ -797,19 +844,26 @@ public sealed record BattleState(
 
     private static BattleUnit AdvanceTimedBuffs(BattleUnit unit, int elapsedMilliseconds)
     {
-        if (!unit.HasActiveLifesteal && !unit.HasActiveWeakness)
+        if (!unit.HasActiveLifesteal && !unit.HasActiveWeakness && !unit.HasTimedSummon)
         {
             return unit;
         }
 
         var lifestealRemaining = Math.Max(0, unit.LifestealMillisecondsRemaining - elapsedMilliseconds);
         var weaknessRemaining = Math.Max(0, unit.WeaknessMillisecondsRemaining - elapsedMilliseconds);
+        var summonRemaining = unit.HasTimedSummon
+            ? Math.Max(0, unit.SummonMillisecondsRemaining - elapsedMilliseconds)
+            : 0;
+        var summonExpired = unit.HasTimedSummon && summonRemaining == 0;
         return unit with
         {
+            CurrentHealth = summonExpired ? 0.0 : unit.CurrentHealth,
+            Shield = summonExpired ? 0.0 : unit.Shield,
             LifestealFraction = lifestealRemaining > 0 ? unit.LifestealFraction : 0.0,
             LifestealMillisecondsRemaining = lifestealRemaining,
             WeaknessAttackPenaltyFraction = weaknessRemaining > 0 ? unit.WeaknessAttackPenaltyFraction : 0.0,
-            WeaknessMillisecondsRemaining = weaknessRemaining
+            WeaknessMillisecondsRemaining = weaknessRemaining,
+            SummonMillisecondsRemaining = summonRemaining
         };
     }
 

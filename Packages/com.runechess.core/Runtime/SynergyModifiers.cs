@@ -25,6 +25,7 @@ namespace RuneChess.Core
         private readonly bool abyssalAbilityWeakness;
         private readonly bool abyssalPurpleRuneBonusDamage;
         private readonly bool mechanistOpeningDrone;
+        private readonly bool mechanistMatch4Turret;
 
         public SynergyModifiers(
             double armorMultiplier,
@@ -33,7 +34,8 @@ namespace RuneChess.Core
             bool wildChainReactionLifesteal = false,
             bool abyssalAbilityWeakness = false,
             bool abyssalPurpleRuneBonusDamage = false,
-            bool mechanistOpeningDrone = false)
+            bool mechanistOpeningDrone = false,
+            bool mechanistMatch4Turret = false)
         {
             if (armorMultiplier <= 0.0)
             {
@@ -52,6 +54,7 @@ namespace RuneChess.Core
             this.abyssalAbilityWeakness = abyssalAbilityWeakness;
             this.abyssalPurpleRuneBonusDamage = abyssalPurpleRuneBonusDamage;
             this.mechanistOpeningDrone = mechanistOpeningDrone;
+            this.mechanistMatch4Turret = mechanistMatch4Turret;
         }
 
         public double ArmorMultiplier => armorMultiplier <= 0.0 ? 1.0 : armorMultiplier;
@@ -61,6 +64,7 @@ namespace RuneChess.Core
         public bool AbyssalAbilityWeakness => abyssalAbilityWeakness;
         public bool AbyssalPurpleRuneBonusDamage => abyssalPurpleRuneBonusDamage;
         public bool MechanistOpeningDrone => mechanistOpeningDrone;
+        public bool MechanistMatch4Turret => mechanistMatch4Turret;
 
         public static SynergyModifiers None { get; } = new(1.0);
 
@@ -100,7 +104,8 @@ namespace RuneChess.Core
                 wildChainReactionLifesteal: HasActiveTier(progress, FactionCatalog.Wild.Id, requiredCount: 4),
                 abyssalAbilityWeakness: HasActiveTier(progress, FactionCatalog.Abyssal.Id, requiredCount: 2),
                 abyssalPurpleRuneBonusDamage: HasActiveTier(progress, FactionCatalog.Abyssal.Id, requiredCount: 4),
-                mechanistOpeningDrone: HasActiveTier(progress, FactionCatalog.Mechanist.Id, requiredCount: 2));
+                mechanistOpeningDrone: HasActiveTier(progress, FactionCatalog.Mechanist.Id, requiredCount: 2),
+                mechanistMatch4Turret: HasActiveTier(progress, FactionCatalog.Mechanist.Id, requiredCount: 4));
         }
 
         public HeroStats ApplyToStats(HeroStats stats)
@@ -125,7 +130,8 @@ namespace RuneChess.Core
                 && WildChainReactionLifesteal == other.WildChainReactionLifesteal
                 && AbyssalAbilityWeakness == other.AbyssalAbilityWeakness
                 && AbyssalPurpleRuneBonusDamage == other.AbyssalPurpleRuneBonusDamage
-                && MechanistOpeningDrone == other.MechanistOpeningDrone;
+                && MechanistOpeningDrone == other.MechanistOpeningDrone
+                && MechanistMatch4Turret == other.MechanistMatch4Turret;
         }
 
         public override bool Equals(object? obj)
@@ -142,7 +148,8 @@ namespace RuneChess.Core
                 WildChainReactionLifesteal,
                 AbyssalAbilityWeakness,
                 AbyssalPurpleRuneBonusDamage,
-                MechanistOpeningDrone);
+                MechanistOpeningDrone,
+                MechanistMatch4Turret);
         }
 
         private static bool HasActiveTier(

@@ -956,6 +956,16 @@ var mechanistOpeningDroneBoard = new List<BoardHero>
 var mechanistOpeningDroneModifiers = SynergyModifiers.ForTeam(mechanistOpeningDroneBoard);
 Require(mechanistOpeningDroneModifiers.MechanistOpeningDrone, "two Mechanist heroes unlock the opening drone");
 
+var mechanistFourBoard = new List<BoardHero>
+{
+    new(new HeroInstance("mech4_gs", "gear_squire", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("mech4_st", "spark_tinker", 1), new TacticalPosition(3, 0)),
+    new(new HeroInstance("mech4_dm", "drone_marshal", 1), new TacticalPosition(3, 1)),
+    new(new HeroInstance("mech4_cs", "clockwork_saint", 1), new TacticalPosition(2, 1))
+};
+var mechanistFourModifiers = SynergyModifiers.ForTeam(mechanistFourBoard);
+Require(mechanistFourModifiers.MechanistOpeningDrone && mechanistFourModifiers.MechanistMatch4Turret, "four Mechanist heroes unlock opening drones and match-4 turrets");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
@@ -1047,6 +1057,33 @@ var occupiedBacklineBattle = BattleState.Create(
         .ToArray(),
     playerSynergyModifiers: mechanistOpeningDroneModifiers);
 Require(!occupiedBacklineBattle.Units.Any(unit => unit.UnitId.StartsWith("mechanist_drone_player", StringComparison.Ordinal)), "Mechanist 2 skips drone spawn when the backline is full");
+
+var noTurretFromMatch3 = mechanistDroneBattle.ApplyRuneEffect(
+    Effect(RuneEffectKind.Mana, 0, rune: RuneType.Blue),
+    synergyModifiers: mechanistFourModifiers);
+Require(!noTurretFromMatch3.Units.Any(unit => unit.UnitId.StartsWith("mechanist_turret_player", StringComparison.Ordinal)), "Mechanist 4 does not spawn turrets from match-3 effects");
+
+var mechanistTurretBattle = BattleState.Create(new[]
+{
+    MakeUnit("turret_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
+    MakeUnit("turret_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var turretSpawnedBattle = mechanistTurretBattle.ApplyRuneEffect(
+    Effect(RuneEffectKind.Mana, 0, rune: RuneType.Blue, tier: RuneMatchTier.Match4, matchedRunesCount: 4),
+    synergyModifiers: mechanistFourModifiers);
+var playerTurret = turretSpawnedBattle.Units.Single(unit => unit.UnitId == "mechanist_turret_player");
+Require(playerTurret.HasTimedSummon && playerTurret.Position.IsBackline, "Mechanist 4 match-4 spawns a temporary backline turret");
+Require(Math.Abs(playerTurret.MaxHealth - BattleState.MechanistTurretHealth) < 1e-9 && Math.Abs(playerTurret.Attack - BattleState.MechanistTurretAttack) < 1e-9, "Mechanist 4 turret uses the configured turret stats");
+var turretShotEnemy = turretSpawnedBattle.Tick(1.3).Units.First(unit => unit.UnitId == "turret_enemy");
+Require(Math.Abs(turretShotEnemy.CurrentHealth - 86.0) < 1e-9, "Mechanist 4 turret participates in ranged autobattle attacks");
+var expiredTurret = turretSpawnedBattle
+    .Tick((BattleState.MechanistTurretDurationMilliseconds / 1000.0) + 0.1)
+    .Units.First(unit => unit.UnitId == "mechanist_turret_player");
+Require(!expiredTurret.IsAlive && expiredTurret.SummonMillisecondsRemaining == 0, "Mechanist 4 turret expires after its temporary duration");
+var blockedTurretBattle = occupiedBacklineBattle.ApplyRuneEffect(
+    Effect(RuneEffectKind.Mana, 0, rune: RuneType.Blue, tier: RuneMatchTier.Match4, matchedRunesCount: 4),
+    synergyModifiers: mechanistFourModifiers);
+Require(!blockedTurretBattle.Units.Any(unit => unit.UnitId.StartsWith("mechanist_turret_player", StringComparison.Ordinal)), "Mechanist 4 skips turret spawn when the backline is full");
 
 var battleDefeat = BattleState.Create(new[]
 {
@@ -1377,13 +1414,15 @@ static RuneEffect Effect(
     bool mass = false,
     int commanderEnergy = 0,
     int chainNumber = 1,
-    RuneType rune = RuneType.Red)
+    RuneType rune = RuneType.Red,
+    RuneMatchTier tier = RuneMatchTier.Match3,
+    int matchedRunesCount = 3)
 {
     return new RuneEffect(
         Rune: rune,
         Kind: kind,
-        Tier: RuneMatchTier.Match3,
-        MatchedRunesCount: 3,
+        Tier: tier,
+        MatchedRunesCount: matchedRunesCount,
         ChainNumber: chainNumber,
         IsMassEffect: mass,
         ChargesHero: false,
