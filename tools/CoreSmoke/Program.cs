@@ -401,18 +401,45 @@ var nonAlchemistChainReward = (inCombat with
 }).ClaimReward(2);
 Require(nonAlchemistChainReward.Gold == inCombat.Gold + 2, "non-Alchemist commanders do not gain chain-reaction gold");
 
-var nextRound = reward.AdvanceRound("round_02_scouts");
+var nextRound = reward.AdvanceRound("round_02_rogue_band");
 Require(nextRound.Round == 2, "advancing reward starts the next round");
 Require(nextRound.Phase == RunPhase.Preparation, "advancing reward returns to preparation");
 Require(nextRound.Shop.Offers.Count == 3, "next round refreshes the shop");
-Require(nextRound.NextEnemyId == "round_02_scouts", "next round updates the enemy preview");
-var levelThreeNextRound = (reward with { PlayerLevel = 3 }).AdvanceRound("round_02_scouts");
+Require(nextRound.NextEnemyId == "round_02_rogue_band", "next round updates the enemy preview");
+var levelThreeNextRound = (reward with { PlayerLevel = 3 }).AdvanceRound("round_02_rogue_band");
 Require(levelThreeNextRound.Shop.Offers.Count == 4, "level 3 next-round shop refresh uses four offers");
 Require(PveRunSchedule.Rounds.Count == 10, "MVP PvE schedule has 10 rounds");
 Require(PveRunSchedule.FirstRound == 1 && PveRunSchedule.FinalRound == 10, "MVP PvE run spans rounds 1 through 10");
 Require(PveRunSchedule.GetRound(1).EnemyId == state.NextEnemyId, "new run uses the first scheduled enemy");
 Require(PveRunSchedule.GetRound(1).PreventsRunDefeat, "tutorial round prevents full run defeat");
 RequireThrows(() => PveRunSchedule.GetRound(11), "round 11 is outside the MVP schedule");
+
+// Round identities, types, goals and rewards mirror the GDD "Первые 10 раундов" table.
+Require(PveRunSchedule.GetRound(1).Type == PveRoundType.Tutorial, "round 1 is the tutorial round");
+Require(PveRunSchedule.GetRound(1).RoundReward.GrantsStarterHero, "round 1 rewards a one-cost starter hero");
+Require(PveRunSchedule.GetRound(1).EnemyName.Contains("манекен"), "round 1 fights the training dummies");
+Require(PveRunSchedule.GetRound(2).Type == PveRoundType.Combat && PveRunSchedule.GetRound(2).BaseGoldReward == 4, "round 2 is a four-gold combat round");
+Require(PveRunSchedule.GetRound(3).RoundReward.HeroChoice, "round 3 rewards a hero choice");
+Require(PveRunSchedule.GetRound(4).Type == PveRoundType.Event && !PveRunSchedule.GetRound(4).HasCombat, "round 4 is a no-combat event");
+Require(PveRunSchedule.GetRound(4).RoundReward.ArtifactOrGold, "round 4 offers an artifact-or-gold choice");
+Require(PveRunSchedule.GetRound(5).Type == PveRoundType.Elite && PveRunSchedule.GetRound(5).RoundReward.Artifact, "round 5 is an elite fight rewarding an artifact");
+Require(PveRunSchedule.GetRound(7).RoundReward.HeroChoice, "round 7 rewards a hero choice");
+Require(PveRunSchedule.GetRound(8).Type == PveRoundType.Boss && PveRunSchedule.GetRound(8).RoundReward.RareArtifact, "round 8 is the boss rewarding a rare artifact");
+Require(PveRunSchedule.GetRound(8).BaseGoldReward == 7, "round 8 boss pays seven gold");
+Require(PveRunSchedule.GetRound(9).Type == PveRoundType.EnhancedShop && !PveRunSchedule.GetRound(9).HasCombat, "round 9 is a no-combat enhanced shop");
+Require(PveRunSchedule.GetRound(9).RoundReward.FreeReroll && PveRunSchedule.GetRound(9).BaseGoldReward == 4, "round 9 grants a free reroll and four gold");
+Require(PveRunSchedule.GetRound(10).Type == PveRoundType.FinalBoss && PveRunSchedule.GetRound(10).RoundReward.RunVictory, "round 10 is the final boss that wins the run");
+Require(PveRunSchedule.GetRound(10).EnemyName.Contains("Совет"), "round 10 fights the Council of Three Factions");
+
+// Difficulty pacing tiers mirror the GDD "Темп сложности" section.
+Require(PveRunSchedule.GetDifficultyTier(1) == PveDifficultyTier.Fundamentals, "rounds 1-3 teach the fundamentals");
+Require(PveRunSchedule.GetDifficultyTier(3) == PveDifficultyTier.Fundamentals, "round 3 still teaches fundamentals");
+Require(PveRunSchedule.GetDifficultyTier(4) == PveDifficultyTier.ChoicesAndCounters, "rounds 4-6 introduce choices and counters");
+Require(PveRunSchedule.GetDifficultyTier(6) == PveDifficultyTier.ChoicesAndCounters, "round 6 still tests choices and counters");
+Require(PveRunSchedule.GetDifficultyTier(7) == PveDifficultyTier.SynergyCheck, "rounds 7-8 check synergies");
+Require(PveRunSchedule.GetDifficultyTier(8) == PveDifficultyTier.SynergyCheck, "round 8 checks synergies");
+Require(PveRunSchedule.GetDifficultyTier(9) == PveDifficultyTier.FullBuildCheck, "rounds 9-10 check the whole build");
+Require(PveRunSchedule.GetDifficultyTier(10) == PveDifficultyTier.FullBuildCheck, "round 10 checks the whole build");
 
 var scheduledRun = RunState.NewRun()
     .BuyHero(0)
