@@ -156,15 +156,12 @@ namespace RuneChess.Presentation
             var stack = content.AddComponent<VerticalLayoutGroup>();
             stack.padding = new RectOffset(10, 10, 10, 10);
             stack.spacing = 6;
-            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childAlignment = TextAnchor.MiddleCenter;
             stack.childControlWidth = true;
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            AddHeader(content.transform);
-            AddBattlePanel(content.transform);
             AddRunePanel(content.transform);
-            AddPreparationPanel(content.transform);
         }
 
         private void AddHeader(Transform parent)
@@ -267,7 +264,7 @@ namespace RuneChess.Presentation
         private void AddRunePanel(Transform parent)
         {
             var panel = CreatePanel("Rune Panel", parent, GameColors.Panel);
-            AddLayoutElement(panel, 306);
+            AddLayoutElement(panel, 326);
             AddOutline(panel, GameColors.Border);
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
@@ -279,7 +276,6 @@ namespace RuneChess.Presentation
             stack.childForceExpandHeight = false;
 
             runeMetaText = AddPanelHeader(panel.transform, "RUNE BOARD", BuildRuneMeta());
-            AddRuneEffectStrip(panel.transform);
             AddRuneGrid(panel.transform);
         }
 
@@ -307,7 +303,7 @@ namespace RuneChess.Presentation
             var gridRoot = CreatePanel("Rune Grid", parent, Color.clear);
             runeGridRoot = gridRoot.transform;
             gridRoot.GetComponent<Image>().raycastTarget = false;
-            AddLayoutElement(gridRoot, 248);
+            AddLayoutElement(gridRoot, 270);
 
             RebuildRuneGrid();
         }
