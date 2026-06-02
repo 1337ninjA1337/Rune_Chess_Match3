@@ -55,6 +55,8 @@ namespace RuneChess.Presentation
         private int runeMovesUsed;
         private int runeScore;
         private string runeStatus = "READY";
+        private AppNavigationState navigationState = AppNavigationState.AtMainMenu;
+        private Text mainMenuStatusText;
         private bool isRuneAnimationRunning;
         private static PortraitGameBootstrap activeInstance;
 
@@ -190,18 +192,199 @@ namespace RuneChess.Presentation
 
         private void AddMainMenu(Transform parent)
         {
-            var button = CreatePanel("Start Game Button", parent, GameColors.ButtonPrimary);
-            AddLayoutElement(button, 56);
-            AddOutline(button, GameColors.WithAlpha(GameColors.Text, 0.24f));
+            navigationState = AppNavigationState.AtMainMenu;
 
-            var image = button.GetComponent<Image>();
+            var menu = CreatePanel("Main Menu", parent, GameColors.PanelDeep);
+            AddLayoutElement(menu, 824);
+            AddOutline(menu, GameColors.Border);
+
+            var stack = menu.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(12, 12, 12, 12);
+            stack.spacing = 8;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            AddMainMenuTitle(menu.transform);
+            AddSelectedCommanderCard(menu.transform);
+            AddMainMenuButtons(menu.transform);
+            AddMainMenuRunPreview(menu.transform);
+            AddMainMenuStatus(menu.transform);
+        }
+
+        private void AddMainMenuTitle(Transform parent)
+        {
+            var title = CreatePanel("Main Menu Title", parent, Color.clear);
+            AddLayoutElement(title, 128);
+
+            var stack = title.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(4, 4, 10, 4);
+            stack.spacing = 4;
+            stack.childAlignment = TextAnchor.MiddleCenter;
+            stack.childForceExpandHeight = false;
+
+            CreateText("RUNE CHESS", title.transform, 34, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateText("MATCH-3 AUTO BATTLER", title.transform, 13, GameColors.Muted, TextAnchor.MiddleCenter);
+
+            var runeStrip = CreatePanel("Main Menu Rune Strip", title.transform, Color.clear);
+            AddLayoutElement(runeStrip, 28);
+
+            var layout = runeStrip.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 5;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+
+            CreateRuneChip(runeStrip.transform, RuneType.Red, "R");
+            CreateRuneChip(runeStrip.transform, RuneType.Blue, "B");
+            CreateRuneChip(runeStrip.transform, RuneType.Green, "G");
+            CreateRuneChip(runeStrip.transform, RuneType.Yellow, "Y");
+            CreateRuneChip(runeStrip.transform, RuneType.Purple, "P");
+            CreateRuneChip(runeStrip.transform, RuneType.White, "W");
+        }
+
+        private void AddSelectedCommanderCard(Transform parent)
+        {
+            var commanderDefinition = CommanderCatalog.Get(runState.Commander.Id);
+            var card = CreatePanel("Selected Commander Card", parent, GameColors.Panel);
+            AddLayoutElement(card, 196);
+            AddOutline(card, GameColors.WithAlpha(GameColors.Commander, 0.72f));
+
+            var stack = card.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(10, 10, 8, 8);
+            stack.spacing = 6;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            AddPanelHeader(card.transform, "ВЫБРАННЫЙ КОМАНДИР", $"{runState.Commander.Energy:0}/{runState.Commander.MaxEnergy:0} ENERGY");
+
+            var identity = CreatePanel("Commander Identity", card.transform, GameColors.WithAlpha(GameColors.Commander, 0.16f));
+            AddLayoutElement(identity, 54);
+            AddOutline(identity, GameColors.WithAlpha(GameColors.Commander, 0.45f));
+
+            var identityStack = identity.AddComponent<VerticalLayoutGroup>();
+            identityStack.padding = new RectOffset(8, 8, 5, 5);
+            identityStack.spacing = 1;
+            identityStack.childAlignment = TextAnchor.MiddleCenter;
+            identityStack.childForceExpandHeight = false;
+            CreateText(runState.Commander.Name, identity.transform, 20, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateText(commanderDefinition.Id.ToUpperInvariant(), identity.transform, 9, GameColors.Commander, TextAnchor.MiddleCenter);
+
+            CreateText(commanderDefinition.Passive, card.transform, 11, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateText(commanderDefinition.StartingBonus.Description, card.transform, 10, GameColors.Gold, TextAnchor.MiddleCenter);
+            CreateText(string.Join(" / ", commanderDefinition.RecommendedStyles), card.transform, 9, GameColors.Muted, TextAnchor.MiddleCenter);
+        }
+
+        private void AddMainMenuButtons(Transform parent)
+        {
+            var buttons = CreatePanel("Main Menu Buttons", parent, Color.clear);
+            AddLayoutElement(buttons, 196);
+
+            var stack = buttons.AddComponent<VerticalLayoutGroup>();
+            stack.spacing = 7;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            CreateMenuButton(buttons.transform, "Новый забег", "ROUND 1", GameColors.ButtonPrimary, true, StartNewRunFromMenu);
+            CreateMenuButton(buttons.transform, "Выбор уровня", "PVE MAP", GameColors.Button, false, () => SelectMainMenuDestination(AppScreen.LevelSelect));
+            CreateMenuButton(buttons.transform, "Настройки", "AUDIO / GAME", GameColors.Button, false, () => SelectMainMenuDestination(AppScreen.Settings));
+        }
+
+        private void AddMainMenuRunPreview(Transform parent)
+        {
+            var preview = CreatePanel("Main Menu Run Preview", parent, GameColors.Panel);
+            AddLayoutElement(preview, 124);
+            AddOutline(preview, GameColors.WithAlpha(GameColors.Border, 0.65f));
+
+            var stack = preview.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(8, 8, 7, 7);
+            stack.spacing = 6;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            AddPanelHeader(preview.transform, "ЗАБЕГ", $"ROUND {runState.Round}  {runState.Phase.ToString().ToUpperInvariant()}");
+
+            var stats = CreatePanel("Main Menu Run Stats", preview.transform, Color.clear);
+            AddLayoutElement(stats, 48);
+            var statsLayout = stats.AddComponent<HorizontalLayoutGroup>();
+            statsLayout.spacing = 6;
+            statsLayout.childAlignment = TextAnchor.MiddleCenter;
+            statsLayout.childControlWidth = true;
+            statsLayout.childForceExpandWidth = true;
+
+            CreateStatusPill(stats.transform, "HP", runState.RunHealth.ToString(), GameColors.Health);
+            CreateStatusPill(stats.transform, "GOLD", runState.Gold.ToString(), GameColors.Gold);
+            CreateStatusPill(stats.transform, "LEVEL", runState.PlayerLevel.ToString(), GameColors.Mana);
+
+            CreateText($"NEXT: {runState.NextEnemyId}", preview.transform, 10, GameColors.Muted, TextAnchor.MiddleCenter);
+        }
+
+        private void AddMainMenuStatus(Transform parent)
+        {
+            var status = CreatePanel("Main Menu Status", parent, GameColors.WithAlpha(GameColors.Commander, 0.16f));
+            AddLayoutElement(status, 34);
+            AddOutline(status, GameColors.WithAlpha(GameColors.Commander, 0.45f));
+            mainMenuStatusText = CreateOverlayText(BuildMainMenuStatus(), status.transform, 11, GameColors.Text, TextAnchor.MiddleCenter);
+        }
+
+        private void CreateMenuButton(Transform parent, string label, string meta, Color color, bool primary, Action onClick)
+        {
+            var buttonObject = CreatePanel($"Menu Button {label}", parent, color);
+            AddLayoutElement(buttonObject, 56);
+            AddOutline(buttonObject, GameColors.WithAlpha(primary ? GameColors.Background : GameColors.Text, 0.25f));
+
+            var image = buttonObject.GetComponent<Image>();
             image.raycastTarget = true;
 
-            var action = button.AddComponent<Button>();
-            action.targetGraphic = image;
-            action.onClick.AddListener(StartGame);
+            var button = buttonObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(() => onClick());
 
-            CreateOverlayText("Начать игру", button.transform, 18, GameColors.Background, TextAnchor.MiddleCenter);
+            var row = buttonObject.AddComponent<HorizontalLayoutGroup>();
+            row.padding = new RectOffset(12, 12, 6, 6);
+            row.spacing = 8;
+            row.childAlignment = TextAnchor.MiddleCenter;
+            row.childControlWidth = true;
+            row.childForceExpandWidth = true;
+
+            var foreground = primary ? GameColors.Background : GameColors.Text;
+            CreateText(label, buttonObject.transform, 17, foreground, TextAnchor.MiddleLeft);
+            CreateText(meta, buttonObject.transform, 10, primary ? GameColors.Background : GameColors.Muted, TextAnchor.MiddleRight);
+        }
+
+        private void StartNewRunFromMenu()
+        {
+            runState = RunState.NewRun(runState.Commander.Id);
+            navigationState = AppNavigationState.AtMainMenu
+                .NavigateTo(AppScreen.LevelSelect)
+                .NavigateTo(AppScreen.Preparation);
+            StartGame();
+        }
+
+        private void SelectMainMenuDestination(AppScreen screen)
+        {
+            if (!AppNavigationState.AtMainMenu.CanNavigateTo(screen))
+            {
+                return;
+            }
+
+            navigationState = AppNavigationState.AtMainMenu.NavigateTo(screen);
+            if (mainMenuStatusText != null)
+            {
+                mainMenuStatusText.text = BuildMainMenuStatus();
+            }
+        }
+
+        private string BuildMainMenuStatus()
+        {
+            return $"{navigationState.Current.ToString().ToUpperInvariant()}  CMD {runState.Commander.Energy:0}/{runState.Commander.MaxEnergy:0}";
         }
 
         private void StartGame()
