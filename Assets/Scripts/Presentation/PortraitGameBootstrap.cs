@@ -10,6 +10,7 @@ namespace RuneChess.Presentation
 {
     public sealed class PortraitGameBootstrap : MonoBehaviour
     {
+        private const string RuntimeCanvasName = "RuneChessRuntimeCanvas";
         private const float ContentWidth = 390f;
         private const float ContentHeight = 844f;
         private const float RuneTileSize = 34f;
@@ -55,18 +56,40 @@ namespace RuneChess.Presentation
         private int runeScore;
         private string runeStatus = "READY";
         private bool isRuneAnimationRunning;
+        private static PortraitGameBootstrap activeInstance;
 
         private void Awake()
         {
+            if (activeInstance != null && activeInstance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            activeInstance = this;
             Application.targetFrameRate = 60;
             Screen.orientation = ScreenOrientation.Portrait;
         }
 
         private void Start()
         {
+            if (activeInstance != this)
+            {
+                return;
+            }
+
             EnsureMainCamera();
             EnsureEventSystem();
+            ClearGeneratedCanvases();
             BuildPortraitGameSurface();
+        }
+
+        private void OnDestroy()
+        {
+            if (activeInstance == this)
+            {
+                activeInstance = null;
+            }
         }
 
         private static void EnsureMainCamera()
@@ -1004,6 +1027,7 @@ namespace RuneChess.Presentation
         private Canvas CreateCanvas()
         {
             var canvasObject = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            canvasObject.name = RuntimeCanvasName;
             var canvas = canvasObject.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
@@ -1013,6 +1037,26 @@ namespace RuneChess.Presentation
             scaler.matchWidthOrHeight = 0.5f;
 
             return canvas;
+        }
+
+        private static void ClearGeneratedCanvases()
+        {
+            var canvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None);
+            foreach (var canvas in canvases)
+            {
+                if (canvas == null)
+                {
+                    continue;
+                }
+
+                var canvasObject = canvas.gameObject;
+                if (canvasObject.name == RuntimeCanvasName
+                    || canvasObject.name == "Canvas"
+                    || canvasObject.transform.Find("Rune Chess Game Surface") != null)
+                {
+                    Destroy(canvasObject);
+                }
+            }
         }
 
         private GameObject CreatePanel(string name, Transform parent, Color color)
