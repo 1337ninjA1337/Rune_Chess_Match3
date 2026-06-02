@@ -409,6 +409,7 @@ Require(nextRound.NextEnemyId == "round_02_scouts", "next round updates the enem
 var levelThreeNextRound = (reward with { PlayerLevel = 3 }).AdvanceRound("round_02_scouts");
 Require(levelThreeNextRound.Shop.Offers.Count == 4, "level 3 next-round shop refresh uses four offers");
 Require(PveRunSchedule.Rounds.Count == 10, "MVP PvE schedule has 10 rounds");
+Require(PveRunSchedule.FirstRound == 1 && PveRunSchedule.FinalRound == 10, "MVP PvE run spans rounds 1 through 10");
 Require(PveRunSchedule.GetRound(1).EnemyId == state.NextEnemyId, "new run uses the first scheduled enemy");
 Require(PveRunSchedule.GetRound(1).PreventsRunDefeat, "tutorial round prevents full run defeat");
 RequireThrows(() => PveRunSchedule.GetRound(11), "round 11 is outside the MVP schedule");
