@@ -937,6 +937,17 @@ var abyssalWeaknessBoard = new List<BoardHero>
 var abyssalWeaknessModifiers = SynergyModifiers.ForTeam(abyssalWeaknessBoard);
 Require(abyssalWeaknessModifiers.AbyssalAbilityWeakness, "two Abyssal heroes unlock ability-applied weakness");
 
+var abyssalFourProgress = new[]
+{
+    new SynergyProgress(
+        FactionCatalog.Abyssal,
+        4,
+        FactionCatalog.Abyssal.ActiveTiers(4),
+        FactionCatalog.Abyssal.NextTier(4))
+};
+var abyssalFourModifiers = SynergyModifiers.FromProgress(abyssalFourProgress);
+Require(abyssalFourModifiers.AbyssalPurpleRuneBonusDamage, "four Abyssal heroes unlock purple-rune bonus damage");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
@@ -1174,6 +1185,9 @@ Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 100)).Un
 Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Mana, 24)).Units.First(u => u.UnitId == "fx_ally").CurrentMana - 24.0) < 1e-9, "a blue rune grants mana to an ally");
 Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.CommanderEnergy, 5)).CommanderEnergy - 5.0) < 1e-9, "a white rune accrues commander energy");
 Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40, mass: true, commanderEnergy: 10)).CommanderEnergy - 10.0) < 1e-9, "T/L combos accrue commander energy alongside their effect");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.MagicDamage, 40, rune: RuneType.Purple)).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - 60.0) < 1e-9, "a purple rune uses base magic damage without Abyssal 4");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.MagicDamage, 40, rune: RuneType.Purple), synergyModifiers: abyssalFourModifiers).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - 50.0) < 1e-9, "Abyssal 4 increases purple-rune magic damage");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.MagicDamage, 40, rune: RuneType.White), synergyModifiers: abyssalFourModifiers).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - 60.0) < 1e-9, "Abyssal 4 does not boost non-purple magic damage");
 
 var empireYellowShieldBattle = BattleState.Create(new[]
 {

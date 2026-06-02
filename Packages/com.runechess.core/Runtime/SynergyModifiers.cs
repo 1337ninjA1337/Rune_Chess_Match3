@@ -16,19 +16,22 @@ namespace RuneChess.Core
         public const int WildChainLifestealDurationMilliseconds = 3000;
         public const double AbyssalAbilityWeaknessAttackPenalty = 0.10;
         public const int AbyssalAbilityWeaknessDurationMilliseconds = 3000;
+        public const double AbyssalPurpleRuneDamageBonus = 0.25;
 
         private readonly double armorMultiplier;
         private readonly double attackSpeedMultiplier;
         private readonly bool empireYellowRuneFrontlineShield;
         private readonly bool wildChainReactionLifesteal;
         private readonly bool abyssalAbilityWeakness;
+        private readonly bool abyssalPurpleRuneBonusDamage;
 
         public SynergyModifiers(
             double armorMultiplier,
             double attackSpeedMultiplier = 1.0,
             bool empireYellowRuneFrontlineShield = false,
             bool wildChainReactionLifesteal = false,
-            bool abyssalAbilityWeakness = false)
+            bool abyssalAbilityWeakness = false,
+            bool abyssalPurpleRuneBonusDamage = false)
         {
             if (armorMultiplier <= 0.0)
             {
@@ -45,6 +48,7 @@ namespace RuneChess.Core
             this.empireYellowRuneFrontlineShield = empireYellowRuneFrontlineShield;
             this.wildChainReactionLifesteal = wildChainReactionLifesteal;
             this.abyssalAbilityWeakness = abyssalAbilityWeakness;
+            this.abyssalPurpleRuneBonusDamage = abyssalPurpleRuneBonusDamage;
         }
 
         public double ArmorMultiplier => armorMultiplier <= 0.0 ? 1.0 : armorMultiplier;
@@ -52,6 +56,7 @@ namespace RuneChess.Core
         public bool EmpireYellowRuneFrontlineShield => empireYellowRuneFrontlineShield;
         public bool WildChainReactionLifesteal => wildChainReactionLifesteal;
         public bool AbyssalAbilityWeakness => abyssalAbilityWeakness;
+        public bool AbyssalPurpleRuneBonusDamage => abyssalPurpleRuneBonusDamage;
 
         public static SynergyModifiers None { get; } = new(1.0);
 
@@ -89,7 +94,8 @@ namespace RuneChess.Core
                 attackSpeedMultiplier,
                 empireYellowRuneFrontlineShield: HasActiveTier(progress, FactionCatalog.Empire.Id, requiredCount: 4),
                 wildChainReactionLifesteal: HasActiveTier(progress, FactionCatalog.Wild.Id, requiredCount: 4),
-                abyssalAbilityWeakness: HasActiveTier(progress, FactionCatalog.Abyssal.Id, requiredCount: 2));
+                abyssalAbilityWeakness: HasActiveTier(progress, FactionCatalog.Abyssal.Id, requiredCount: 2),
+                abyssalPurpleRuneBonusDamage: HasActiveTier(progress, FactionCatalog.Abyssal.Id, requiredCount: 4));
         }
 
         public HeroStats ApplyToStats(HeroStats stats)
@@ -112,7 +118,8 @@ namespace RuneChess.Core
                 && Math.Abs(AttackSpeedMultiplier - other.AttackSpeedMultiplier) < 1e-9
                 && EmpireYellowRuneFrontlineShield == other.EmpireYellowRuneFrontlineShield
                 && WildChainReactionLifesteal == other.WildChainReactionLifesteal
-                && AbyssalAbilityWeakness == other.AbyssalAbilityWeakness;
+                && AbyssalAbilityWeakness == other.AbyssalAbilityWeakness
+                && AbyssalPurpleRuneBonusDamage == other.AbyssalPurpleRuneBonusDamage;
         }
 
         public override bool Equals(object? obj)
@@ -127,7 +134,8 @@ namespace RuneChess.Core
                 AttackSpeedMultiplier,
                 EmpireYellowRuneFrontlineShield,
                 WildChainReactionLifesteal,
-                AbyssalAbilityWeakness);
+                AbyssalAbilityWeakness,
+                AbyssalPurpleRuneBonusDamage);
         }
 
         private static bool HasActiveTier(

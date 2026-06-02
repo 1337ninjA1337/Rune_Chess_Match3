@@ -215,32 +215,33 @@ public sealed record BattleState(
         var commanderGain = (double)effect.CommanderEnergy;
         var casterSynergyModifiers = ResolveSynergyModifiers(casterSide, synergyModifiers);
         var enemySynergyModifiers = ModifiersForSide(enemySide);
+        var combatEffect = ApplyAbyssalPurpleRuneBonus(effect, casterSynergyModifiers);
 
-        switch (effect.Kind)
+        switch (combatEffect.Kind)
         {
             case RuneEffectKind.PhysicalDamage:
-                ApplyDamage(units, enemySide, effect, physical: true, enemySynergyModifiers, casterSynergyModifiers);
+                ApplyDamage(units, enemySide, combatEffect, physical: true, enemySynergyModifiers, casterSynergyModifiers);
                 break;
             case RuneEffectKind.MagicDamage:
-                ApplyDamage(units, enemySide, effect, physical: false, enemySynergyModifiers, casterSynergyModifiers);
+                ApplyDamage(units, enemySide, combatEffect, physical: false, enemySynergyModifiers, casterSynergyModifiers);
                 break;
             case RuneEffectKind.Healing:
-                ApplyRuneHealing(units, casterSide, effect);
+                ApplyRuneHealing(units, casterSide, combatEffect);
                 break;
             case RuneEffectKind.Shield:
-                ApplyRuneShield(units, casterSide, effect, casterSynergyModifiers);
+                ApplyRuneShield(units, casterSide, combatEffect, casterSynergyModifiers);
                 break;
             case RuneEffectKind.Mana:
-                ApplyRuneMana(units, casterSide, effect.Power, effect.IsMassEffect, casterSynergyModifiers, enemySynergyModifiers);
+                ApplyRuneMana(units, casterSide, combatEffect.Power, combatEffect.IsMassEffect, casterSynergyModifiers, enemySynergyModifiers);
                 break;
             case RuneEffectKind.CommanderEnergy:
-                commanderGain += effect.Power;
+                commanderGain += combatEffect.Power;
                 break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(effect), effect.Kind, "Unknown rune effect kind.");
+                throw new ArgumentOutOfRangeException(nameof(effect), combatEffect.Kind, "Unknown rune effect kind.");
         }
 
-        ApplyWildChainLifesteal(units, casterSide, effect, casterSynergyModifiers);
+        ApplyWildChainLifesteal(units, casterSide, combatEffect, casterSynergyModifiers);
 
         var outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds);
         return new BattleState(
@@ -385,6 +386,21 @@ public sealed record BattleState(
             CommanderEnergy: 0,
             Power: power
         );
+    }
+
+    private static RuneEffect ApplyAbyssalPurpleRuneBonus(RuneEffect effect, SynergyModifiers synergyModifiers)
+    {
+        if (!synergyModifiers.AbyssalPurpleRuneBonusDamage
+            || effect.Rune != RuneType.Purple
+            || effect.Kind != RuneEffectKind.MagicDamage)
+        {
+            return effect;
+        }
+
+        return effect with
+        {
+            Power = effect.Power * (1.0 + SynergyModifiers.AbyssalPurpleRuneDamageBonus)
+        };
     }
 
     private static int SelectTargetIndex(IReadOnlyList<BattleUnit> units, BattleUnit attacker)
