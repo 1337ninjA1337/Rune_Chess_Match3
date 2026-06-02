@@ -3,7 +3,8 @@ using RuneChess.Core;
 var state = RunState.NewRun();
 Require(state.Round == 1, "new run starts at round 1");
 Require(state.Phase == RunPhase.Preparation, "new run starts in preparation");
-Require(state.RunHealth == 100, "new run starts with full run health");
+Require(state.RunHealth == 20, "new run starts with full run health");
+Require(EconomyConfig.Default.StartingRunHealth == 20, "default economy config starts run health at 20");
 Require(state.Gold == 5, "new run starts with configured gold");
 Require(state.Xp == 0, "new run starts with zero XP");
 Require(state.PlayerLevel == 1, "new run starts at player level 1");
@@ -370,7 +371,7 @@ Require(finalReward.IsFinalRound, "final reward is marked as the final round");
 Require(finalReward.IsRunWon, "final reward exposes a run win flag");
 Require(finalReward.IsRunComplete, "victory marks the run complete");
 
-var healthDefeat = RunState.NewRun().ApplyRunDamage(100);
+var healthDefeat = RunState.NewRun().ApplyRunDamage(20);
 Require(healthDefeat.Phase == RunPhase.Defeat, "run health depletion causes defeat");
 Require(healthDefeat.IsRunLost, "health defeat exposes a run loss flag");
 Require(healthDefeat.IsRunComplete, "health defeat marks the run complete");

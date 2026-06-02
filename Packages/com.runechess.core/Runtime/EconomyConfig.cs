@@ -13,7 +13,7 @@ namespace RuneChess.Core
     )
     {
         public static EconomyConfig Default { get; } = new(
-            StartingRunHealth: 100,
+            StartingRunHealth: 20,
             StartingGold: 5,
             StartingXp: 0,
             StartingPlayerLevel: 1,
