@@ -291,7 +291,7 @@ namespace RuneChess.Presentation
             stack.childForceExpandHeight = false;
 
             CreateMenuButton(buttons.transform, "Новый забег", "ROUND 1", GameColors.ButtonPrimary, true, StartNewRunFromMenu);
-            CreateMenuButton(buttons.transform, "Выбор уровня", "PVE MAP", GameColors.Button, false, () => SelectMainMenuDestination(AppScreen.LevelSelect));
+            CreateMenuButton(buttons.transform, "Выбор уровня", "PVE MAP", GameColors.Button, false, ShowLevelSelectScreen);
             CreateMenuButton(buttons.transform, "Настройки", "AUDIO / GAME", GameColors.Button, false, () => SelectMainMenuDestination(AppScreen.Settings));
         }
 
@@ -368,6 +368,191 @@ namespace RuneChess.Presentation
             StartGame();
         }
 
+        private void ShowMainMenu()
+        {
+            if (contentRoot == null)
+            {
+                return;
+            }
+
+            ClearChildren(contentRoot);
+            AddMainMenu(contentRoot);
+        }
+
+        private void ShowLevelSelectScreen()
+        {
+            if (contentRoot == null)
+            {
+                return;
+            }
+
+            navigationState = AppNavigationState.AtMainMenu.NavigateTo(AppScreen.LevelSelect);
+            ClearChildren(contentRoot);
+            AddLevelSelectScreen(contentRoot);
+        }
+
+        private void AddLevelSelectScreen(Transform parent)
+        {
+            var screen = CreatePanel("Level Select Screen", parent, GameColors.PanelDeep);
+            AddLayoutElement(screen, 824);
+            AddOutline(screen, GameColors.Border);
+
+            var stack = screen.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(10, 10, 10, 10);
+            stack.spacing = 7;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            AddLevelSelectHeader(screen.transform);
+            AddLevelCardList(screen.transform);
+            AddLevelSelectActions(screen.transform);
+        }
+
+        private void AddLevelSelectHeader(Transform parent)
+        {
+            var header = CreatePanel("Level Select Header", parent, GameColors.Panel);
+            AddLayoutElement(header, 72);
+            AddOutline(header, GameColors.WithAlpha(GameColors.Border, 0.65f));
+
+            var stack = header.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(8, 8, 7, 7);
+            stack.spacing = 2;
+            stack.childAlignment = TextAnchor.MiddleCenter;
+            stack.childForceExpandHeight = false;
+
+            CreateText("ВЫБОР УРОВНЯ", header.transform, 22, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateText($"ROUND {runState.Round}/{PveRunSchedule.FinalRound}  {runState.Commander.Name}", header.transform, 10, GameColors.Muted, TextAnchor.MiddleCenter);
+        }
+
+        private void AddLevelCardList(Transform parent)
+        {
+            var list = CreatePanel("Level Card List", parent, Color.clear);
+            AddLayoutElement(list, 612);
+
+            var stack = list.AddComponent<VerticalLayoutGroup>();
+            stack.spacing = 5;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            var cards = LevelSelectModel.Build(runState);
+            foreach (var card in cards)
+            {
+                CreateLevelCard(list.transform, card);
+            }
+        }
+
+        private void AddLevelSelectActions(Transform parent)
+        {
+            var row = CreatePanel("Level Select Actions", parent, Color.clear);
+            AddLayoutElement(row, 58);
+
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 7;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+
+            CreateMenuButton(row.transform, "Меню", "BACK", GameColors.Button, false, ShowMainMenu);
+            CreateMenuButton(row.transform, "Текущий раунд", $"R{runState.Round}", GameColors.ButtonPrimary, true, StartCurrentLevelFromSelect);
+        }
+
+        private void CreateLevelCard(Transform parent, LevelCard card)
+        {
+            var cardColor = GetLevelCardColor(card.Status);
+            var cardObject = CreatePanel($"Level Card {card.Round}", parent, cardColor);
+            AddLayoutElement(cardObject, 56);
+            AddOutline(cardObject, GetLevelCardBorderColor(card.Status));
+
+            var image = cardObject.GetComponent<Image>();
+            image.raycastTarget = card.Status == LevelCardStatus.Current;
+
+            if (card.Status == LevelCardStatus.Current)
+            {
+                var button = cardObject.AddComponent<Button>();
+                button.targetGraphic = image;
+                button.onClick.AddListener(() => StartLevelFromSelect(card));
+            }
+
+            var row = cardObject.AddComponent<HorizontalLayoutGroup>();
+            row.padding = new RectOffset(7, 7, 5, 5);
+            row.spacing = 6;
+            row.childAlignment = TextAnchor.MiddleCenter;
+            row.childControlWidth = true;
+            row.childForceExpandWidth = true;
+
+            AddLevelCardRoundColumn(cardObject.transform, card);
+            AddLevelCardInfoColumn(cardObject.transform, card);
+            AddLevelCardRewardColumn(cardObject.transform, card);
+        }
+
+        private void AddLevelCardRoundColumn(Transform parent, LevelCard card)
+        {
+            var column = CreatePanel($"Level {card.Round} Round", parent, GameColors.WithAlpha(GetLevelStatusColor(card.Status), 0.18f));
+            AddOutline(column, GameColors.WithAlpha(GetLevelStatusColor(card.Status), 0.45f));
+            SetLayoutWidth(column, 68, 0f);
+
+            var stack = column.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(4, 4, 3, 3);
+            stack.spacing = 1;
+            stack.childAlignment = TextAnchor.MiddleCenter;
+            stack.childForceExpandHeight = false;
+
+            CreateText($"R{card.Round}", column.transform, 17, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateText(GetRoundTypeLabel(card.Type), column.transform, 8, GetLevelStatusColor(card.Status), TextAnchor.MiddleCenter);
+        }
+
+        private void AddLevelCardInfoColumn(Transform parent, LevelCard card)
+        {
+            var column = CreatePanel($"Level {card.Round} Info", parent, Color.clear);
+            SetLayoutWidth(column, 184, 2.4f);
+
+            var stack = column.AddComponent<VerticalLayoutGroup>();
+            stack.spacing = 1;
+            stack.childAlignment = TextAnchor.MiddleLeft;
+            stack.childForceExpandHeight = false;
+
+            CreateText(card.EnemyName, column.transform, 12, GameColors.Text, TextAnchor.MiddleLeft);
+            CreateText(card.DesignGoal, column.transform, 9, GameColors.Muted, TextAnchor.MiddleLeft);
+            CreateText($"{GetDifficultyLabel(card.DifficultyTier)}  {(card.HasCombat ? "COMBAT" : "EVENT")}", column.transform, 8, GameColors.WithAlpha(GameColors.Text, 0.72f), TextAnchor.MiddleLeft);
+        }
+
+        private void AddLevelCardRewardColumn(Transform parent, LevelCard card)
+        {
+            var column = CreatePanel($"Level {card.Round} Reward", parent, Color.clear);
+            SetLayoutWidth(column, 100, 1f);
+
+            var stack = column.AddComponent<VerticalLayoutGroup>();
+            stack.spacing = 1;
+            stack.childAlignment = TextAnchor.MiddleRight;
+            stack.childForceExpandHeight = false;
+
+            CreateText(GetLevelStatusLabel(card.Status), column.transform, 10, GetLevelStatusColor(card.Status), TextAnchor.MiddleRight);
+            CreateText(card.RewardSummary, column.transform, 9, GameColors.Gold, TextAnchor.MiddleRight);
+        }
+
+        private void StartCurrentLevelFromSelect()
+        {
+            var currentCard = LevelSelectModel.Build(runState)[runState.Round - 1];
+            StartLevelFromSelect(currentCard);
+        }
+
+        private void StartLevelFromSelect(LevelCard card)
+        {
+            if (card.Status != LevelCardStatus.Current)
+            {
+                return;
+            }
+
+            navigationState = navigationState.Current == AppScreen.LevelSelect
+                ? navigationState.NavigateTo(AppScreen.Preparation)
+                : AppNavigationState.AtMainMenu.NavigateTo(AppScreen.LevelSelect).NavigateTo(AppScreen.Preparation);
+            StartGame();
+        }
+
         private void SelectMainMenuDestination(AppScreen screen)
         {
             if (!AppNavigationState.AtMainMenu.CanNavigateTo(screen))
@@ -385,6 +570,106 @@ namespace RuneChess.Presentation
         private string BuildMainMenuStatus()
         {
             return $"{navigationState.Current.ToString().ToUpperInvariant()}  CMD {runState.Commander.Energy:0}/{runState.Commander.MaxEnergy:0}";
+        }
+
+        private static string GetRoundTypeLabel(PveRoundType type)
+        {
+            switch (type)
+            {
+                case PveRoundType.Tutorial:
+                    return "TUTOR";
+                case PveRoundType.Combat:
+                    return "FIGHT";
+                case PveRoundType.Event:
+                    return "EVENT";
+                case PveRoundType.Elite:
+                    return "ELITE";
+                case PveRoundType.Boss:
+                    return "BOSS";
+                case PveRoundType.EnhancedShop:
+                    return "SHOP";
+                case PveRoundType.FinalBoss:
+                    return "FINAL";
+                default:
+                    return "ROUND";
+            }
+        }
+
+        private static string GetDifficultyLabel(PveDifficultyTier tier)
+        {
+            switch (tier)
+            {
+                case PveDifficultyTier.Fundamentals:
+                    return "BASE";
+                case PveDifficultyTier.ChoicesAndCounters:
+                    return "CHOICE";
+                case PveDifficultyTier.SynergyCheck:
+                    return "SYNERGY";
+                case PveDifficultyTier.FullBuildCheck:
+                    return "BUILD";
+                default:
+                    return "PACE";
+            }
+        }
+
+        private static string GetLevelStatusLabel(LevelCardStatus status)
+        {
+            switch (status)
+            {
+                case LevelCardStatus.Completed:
+                    return "DONE";
+                case LevelCardStatus.Current:
+                    return "READY";
+                case LevelCardStatus.Locked:
+                    return "LOCKED";
+                default:
+                    return "STATUS";
+            }
+        }
+
+        private static Color GetLevelCardColor(LevelCardStatus status)
+        {
+            switch (status)
+            {
+                case LevelCardStatus.Completed:
+                    return GameColors.WithAlpha(GameColors.PanelRaised, 0.86f);
+                case LevelCardStatus.Current:
+                    return GameColors.PanelRaised;
+                case LevelCardStatus.Locked:
+                    return GameColors.WithAlpha(GameColors.Panel, 0.68f);
+                default:
+                    return GameColors.Panel;
+            }
+        }
+
+        private static Color GetLevelCardBorderColor(LevelCardStatus status)
+        {
+            switch (status)
+            {
+                case LevelCardStatus.Completed:
+                    return GameColors.WithAlpha(GameColors.Heal, 0.62f);
+                case LevelCardStatus.Current:
+                    return GameColors.Gold;
+                case LevelCardStatus.Locked:
+                    return GameColors.WithAlpha(GameColors.Border, 0.35f);
+                default:
+                    return GameColors.Border;
+            }
+        }
+
+        private static Color GetLevelStatusColor(LevelCardStatus status)
+        {
+            switch (status)
+            {
+                case LevelCardStatus.Completed:
+                    return GameColors.Heal;
+                case LevelCardStatus.Current:
+                    return GameColors.Gold;
+                case LevelCardStatus.Locked:
+                    return GameColors.Muted;
+                default:
+                    return GameColors.Text;
+            }
         }
 
         private void StartGame()
@@ -1304,6 +1589,18 @@ namespace RuneChess.Presentation
 
             layoutElement.preferredHeight = preferredHeight;
             layoutElement.flexibleWidth = 1f;
+        }
+
+        private static void SetLayoutWidth(GameObject gameObject, float preferredWidth, float flexibleWidth)
+        {
+            var layoutElement = gameObject.GetComponent<LayoutElement>();
+            if (layoutElement == null)
+            {
+                layoutElement = gameObject.AddComponent<LayoutElement>();
+            }
+
+            layoutElement.preferredWidth = preferredWidth;
+            layoutElement.flexibleWidth = flexibleWidth;
         }
 
         private static void AddOutline(GameObject gameObject, Color color)
