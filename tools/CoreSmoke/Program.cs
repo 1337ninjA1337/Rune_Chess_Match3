@@ -703,6 +703,9 @@ Require(!CombatFormulas.WouldCrit(0.05), "a roll at the crit chance does not cri
 RequireThrows(() => CombatFormulas.WouldCrit(1.0), "crit roll rejects values outside [0, 1)");
 Require(Math.Abs(CombatFormulas.ApplyCrit(80) - 120.0) < 1e-9, "crit applies the base 1.5x multiplier");
 RequireThrows(() => CombatFormulas.ApplyCrit(80, 0.9), "crit multiplier cannot reduce damage");
+Require(CombatFormulas.WouldCritByCadence(19), "the twentieth landed hit crits on the 5 percent cadence");
+Require(!CombatFormulas.WouldCritByCadence(18) && !CombatFormulas.WouldCritByCadence(0), "earlier landed hits do not crit on the cadence");
+RequireThrows(() => CombatFormulas.WouldCritByCadence(-1), "crit cadence rejects a negative landed count");
 Require(Math.Abs(CombatFormulas.DamageAfterShield(30, 50) - 0.0) < 1e-9, "a shield fully absorbs smaller hits");
 Require(Math.Abs(CombatFormulas.DamageAfterShield(60, 50) - 10.0) < 1e-9, "damage past the shield reaches health");
 Require(Math.Abs(CombatFormulas.ShieldAfterDamage(50, 30) - 20.0) < 1e-9, "a shield is reduced by absorbed damage");
@@ -916,6 +919,18 @@ var assassinTwoProgress = new[]
         ClassCatalog.Assassin.NextTier(2))
 };
 Require(!SynergyModifiers.FromProgress(assassinTwoProgress).AssassinBacklineStrike, "two assassins do not unlock the backline strike");
+Require(!assassinThreeModifiers.AssassinCritChargesRedRunes, "three assassins do not unlock crit red-rune charging");
+var assassinSixProgress = new[]
+{
+    new SynergyProgress(
+        ClassCatalog.Assassin,
+        6,
+        ClassCatalog.Assassin.ActiveTiers(6),
+        ClassCatalog.Assassin.NextTier(6))
+};
+var assassinSixModifiers = SynergyModifiers.FromProgress(assassinSixProgress);
+Require(assassinSixModifiers.AssassinCritChargesRedRunes, "six assassins unlock crit red-rune charging");
+Require(assassinSixModifiers.AssassinBacklineStrike, "six assassins still keep the backline strike");
 
 var singleEmpireBoard = new List<BoardHero>
 {
@@ -1224,6 +1239,36 @@ var noDiveState = BattleState.Create(new[]
     MakeUnit("nodive_back", TacticalSide.Enemy, new TacticalPosition(0, 0), 100, 100, 0, 1.0, 100.0)
 }).Tick(0.5);
 Require(noDiveState.Units.First(unit => unit.UnitId == "nodive_front").CurrentHealth < 100.0, "without the synergy assassins still strike the nearest enemy");
+
+// Assassin 6 synergy: assassin crits hit for 1.5x and bank red-rune charge.
+var assassinCritBattle = BattleState.Create(
+    new[]
+    {
+        MakeUnit("crit_assassin", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 40, 1.0, 0.0, 100.0, 0.0, BattleAttackType.Ranged)
+            with { HeroClass = ClassCatalog.Assassin.Name, AttacksLanded = 19 },
+        MakeUnit("crit_target", TacticalSide.Enemy, new TacticalPosition(1, 0), 1000, 1000, 0, 1.0, 100.0)
+    },
+    playerSynergyModifiers: assassinSixModifiers);
+var afterCrit = assassinCritBattle.Tick(0.5);
+Require(Math.Abs(afterCrit.PlayerRedRuneCharge - SynergyModifiers.AssassinCritRedRuneCharge) < 1e-9, "Assassin 6 crit accrues red-rune charge for the player");
+var critTarget = afterCrit.Units.First(unit => unit.UnitId == "crit_target");
+Require(Math.Abs((1000.0 - critTarget.CurrentHealth) - CombatFormulas.ApplyCrit(40.0)) < 1e-9, "Assassin 6 crit deals 1.5x physical damage on the crit cadence");
+
+var afterRedSpend = afterCrit.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 10, rune: RuneType.Red));
+Require(Math.Abs(afterRedSpend.PlayerRedRuneCharge) < 1e-9, "Assassin 6 red-rune charge is consumed by the next red rune effect");
+var spentTarget = afterRedSpend.Units.First(unit => unit.UnitId == "crit_target");
+Require(Math.Abs((critTarget.CurrentHealth - spentTarget.CurrentHealth) - 18.0) < 1e-9, "Assassin 6 charge adds bonus power to the red rune effect");
+var afterBlueNoSpend = afterCrit.ApplyRuneEffect(Effect(RuneEffectKind.Mana, 0, rune: RuneType.Blue));
+Require(Math.Abs(afterBlueNoSpend.PlayerRedRuneCharge - SynergyModifiers.AssassinCritRedRuneCharge) < 1e-9, "non-red rune effects do not consume assassin red-rune charge");
+
+var noCritControl = BattleState.Create(new[]
+{
+    MakeUnit("nocrit_assassin", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 40, 1.0, 0.0, 100.0, 0.0, BattleAttackType.Ranged)
+        with { HeroClass = ClassCatalog.Assassin.Name, AttacksLanded = 19 },
+    MakeUnit("nocrit_target", TacticalSide.Enemy, new TacticalPosition(1, 0), 1000, 1000, 0, 1.0, 100.0)
+}).Tick(0.5);
+Require(Math.Abs(noCritControl.PlayerRedRuneCharge) < 1e-9, "assassin crits do not charge red runes without the Assassin 6 synergy");
+Require(Math.Abs((1000.0 - noCritControl.Units.First(unit => unit.UnitId == "nocrit_target").CurrentHealth) - 40.0) < 1e-9, "without the synergy assassin attacks deal base physical damage");
 
 var battleDefeat = BattleState.Create(new[]
 {

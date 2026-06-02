@@ -9,8 +9,9 @@ namespace RuneChess.Core
 /// Deterministic MVP autobattle. A <see cref="Tick"/> advances the fight by a time
 /// slice: units count down their attack cooldowns, pick the nearest enemy, move (melee)
 /// or attack (physical), gain mana from attacking and from damage taken, and auto-cast
-/// when full. Crit rolls are intentionally left out so the simulation is a pure function
-/// of its inputs; <see cref="CombatFormulas"/> already provides the crit math for later.
+/// when full. Crits use a deterministic cadence rather than random rolls so the simulation
+/// stays a pure function of its inputs; today only the Assassin 6 synergy taps that crit
+/// path (to bank red-rune charge), while <see cref="CombatFormulas"/> holds the shared math.
 /// </summary>
 public sealed record BattleState(
     IReadOnlyList<BattleUnit> Units,
@@ -19,7 +20,9 @@ public sealed record BattleState(
     BattleOutcome Outcome,
     double CommanderEnergy = 0.0,
     SynergyModifiers PlayerSynergyModifiers = default,
-    SynergyModifiers EnemySynergyModifiers = default
+    SynergyModifiers EnemySynergyModifiers = default,
+    double PlayerRedRuneCharge = 0.0,
+    double EnemyRedRuneCharge = 0.0
 )
 {
     public const double DefaultDurationSeconds = 60.0;
@@ -109,6 +112,9 @@ public sealed record BattleState(
             .ThenBy(index => units[index].Position.Column)
             .ToList();
 
+        var playerRedRuneChargeGain = 0.0;
+        var enemyRedRuneChargeGain = 0.0;
+
         foreach (var attackerIndex in order)
         {
             var attacker = units[attackerIndex];
@@ -149,7 +155,27 @@ public sealed record BattleState(
                 continue;
             }
 
+            // Assassin 6 synergy: assassin crits (on the deterministic crit cadence)
+            // hit harder and accrue red-rune charge for the attacker's side, which the
+            // next red rune match consumes as bonus physical power.
+            var isAssassinCrit = ModifiersForSide(attacker.Side).AssassinCritChargesRedRunes
+                && attacker.HeroClass.Equals(ClassCatalog.Assassin.Name, StringComparison.OrdinalIgnoreCase)
+                && CombatFormulas.WouldCritByCadence(attacker.AttacksLanded);
+
             var rawDamage = CombatFormulas.CalculatePhysicalDamage(attacker.EffectiveAttack, target.Armor);
+            if (isAssassinCrit)
+            {
+                rawDamage = CombatFormulas.ApplyCrit(rawDamage);
+                if (attacker.Side == TacticalSide.Player)
+                {
+                    playerRedRuneChargeGain += SynergyModifiers.AssassinCritRedRuneCharge;
+                }
+                else
+                {
+                    enemyRedRuneChargeGain += SynergyModifiers.AssassinCritRedRuneCharge;
+                }
+            }
+
             var absorbed = CombatFormulas.DamageAfterShield(rawDamage, target.Shield);
             var remainingShield = CombatFormulas.ShieldAfterDamage(target.Shield, rawDamage);
             var newHealth = Math.Max(0.0, target.CurrentHealth - absorbed);
@@ -181,7 +207,8 @@ public sealed record BattleState(
                     ? CombatFormulas.ApplyHealing(updatedAttacker.CurrentHealth, lifestealHealing, updatedAttacker.MaxHealth)
                     : updatedAttacker.CurrentHealth,
                 CurrentMana = Math.Min(updatedAttacker.ManaMax, updatedAttacker.CurrentMana + CombatFormulas.ManaFromAttack),
-                AttackCooldownRemaining = updatedAttacker.AttackInterval
+                AttackCooldownRemaining = updatedAttacker.AttackInterval,
+                AttacksLanded = updatedAttacker.AttacksLanded + 1
             };
             TryCastAbility(units, attackerIndex, ModifiersForSide(updatedAttacker.Side), ModifiersForSide(target.Side));
         }
@@ -194,7 +221,9 @@ public sealed record BattleState(
             ResolveOutcome(units, elapsed, DurationSeconds),
             CommanderEnergy,
             PlayerSynergyModifiers,
-            EnemySynergyModifiers);
+            EnemySynergyModifiers,
+            PlayerRedRuneCharge + playerRedRuneChargeGain,
+            EnemyRedRuneCharge + enemyRedRuneChargeGain);
     }
 
     /// <summary>
@@ -245,6 +274,18 @@ public sealed record BattleState(
         var enemySynergyModifiers = ModifiersForSide(enemySide);
         var combatEffect = ApplyAbyssalPurpleRuneBonus(effect, casterSynergyModifiers);
 
+        // Assassin 6 synergy: spend the red-rune charge built up by assassin crits as
+        // bonus power on the caster side's next red physical rune effect.
+        var availableRedCharge = casterSide == TacticalSide.Player ? PlayerRedRuneCharge : EnemyRedRuneCharge;
+        var consumedRedCharge = 0.0;
+        if (availableRedCharge > 0.0
+            && combatEffect.Rune == RuneType.Red
+            && combatEffect.Kind == RuneEffectKind.PhysicalDamage)
+        {
+            consumedRedCharge = availableRedCharge;
+            combatEffect = combatEffect with { Power = combatEffect.Power + availableRedCharge };
+        }
+
         switch (combatEffect.Kind)
         {
             case RuneEffectKind.PhysicalDamage:
@@ -282,7 +323,9 @@ public sealed record BattleState(
             outcome,
             CommanderEnergy + commanderGain,
             PlayerSynergyModifiers,
-            EnemySynergyModifiers);
+            EnemySynergyModifiers,
+            casterSide == TacticalSide.Player ? PlayerRedRuneCharge - consumedRedCharge : PlayerRedRuneCharge,
+            casterSide == TacticalSide.Enemy ? EnemyRedRuneCharge - consumedRedCharge : EnemyRedRuneCharge);
     }
 
     /// <summary>Grants blue-rune mana (matchedBlueRunes * 8) to a side's frontmost living unit.</summary>

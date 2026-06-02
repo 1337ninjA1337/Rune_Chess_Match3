@@ -22,6 +22,7 @@ namespace RuneChess.Core
         public const double MageBlueMatch4BonusMana = 16.0;
         public const double DefenderFrontlineHealthBonus = 0.15;
         public const double DefenderYellowRuneArmorBonus = 5.0;
+        public const double AssassinCritRedRuneCharge = 8.0;
 
         private readonly double armorMultiplier;
         private readonly double attackSpeedMultiplier;
@@ -38,6 +39,7 @@ namespace RuneChess.Core
         private readonly bool mageBlueMatch4BonusCharge;
         private readonly bool defenderYellowRuneArmorBoost;
         private readonly bool assassinBacklineStrike;
+        private readonly bool assassinCritChargesRedRunes;
 
         public SynergyModifiers(
             double armorMultiplier,
@@ -54,7 +56,8 @@ namespace RuneChess.Core
             bool spiritWhiteRuneIllusion = false,
             bool mageBlueMatch4BonusCharge = false,
             bool defenderYellowRuneArmorBoost = false,
-            bool assassinBacklineStrike = false)
+            bool assassinBacklineStrike = false,
+            bool assassinCritChargesRedRunes = false)
         {
             if (armorMultiplier <= 0.0)
             {
@@ -96,6 +99,7 @@ namespace RuneChess.Core
             this.mageBlueMatch4BonusCharge = mageBlueMatch4BonusCharge;
             this.defenderYellowRuneArmorBoost = defenderYellowRuneArmorBoost;
             this.assassinBacklineStrike = assassinBacklineStrike;
+            this.assassinCritChargesRedRunes = assassinCritChargesRedRunes;
         }
 
         public double ArmorMultiplier => armorMultiplier <= 0.0 ? 1.0 : armorMultiplier;
@@ -113,6 +117,7 @@ namespace RuneChess.Core
         public bool MageBlueMatch4BonusCharge => mageBlueMatch4BonusCharge;
         public bool DefenderYellowRuneArmorBoost => defenderYellowRuneArmorBoost;
         public bool AssassinBacklineStrike => assassinBacklineStrike;
+        public bool AssassinCritChargesRedRunes => assassinCritChargesRedRunes;
 
         public static SynergyModifiers None { get; } = new(1.0);
 
@@ -172,7 +177,8 @@ namespace RuneChess.Core
                 spiritWhiteRuneIllusion: HasActiveTier(progress, FactionCatalog.Spirit.Id, requiredCount: 4),
                 mageBlueMatch4BonusCharge: HasActiveTier(progress, ClassCatalog.Mage.Id, requiredCount: 5),
                 defenderYellowRuneArmorBoost: HasActiveTier(progress, ClassCatalog.Defender.Id, requiredCount: 4),
-                assassinBacklineStrike: HasActiveTier(progress, ClassCatalog.Assassin.Id, requiredCount: 3));
+                assassinBacklineStrike: HasActiveTier(progress, ClassCatalog.Assassin.Id, requiredCount: 3),
+                assassinCritChargesRedRunes: HasActiveTier(progress, ClassCatalog.Assassin.Id, requiredCount: 6));
         }
 
         public HeroStats ApplyToStats(HeroStats stats)
@@ -211,7 +217,8 @@ namespace RuneChess.Core
                 && SpiritWhiteRuneIllusion == other.SpiritWhiteRuneIllusion
                 && MageBlueMatch4BonusCharge == other.MageBlueMatch4BonusCharge
                 && DefenderYellowRuneArmorBoost == other.DefenderYellowRuneArmorBoost
-                && AssassinBacklineStrike == other.AssassinBacklineStrike;
+                && AssassinBacklineStrike == other.AssassinBacklineStrike
+                && AssassinCritChargesRedRunes == other.AssassinCritChargesRedRunes;
         }
 
         public override bool Equals(object? obj)
@@ -229,7 +236,7 @@ namespace RuneChess.Core
                 EmpireYellowRuneFrontlineShield,
                 WildChainReactionLifesteal,
                 AbyssalAbilityWeakness,
-                HashCode.Combine(AbyssalPurpleRuneBonusDamage, MechanistOpeningDrone, MechanistMatch4Turret, DodgeChance, SpiritWhiteRuneIllusion, MageBlueMatch4BonusCharge, DefenderYellowRuneArmorBoost, AssassinBacklineStrike));
+                HashCode.Combine(AbyssalPurpleRuneBonusDamage, MechanistOpeningDrone, MechanistMatch4Turret, DodgeChance, SpiritWhiteRuneIllusion, MageBlueMatch4BonusCharge, DefenderYellowRuneArmorBoost, HashCode.Combine(AssassinBacklineStrike, AssassinCritChargesRedRunes)));
         }
 
         private static bool HasActiveTier(

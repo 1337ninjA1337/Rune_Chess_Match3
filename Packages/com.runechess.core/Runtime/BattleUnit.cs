@@ -32,6 +32,7 @@ public sealed record BattleUnit(
     int SummonMillisecondsRemaining = 0,
     double DodgeChance = 0.0,
     int AttacksReceived = 0,
+    int AttacksLanded = 0,
     bool IsSummoned = false,
     string HeroClass = ""
 )

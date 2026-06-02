@@ -157,6 +157,33 @@ public static class CombatFormulas
         return roll < critChance;
     }
 
+    /// <summary>
+    /// Deterministic stand-in for a crit roll: a crit lands on a fixed cadence of every
+    /// round(1 / critChance) landed hits (20 hits at the 5% base chance). This keeps the
+    /// autobattle a pure function of its inputs while still producing periodic crits.
+    /// <paramref name="attacksLanded"/> is the number of hits landed before the current one.
+    /// </summary>
+    public static bool WouldCritByCadence(int attacksLanded, double critChance = BaseCritChance)
+    {
+        if (attacksLanded < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(attacksLanded), "Landed attack count cannot be negative.");
+        }
+
+        if (critChance < 0.0 || critChance > 1.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(critChance), "Crit chance must be in [0, 1].");
+        }
+
+        if (critChance <= 0.0)
+        {
+            return false;
+        }
+
+        var cadence = Math.Max(1, (int)Math.Round(1.0 / critChance, MidpointRounding.AwayFromZero));
+        return (attacksLanded + 1) % cadence == 0;
+    }
+
     /// <summary>finalDamage = damage * critDamageMultiplier when a hit crits.</summary>
     public static double ApplyCrit(double damage, double critMultiplier = BaseCritMultiplier)
     {
