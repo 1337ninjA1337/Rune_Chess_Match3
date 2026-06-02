@@ -443,6 +443,31 @@ namespace RuneChess.Core
                 ManaMax: 90)
         );
 
+        // GDD lists astral_regent's role as "legendary_caster"; the engine has no such
+        // HeroRole, so it maps to Caster with the legendary rarity carrying the prestige.
+        public static HeroDefinition AstralRegent { get; } = new(
+            Id: "astral_regent",
+            Name: "Астральный Регент",
+            Rarity: HeroRarity.Legendary,
+            Cost: 5,
+            Faction: "Духи",
+            Class: "Маг",
+            RuneAffinity: RuneType.White,
+            Role: HeroRole.Caster,
+            AttackType: "ranged",
+            Targeting: "highest_health_enemy",
+            Stars: 1,
+            Ability: "Останавливает время боя и усиливает все руны.",
+            Passive: "Астральное господство: матчи дают немного больше эффекта.",
+            BaseStats: new HeroStats(
+                BaseHealth: 700,
+                Attack: 70,
+                Armor: 4,
+                MagicResist: 7,
+                BaseAttackSpeed: 0.85,
+                ManaMax: 100)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -463,7 +488,8 @@ namespace RuneChess.Core
             PhaseAssassin,
             MagmaBrute,
             CurseWeaver,
-            ClockworkSaint
+            ClockworkSaint,
+            AstralRegent
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
