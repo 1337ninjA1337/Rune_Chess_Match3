@@ -4,7 +4,7 @@ var state = RunState.NewRun();
 Require(state.Round == 1, "new run starts at round 1");
 Require(state.Phase == RunPhase.Preparation, "new run starts in preparation");
 Require(state.RunHealth == 100, "new run starts with full run health");
-Require(state.Gold == 6, "new run starts with configured gold");
+Require(state.Gold == 5, "new run starts with configured gold");
 Require(state.Xp == 0, "new run starts with zero XP");
 Require(state.PlayerLevel == 1, "new run starts at player level 1");
 Require(state.Commander.Id == CommanderCatalog.Default.Id, "new run starts with the catalog default commander");
@@ -26,7 +26,7 @@ Require(CommanderCatalog.Get("warlord").StartingBonus.HeroId == "iron_guard", "w
 var warlordRun = RunState.NewRun("warlord");
 Require(warlordRun.Commander.Id == "warlord" && warlordRun.Bench.Single().HeroId == "iron_guard", "a new run can select the warlord commander before start");
 var alchemistRun = RunState.NewRun("alchemist");
-Require(alchemistRun.Commander.Id == "alchemist" && alchemistRun.Gold == 8, "a new run can select the alchemist commander before start");
+Require(alchemistRun.Commander.Id == "alchemist" && alchemistRun.Gold == 7, "a new run can select the alchemist commander before start");
 Require(CommanderCatalog.Get("warlord").Passive.Contains("+20%"), "warlord commander buffs the first defender's health");
 Require(CommanderCatalog.Get("alchemist").Passive.Contains("золото"), "alchemist commander rewards gold for chain reactions");
 var runeArchonState = runeArchon.CreateInitialState();
@@ -52,7 +52,7 @@ RequireThrows(() => new CommanderStartingBonus("Bad", CommanderStartingBonusKind
 RequireThrows(() => new CommanderStartingBonus("Bad", CommanderStartingBonusKind.BenchHero), "commander starting bonus rejects missing bench hero id");
 
 var afterBuy = state.BuyHero(0);
-Require(afterBuy.Gold == 5, "buying a common hero spends gold");
+Require(afterBuy.Gold == 4, "buying a common hero spends gold");
 Require(afterBuy.Bench.Count == 1, "bought hero goes to bench");
 Require(afterBuy.Shop.Offers.Count == 2, "bought shop offer is removed");
 Require(TacticalField.Mvp.Columns == 6, "MVP tactical field has six columns");
@@ -200,7 +200,7 @@ Require(HeroEconomy.CalculateSellValue(baseCost: 1, stars: 3) == 9, "three-star 
 RequireThrows(() => state.StartCombat(), "combat cannot start before placement");
 
 var afterXp = afterPlace.BuyXp();
-Require(afterXp.Gold == 1, "buying XP spends configured gold");
+Require(afterXp.Gold == 0, "buying XP spends configured gold");
 Require(afterXp.Xp == 4, "buying XP adds configured XP");
 
 var inCombat = afterXp.StartCombat(1337);
@@ -303,7 +303,7 @@ Require(!progressStore.HasSavedRun, "progress store clears saved run");
 var reward = afterRuneSwap.ClaimReward(2);
 Require(reward.Phase == RunPhase.Reward, "claiming reward exits combat into reward phase");
 Require(reward.Combat is null, "claiming reward clears combat state");
-Require(reward.Gold == 3, "claiming reward adds gold");
+Require(reward.Gold == 2, "claiming reward adds gold");
 var chainGoldReward = (inCombat with
 {
     Combat = combat with { EarnedChainFourGoldBonus = true }
