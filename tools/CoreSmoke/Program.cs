@@ -14,6 +14,11 @@ Require(state.Commander.Energy == 20, "the default commander starting bonus gran
 Require(state.Team.Count == 0, "new run starts with empty team");
 Require(state.Bench.Count == 0, "new run starts with empty bench");
 Require(state.Shop.Offers.Count == 3, "new run starts with a shop");
+Require(EconomyConfig.Default.GetShopSizeForLevel(1) == 3, "level 1 shop has three offers");
+Require(EconomyConfig.Default.GetShopSizeForLevel(2) == 3, "level 2 shop has three offers");
+Require(EconomyConfig.Default.GetShopSizeForLevel(3) == 4, "level 3 shop has four offers");
+Require(ShopState.ForPlayerLevel(3).Offers.Count == 4, "shop state can build a four-offer shop for level 3+");
+RequireThrows(() => EconomyConfig.Default.GetShopSizeForLevel(0), "shop size rejects player levels below one");
 Require(state.Artifacts.Count == 0, "new run starts without artifacts");
 
 // Commander model (GDD "Командиры").
@@ -57,6 +62,10 @@ var afterBuy = state.BuyHero(0);
 Require(afterBuy.Gold == 4, "buying a common hero spends gold");
 Require(afterBuy.Bench.Count == 1, "bought hero goes to bench");
 Require(afterBuy.Shop.Offers.Count == 2, "bought shop offer is removed");
+var levelThreeRun = state with { PlayerLevel = 3 };
+var levelThreeReroll = levelThreeRun.RerollShop(ShopState.ForPlayerLevel(3).Offers);
+Require(levelThreeReroll.Shop.Offers.Count == 4 && levelThreeReroll.Gold == 3, "level 3 reroll uses a four-offer shop");
+RequireThrows(() => levelThreeRun.RerollShop(ShopState.StartingShop.Offers), "level 3 reroll rejects three-offer shops");
 Require(TacticalField.Mvp.Columns == 6, "MVP tactical field has six columns");
 Require(TacticalField.Mvp.Rows == 4, "MVP tactical field has four rows");
 Require(TacticalField.Mvp.CellCount == 24, "MVP tactical field has 24 cells");
@@ -335,6 +344,8 @@ Require(nextRound.Round == 2, "advancing reward starts the next round");
 Require(nextRound.Phase == RunPhase.Preparation, "advancing reward returns to preparation");
 Require(nextRound.Shop.Offers.Count == 3, "next round refreshes the shop");
 Require(nextRound.NextEnemyId == "round_02_scouts", "next round updates the enemy preview");
+var levelThreeNextRound = (reward with { PlayerLevel = 3 }).AdvanceRound("round_02_scouts");
+Require(levelThreeNextRound.Shop.Offers.Count == 4, "level 3 next-round shop refresh uses four offers");
 Require(PveRunSchedule.Rounds.Count == 10, "MVP PvE schedule has 10 rounds");
 Require(PveRunSchedule.GetRound(1).EnemyId == state.NextEnemyId, "new run uses the first scheduled enemy");
 RequireThrows(() => PveRunSchedule.GetRound(11), "round 11 is outside the MVP schedule");

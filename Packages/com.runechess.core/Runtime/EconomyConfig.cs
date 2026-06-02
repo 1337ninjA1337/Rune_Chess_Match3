@@ -12,6 +12,16 @@ namespace RuneChess.Core
         int XpPerPurchase
     )
     {
+        public int GetShopSizeForLevel(int playerLevel)
+        {
+            if (playerLevel < 1)
+            {
+                throw new System.ArgumentOutOfRangeException(nameof(playerLevel), "Player level starts at one.");
+            }
+
+            return playerLevel <= 2 ? StartingShopSize : StartingShopSize + 1;
+        }
+
         public static EconomyConfig Default { get; } = new(
             StartingRunHealth: 20,
             StartingGold: 5,

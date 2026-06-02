@@ -68,7 +68,7 @@ namespace RuneChess.Core
                 Commander: selectedCommander,
                 Team: new List<BoardHero>(),
                 Bench: startingBench,
-                Shop: shop ?? ShopState.StartingShop,
+                Shop: shop ?? ShopState.ForPlayerLevel(config.StartingPlayerLevel, config),
                 Artifacts: new List<ArtifactState>(),
                 Phase: RunPhase.Preparation,
                 NextEnemyId: PveRunSchedule.GetRound(PveRunSchedule.FirstRound).EnemyId,
@@ -294,9 +294,9 @@ namespace RuneChess.Core
             EnsurePreparationPhase();
             var config = economy ?? EconomyConfig.Default;
 
-            if (nextOffers.Count != config.StartingShopSize)
+            if (nextOffers.Count != config.GetShopSizeForLevel(PlayerLevel))
             {
-                throw new ArgumentException("Reroll result must match the configured shop size.", nameof(nextOffers));
+                throw new ArgumentException("Reroll result must match the configured shop size for the player level.", nameof(nextOffers));
             }
 
             if (Gold < config.RerollCost)
@@ -498,7 +498,7 @@ namespace RuneChess.Core
             {
                 Round = Round + 1,
                 Phase = RunPhase.Preparation,
-                Shop = nextShop ?? ShopState.StartingShop,
+                Shop = nextShop ?? ShopState.ForPlayerLevel(PlayerLevel),
                 NextEnemyId = nextEnemyId,
                 Combat = null,
                 DefeatReason = null
