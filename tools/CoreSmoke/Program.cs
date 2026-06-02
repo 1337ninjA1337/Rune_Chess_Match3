@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 6, "hero catalog starts with the first six MVP heroes");
+Require(HeroCatalog.All.Count == 7, "hero catalog starts with the first seven MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -781,6 +781,14 @@ Require(catalogMistCutthroat.AttackType == "melee" && catalogMistCutthroat.Targe
 Require(catalogMistCutthroat.PreferredEffectKind == RuneEffectKind.MagicDamage, "a purple hero prefers magic-damage rune effects");
 Require(catalogMistCutthroat.AbilityForStars(1).Kind == HeroAbilityKind.PhysicalDamage, "assassin heroes get an active physical-damage ability");
 Require(Math.Abs(catalogMistCutthroat.BaseStats.Attack - 78.0) < 1e-9, "mist cutthroat has assassin attack stats");
+var catalogRuneApprentice = HeroCatalog.Get("rune_apprentice");
+Require(catalogRuneApprentice.Name == "Ученик Рун", "rune apprentice uses the GDD display name");
+Require(catalogRuneApprentice.Rarity == HeroRarity.Rare && catalogRuneApprentice.Cost == 2, "rune apprentice is a two-cost rare hero");
+Require(catalogRuneApprentice.Faction == "Империя" && catalogRuneApprentice.Class == "Маг", "rune apprentice belongs to the Empire Mage line");
+Require(catalogRuneApprentice.RuneAffinity == RuneType.Blue && catalogRuneApprentice.Role == HeroRole.Caster, "rune apprentice is a blue-rune caster");
+Require(catalogRuneApprentice.AttackType == "ranged" && catalogRuneApprentice.Targeting == "two_nearest_enemies", "rune apprentice strikes two enemies at range");
+Require(catalogRuneApprentice.PreferredEffectKind == RuneEffectKind.Mana, "a blue hero prefers mana rune effects");
+Require(catalogRuneApprentice.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(

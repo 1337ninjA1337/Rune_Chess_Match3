@@ -144,6 +144,29 @@ namespace RuneChess.Core
                 ManaMax: 55)
         );
 
+        public static HeroDefinition RuneApprentice { get; } = new(
+            Id: "rune_apprentice",
+            Name: "Ученик Рун",
+            Rarity: HeroRarity.Rare,
+            Cost: 2,
+            Faction: "Империя",
+            Class: "Маг",
+            RuneAffinity: RuneType.Blue,
+            Role: HeroRole.Caster,
+            AttackType: "ranged",
+            Targeting: "two_nearest_enemies",
+            Stars: 1,
+            Ability: "Бьет магическим снарядом по двум целям.",
+            Passive: "Рунная подпитка: синие руны дают чуть больше маны.",
+            BaseStats: new HeroStats(
+                BaseHealth: 500,
+                Attack: 50,
+                Armor: 2,
+                MagicResist: 4,
+                BaseAttackSpeed: 0.8,
+                ManaMax: 70)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -151,7 +174,8 @@ namespace RuneChess.Core
             FieldMedic,
             WildClaw,
             ThornShaman,
-            MistCutthroat
+            MistCutthroat,
+            RuneApprentice
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
