@@ -20,6 +20,8 @@ namespace RuneChess.Core
         int StreakBonusFiveWins,
         int InterestGoldStep,
         int InterestBonusCap,
+        int MinRunHealthDamage,
+        int MaxRunHealthDamage,
         IReadOnlyList<int> PlayerLevelXpThresholds,
         IReadOnlyList<int> PlayerLevelHeroLimits,
         IReadOnlyList<ShopRarityOdds> ShopRarityOddsByLevel
@@ -134,6 +136,22 @@ namespace RuneChess.Core
             return Math.Min(InterestBonusCap, currentGold / InterestGoldStep);
         }
 
+        public int CalculateRunHealthDamage(int roundNumber, int survivingEnemyStars)
+        {
+            if (roundNumber < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(roundNumber), "Round number starts at one.");
+            }
+
+            if (survivingEnemyStars < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(survivingEnemyStars), "Surviving enemy stars cannot be negative.");
+            }
+
+            var rawDamage = 2 + (roundNumber / 3) + survivingEnemyStars;
+            return Math.Clamp(rawDamage, MinRunHealthDamage, MaxRunHealthDamage);
+        }
+
         private static IReadOnlyList<int> ValidatePlayerLevelXpThresholds(IReadOnlyList<int> thresholds)
         {
             if (thresholds is null || thresholds.Count == 0)
@@ -219,6 +237,8 @@ namespace RuneChess.Core
             StreakBonusFiveWins: 2,
             InterestGoldStep: 10,
             InterestBonusCap: 3,
+            MinRunHealthDamage: 2,
+            MaxRunHealthDamage: 8,
             PlayerLevelXpThresholds: Array.AsReadOnly(new[] { 0, 4, 8, 12, 16 }),
             PlayerLevelHeroLimits: Array.AsReadOnly(new[] { 2, 3, 4, 5, 6 }),
             ShopRarityOddsByLevel: Array.AsReadOnly(new[]
