@@ -266,7 +266,9 @@ Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0
 Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0, eventBonus: -1) == 2, "event bonus can represent an event penalty");
 Require(EconomyConfig.Default.CalculateGoldIncome(wonCombat: false, winStreak: 0, currentGold: 0) == 3, "gold income works without optional bonuses");
 Require(EconomyConfig.Default.CalculateRunHealthDamage(roundNumber: 1, survivingEnemyStars: 0) == 2, "run health damage starts at two on round 1");
+Require(EconomyConfig.Default.CalculateRunHealthDamage(roundNumber: 2, survivingEnemyStars: 0) == 2, "run health damage floors round scaling below round 3");
 Require(EconomyConfig.Default.CalculateRunHealthDamage(roundNumber: 3, survivingEnemyStars: 2) == 5, "run health damage includes round scaling and surviving enemy stars");
+Require(EconomyConfig.Default.CalculateRunHealthDamage(roundNumber: 5, survivingEnemyStars: 0) == 3, "run health damage floors fractional round scaling");
 Require(EconomyConfig.Default.CalculateRunHealthDamage(roundNumber: 10, survivingEnemyStars: 20) == 8, "run health damage is clamped to its maximum");
 RequireThrows(() => EconomyConfig.Default.CalculateRunHealthDamage(roundNumber: 0, survivingEnemyStars: 0), "run health damage rejects invalid rounds");
 RequireThrows(() => EconomyConfig.Default.CalculateRunHealthDamage(roundNumber: 1, survivingEnemyStars: -1), "run health damage rejects negative surviving stars");
