@@ -213,6 +213,29 @@ namespace RuneChess.Core
                 ManaMax: 65)
         );
 
+        public static HeroDefinition AbyssAcolyte { get; } = new(
+            Id: "abyss_acolyte",
+            Name: "Послушник Бездны",
+            Rarity: HeroRarity.Rare,
+            Cost: 2,
+            Faction: "Бездонные",
+            Class: "Маг",
+            RuneAffinity: RuneType.Purple,
+            Role: HeroRole.Caster,
+            AttackType: "ranged",
+            Targeting: "highest_health_enemy",
+            Stars: 1,
+            Ability: "Накладывает слабость и наносит магический урон.",
+            Passive: "Шепот бездны: цели под дебаффом получают больше урона.",
+            BaseStats: new HeroStats(
+                BaseHealth: 500,
+                Attack: 54,
+                Armor: 2,
+                MagicResist: 5,
+                BaseAttackSpeed: 0.8,
+                ManaMax: 70)
+        );
+
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
             IronGuard,
@@ -223,7 +246,8 @@ namespace RuneChess.Core
             MistCutthroat,
             RuneApprentice,
             GearSquire,
-            SparkTinker
+            SparkTinker,
+            AbyssAcolyte
         });
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(

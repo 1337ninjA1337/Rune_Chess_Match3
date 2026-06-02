@@ -729,7 +729,7 @@ Require(HeroRarities.TryParseId("EPIC", out var parsedEpic) && parsedEpic == Her
 Require(!HeroRarities.TryParseId("mythic", out _), "rarity parsing rejects unknown ids");
 RequireThrows(() => HeroRarities.ParseId("mythic"), "rarity parsing throws for unknown ids");
 
-Require(HeroCatalog.All.Count == 9, "hero catalog starts with the first nine MVP heroes");
+Require(HeroCatalog.All.Count == 10, "hero catalog starts with the first ten MVP heroes");
 var catalogIronGuard = HeroCatalog.Get("iron_guard");
 Require(HeroCatalog.TryGet("IRON_GUARD", out var parsedIronGuard) && parsedIronGuard.Id == "iron_guard", "hero catalog lookup is case-insensitive");
 Require(catalogIronGuard.Name == "Железный Страж", "iron guard uses the GDD display name");
@@ -804,6 +804,13 @@ Require(catalogSparkTinker.Faction == "Механисты" && catalogSparkTinker
 Require(catalogSparkTinker.RuneAffinity == RuneType.Blue && catalogSparkTinker.Role == HeroRole.Caster, "spark tinker is a blue-rune caster");
 Require(catalogSparkTinker.AttackType == "ranged" && catalogSparkTinker.Targeting == "nearest", "spark tinker uses ranged nearest targeting");
 Require(catalogSparkTinker.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
+var catalogAbyssAcolyte = HeroCatalog.Get("abyss_acolyte");
+Require(catalogAbyssAcolyte.Name == "Послушник Бездны", "abyss acolyte uses the GDD display name");
+Require(catalogAbyssAcolyte.Rarity == HeroRarity.Rare && catalogAbyssAcolyte.Cost == 2, "abyss acolyte is a two-cost rare hero");
+Require(catalogAbyssAcolyte.Faction == "Бездонные" && catalogAbyssAcolyte.Class == "Маг", "abyss acolyte belongs to the Abyss Mage line");
+Require(catalogAbyssAcolyte.RuneAffinity == RuneType.Purple && catalogAbyssAcolyte.Role == HeroRole.Caster, "abyss acolyte is a purple-rune caster");
+Require(catalogAbyssAcolyte.PreferredEffectKind == RuneEffectKind.MagicDamage, "a purple caster prefers magic-damage rune effects");
+Require(catalogAbyssAcolyte.AbilityForStars(1).Kind == HeroAbilityKind.MagicDamage, "caster heroes get an active magic-damage ability");
 RequireThrows(() => HeroCatalog.Get("missing_hero"), "hero catalog rejects unknown ids");
 
 var ironGuardDefinition = new HeroDefinition(
