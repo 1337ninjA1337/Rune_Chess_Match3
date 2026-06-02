@@ -31,7 +31,8 @@ public sealed record BattleUnit(
     int WeaknessMillisecondsRemaining = 0,
     int SummonMillisecondsRemaining = 0,
     double DodgeChance = 0.0,
-    int AttacksReceived = 0
+    int AttacksReceived = 0,
+    bool IsSummoned = false
 )
 {
     public bool IsAlive => CurrentHealth > 0.0;

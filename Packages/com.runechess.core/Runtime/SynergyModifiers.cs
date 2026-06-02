@@ -28,6 +28,7 @@ namespace RuneChess.Core
         private readonly bool mechanistOpeningDrone;
         private readonly bool mechanistMatch4Turret;
         private readonly double dodgeChance;
+        private readonly bool spiritWhiteRuneIllusion;
 
         public SynergyModifiers(
             double armorMultiplier,
@@ -38,7 +39,8 @@ namespace RuneChess.Core
             bool abyssalPurpleRuneBonusDamage = false,
             bool mechanistOpeningDrone = false,
             bool mechanistMatch4Turret = false,
-            double dodgeChance = 0.0)
+            double dodgeChance = 0.0,
+            bool spiritWhiteRuneIllusion = false)
         {
             if (armorMultiplier <= 0.0)
             {
@@ -64,6 +66,7 @@ namespace RuneChess.Core
             this.mechanistOpeningDrone = mechanistOpeningDrone;
             this.mechanistMatch4Turret = mechanistMatch4Turret;
             this.dodgeChance = dodgeChance;
+            this.spiritWhiteRuneIllusion = spiritWhiteRuneIllusion;
         }
 
         public double ArmorMultiplier => armorMultiplier <= 0.0 ? 1.0 : armorMultiplier;
@@ -75,6 +78,7 @@ namespace RuneChess.Core
         public bool MechanistOpeningDrone => mechanistOpeningDrone;
         public bool MechanistMatch4Turret => mechanistMatch4Turret;
         public double DodgeChance => dodgeChance;
+        public bool SpiritWhiteRuneIllusion => spiritWhiteRuneIllusion;
 
         public static SynergyModifiers None { get; } = new(1.0);
 
@@ -116,7 +120,8 @@ namespace RuneChess.Core
                 abyssalPurpleRuneBonusDamage: HasActiveTier(progress, FactionCatalog.Abyssal.Id, requiredCount: 4),
                 mechanistOpeningDrone: HasActiveTier(progress, FactionCatalog.Mechanist.Id, requiredCount: 2),
                 mechanistMatch4Turret: HasActiveTier(progress, FactionCatalog.Mechanist.Id, requiredCount: 4),
-                dodgeChance: HasActiveTier(progress, FactionCatalog.Spirit.Id, requiredCount: 2) ? SpiritDodgeChanceBonus : 0.0);
+                dodgeChance: HasActiveTier(progress, FactionCatalog.Spirit.Id, requiredCount: 2) ? SpiritDodgeChanceBonus : 0.0,
+                spiritWhiteRuneIllusion: HasActiveTier(progress, FactionCatalog.Spirit.Id, requiredCount: 4));
         }
 
         public HeroStats ApplyToStats(HeroStats stats)
@@ -143,7 +148,8 @@ namespace RuneChess.Core
                 && AbyssalPurpleRuneBonusDamage == other.AbyssalPurpleRuneBonusDamage
                 && MechanistOpeningDrone == other.MechanistOpeningDrone
                 && MechanistMatch4Turret == other.MechanistMatch4Turret
-                && Math.Abs(DodgeChance - other.DodgeChance) < 1e-9;
+                && Math.Abs(DodgeChance - other.DodgeChance) < 1e-9
+                && SpiritWhiteRuneIllusion == other.SpiritWhiteRuneIllusion;
         }
 
         public override bool Equals(object? obj)
@@ -161,7 +167,7 @@ namespace RuneChess.Core
                 AbyssalAbilityWeakness,
                 AbyssalPurpleRuneBonusDamage,
                 MechanistOpeningDrone,
-                HashCode.Combine(MechanistMatch4Turret, DodgeChance));
+                HashCode.Combine(MechanistMatch4Turret, DodgeChance, SpiritWhiteRuneIllusion));
         }
 
         private static bool HasActiveTier(

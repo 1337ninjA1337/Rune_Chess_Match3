@@ -30,6 +30,8 @@ public sealed record BattleState(
     public const double MechanistTurretAttack = 14.0;
     public const double MechanistTurretAttacksPerSecond = 0.8;
     public const int MechanistTurretDurationMilliseconds = 6000;
+    public const double SpiritIllusionStatMultiplier = 0.35;
+    public const int SpiritIllusionDurationMilliseconds = 5000;
 
     public IEnumerable<BattleUnit> AliveUnits => Units.Where(unit => unit.IsAlive);
     public IEnumerable<BattleUnit> AliveAllies => AliveUnits.Where(unit => unit.Side == TacticalSide.Player);
@@ -269,6 +271,7 @@ public sealed record BattleState(
 
         ApplyWildChainLifesteal(units, casterSide, combatEffect, casterSynergyModifiers);
         ApplyMechanistMatch4Turret(units, casterSide, combatEffect, casterSynergyModifiers);
+        ApplySpiritWhiteRuneIllusion(units, casterSide, combatEffect, casterSynergyModifiers);
 
         var outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds);
         return new BattleState(
@@ -463,7 +466,8 @@ public sealed record BattleState(
             AttackType: BattleAttackType.Ranged,
             AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
             AbilitiesCast: 0,
-            DodgeChance: synergyModifiers.DodgeChance));
+            DodgeChance: synergyModifiers.DodgeChance,
+            IsSummoned: true));
     }
 
     private static void ApplyMechanistMatch4Turret(
@@ -501,7 +505,69 @@ public sealed record BattleState(
             AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
             AbilitiesCast: 0,
             SummonMillisecondsRemaining: MechanistTurretDurationMilliseconds,
-            DodgeChance: synergyModifiers.DodgeChance));
+            DodgeChance: synergyModifiers.DodgeChance,
+            IsSummoned: true));
+    }
+
+    private static void ApplySpiritWhiteRuneIllusion(
+        List<BattleUnit> units,
+        TacticalSide side,
+        RuneEffect effect,
+        SynergyModifiers synergyModifiers)
+    {
+        if (!synergyModifiers.SpiritWhiteRuneIllusion
+            || effect.Rune != RuneType.White
+            || effect.Kind != RuneEffectKind.CommanderEnergy)
+        {
+            return;
+        }
+
+        var position = SelectBacklineSpawnPosition(units, side);
+        if (position is null)
+        {
+            return;
+        }
+
+        var candidates = units
+            .Where(unit => unit.IsAlive && unit.Side == side && !unit.IsSummoned)
+            .OrderBy(unit => unit.UnitId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (candidates.Count == 0)
+        {
+            return;
+        }
+
+        var sourceIndex = ((effect.MatchedRunesCount * 31) + effect.ChainNumber) % candidates.Count;
+        var source = candidates[sourceIndex];
+        units.Add(CreateSpiritIllusion(units, source, position.Value));
+    }
+
+    private static BattleUnit CreateSpiritIllusion(
+        List<BattleUnit> units,
+        BattleUnit source,
+        TacticalPosition position)
+    {
+        var attacksPerSecond = CombatFormulas.CalculateAttacksPerSecond(source.AttacksPerSecond);
+        var maxHealth = Math.Max(1.0, source.MaxHealth * SpiritIllusionStatMultiplier);
+        return new BattleUnit(
+            UnitId: CreateSideUnitId(units, source.Side, "spirit_illusion"),
+            Side: source.Side,
+            Position: position,
+            MaxHealth: maxHealth,
+            CurrentHealth: maxHealth,
+            Attack: Math.Max(1.0, source.Attack * SpiritIllusionStatMultiplier),
+            Armor: source.Armor * SpiritIllusionStatMultiplier,
+            MagicResist: source.MagicResist * SpiritIllusionStatMultiplier,
+            AttacksPerSecond: attacksPerSecond,
+            CurrentMana: 0.0,
+            ManaMax: 0.0,
+            Shield: 0.0,
+            AttackType: source.AttackType,
+            AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
+            AbilitiesCast: 0,
+            SummonMillisecondsRemaining: SpiritIllusionDurationMilliseconds,
+            DodgeChance: source.DodgeChance,
+            IsSummoned: true);
     }
 
     private static void ApplySpiritDodgeChance(
@@ -555,10 +621,15 @@ public sealed record BattleState(
 
     private static string CreateMechanistDroneUnitId(List<BattleUnit> units, TacticalSide side)
     {
-        return CreateMechanistUnitId(units, side, "mechanist_drone");
+        return CreateSideUnitId(units, side, "mechanist_drone");
     }
 
     private static string CreateMechanistUnitId(List<BattleUnit> units, TacticalSide side, string unitKind)
+    {
+        return CreateSideUnitId(units, side, unitKind);
+    }
+
+    private static string CreateSideUnitId(List<BattleUnit> units, TacticalSide side, string unitKind)
     {
         var prefix = side == TacticalSide.Player ? $"{unitKind}_player" : $"{unitKind}_enemy";
         if (units.All(unit => !unit.UnitId.Equals(prefix, StringComparison.OrdinalIgnoreCase)))

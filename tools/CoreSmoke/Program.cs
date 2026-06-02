@@ -974,6 +974,16 @@ var spiritDodgeBoard = new List<BoardHero>
 var spiritDodgeModifiers = SynergyModifiers.ForTeam(spiritDodgeBoard);
 Require(Math.Abs(spiritDodgeModifiers.DodgeChance - SynergyModifiers.SpiritDodgeChanceBonus) < 1e-9, "two Spirit heroes unlock ally dodge chance");
 
+var spiritFourBoard = new List<BoardHero>
+{
+    new(new HeroInstance("spirit4_mc", "mist_cutthroat", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("spirit4_sd", "spirit_duelist", 1), new TacticalPosition(3, 0)),
+    new(new HeroInstance("spirit4_pa", "phase_assassin", 1), new TacticalPosition(2, 1)),
+    new(new HeroInstance("spirit4_ar", "astral_regent", 1), new TacticalPosition(3, 1))
+};
+var spiritFourModifiers = SynergyModifiers.ForTeam(spiritFourBoard);
+Require(spiritFourModifiers.SpiritWhiteRuneIllusion, "four Spirit heroes unlock white-rune illusions");
+
 var ironGuardDefinition = new HeroDefinition(
     Id: "iron_guard",
     Name: "Iron Guard",
@@ -1125,6 +1135,31 @@ var spiritDodgeBattle = BattleState.Create(new[]
 });
 var spiritDodgedAlly = spiritDodgeBattle.Tick(0.5).Units.First(unit => unit.UnitId == "spirit_dodge_ally");
 Require(Math.Abs(spiritDodgedAlly.CurrentHealth - 100.0) < 1e-9 && spiritDodgedAlly.AttacksReceived == 10, "Spirit 2 deterministic dodge avoids the cadence attack");
+
+var noIllusionFromBlue = spiritBattleWithModifiers.ApplyRuneEffect(
+    Effect(RuneEffectKind.Mana, 0, rune: RuneType.Blue),
+    synergyModifiers: spiritFourModifiers);
+Require(!noIllusionFromBlue.Units.Any(unit => unit.UnitId.StartsWith("spirit_illusion_player", StringComparison.Ordinal)), "Spirit 4 does not create illusions from non-white runes");
+
+var spiritIllusionBattle = BattleState.Create(new[]
+{
+    MakeUnit("illusion_source_a", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 20, 1.0, 100.0, attackType: BattleAttackType.Ranged)
+        with { DodgeChance = SynergyModifiers.SpiritDodgeChanceBonus },
+    MakeUnit("illusion_source_b", TacticalSide.Player, new TacticalPosition(2, 1), 120, 120, 30, 1.0, 100.0),
+    MakeUnit("illusion_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+var spiritIllusionSpawned = spiritIllusionBattle.ApplyRuneEffect(
+    Effect(RuneEffectKind.CommanderEnergy, 5, rune: RuneType.White),
+    synergyModifiers: spiritFourModifiers);
+var spiritIllusion = spiritIllusionSpawned.Units.Single(unit => unit.UnitId == "spirit_illusion_player");
+Require(spiritIllusion.IsSummoned && spiritIllusion.HasTimedSummon && spiritIllusion.Position.IsBackline, "Spirit 4 white rune creates a temporary backline illusion");
+Require(Math.Abs(spiritIllusion.MaxHealth - (100.0 * BattleState.SpiritIllusionStatMultiplier)) < 1e-9, "Spirit 4 illusion copies a deterministic source with reduced health");
+Require(Math.Abs(spiritIllusion.Attack - (20.0 * BattleState.SpiritIllusionStatMultiplier)) < 1e-9 && spiritIllusion.IsRanged, "Spirit 4 illusion copies source attack profile at reduced strength");
+Require(Math.Abs(spiritIllusion.DodgeChance - SynergyModifiers.SpiritDodgeChanceBonus) < 1e-9, "Spirit 4 illusion inherits source dodge chance");
+var expiredIllusion = spiritIllusionSpawned
+    .Tick((BattleState.SpiritIllusionDurationMilliseconds / 1000.0) + 0.1)
+    .Units.First(unit => unit.UnitId == "spirit_illusion_player");
+Require(!expiredIllusion.IsAlive && expiredIllusion.SummonMillisecondsRemaining == 0, "Spirit 4 illusion expires after its temporary duration");
 
 var battleDefeat = BattleState.Create(new[]
 {
