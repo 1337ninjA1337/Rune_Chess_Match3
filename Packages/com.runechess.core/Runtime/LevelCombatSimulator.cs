@@ -6,40 +6,47 @@ namespace RuneChess.Core
 {
     /// <summary>
     /// Resolves a deterministic autobattle for the level-complete summary so the
-    /// presentation layer never owns combat rules. The MVP enemy is a mirror of the
-    /// player's own placed team (same heroes/stars, reflected onto the enemy side),
-    /// which keeps the fight readable and deterministic without inventing PvE balance
-    /// data. Replace the mirror with the GDD PvE roster once enemy compositions are
-    /// data-driven (see tasks/.tasks.md).
+    /// presentation layer never owns combat rules. The enemy is the data-driven PvE
+    /// roster authored on the round (<see cref="PveRoundDefinition.Roster"/>), built
+    /// from the GDD "Первые 10 раундов" compositions, rather than a mirror of the
+    /// player's own team. This keeps each round's threat readable and authored as
+    /// data while staying deterministic.
     /// </summary>
     public static class LevelCombatSimulator
     {
         public const double DefaultTickSeconds = 0.1;
 
         /// <summary>
-        /// Build the enemy mirror of the player's team: each placed ally is copied to the
-        /// reflected row on the enemy half of the MVP field, keeping its column.
+        /// Build the enemy battle units for a round from its data-driven roster. Each
+        /// roster entry resolves a hero definition at its authored star level and is
+        /// placed on the enemy half of the MVP field.
         /// </summary>
-        public static IReadOnlyList<BattleUnit> BuildMirrorEnemies(IReadOnlyList<BoardHero> team)
+        public static IReadOnlyList<BattleUnit> BuildRoundEnemies(PveRoundDefinition round)
         {
-            if (team is null)
+            if (round is null)
             {
-                throw new ArgumentNullException(nameof(team));
+                throw new ArgumentNullException(nameof(round));
             }
 
-            var enemies = new List<BattleUnit>(team.Count);
+            var roster = round.Roster;
+            var enemies = new List<BattleUnit>(roster.Count);
             var index = 0;
-            foreach (var boardHero in team)
+            foreach (var enemy in roster)
             {
-                var mirroredRow = TacticalField.MvpRows - 1 - boardHero.Position.Row;
-                var mirroredPosition = new TacticalPosition(mirroredRow, boardHero.Position.Column);
-                var definition = HeroCatalog.Get(boardHero.Hero.HeroId);
+                if (!TacticalField.Mvp.IsEnemySide(enemy.Position))
+                {
+                    throw new ArgumentException(
+                        $"PvE enemy '{enemy.HeroId}' for round {round.Round} must be placed on the enemy half of the field.",
+                        nameof(round));
+                }
+
+                var definition = HeroCatalog.Get(enemy.HeroId);
                 enemies.Add(BattleUnit.FromHero(
                     definition,
-                    boardHero.Hero.Stars,
-                    $"enemy_mirror_{index}_{boardHero.Hero.InstanceId}",
+                    enemy.Stars,
+                    $"enemy_r{round.Round}_{index}_{enemy.HeroId}",
                     TacticalSide.Enemy,
-                    mirroredPosition));
+                    enemy.Position));
                 index += 1;
             }
 
@@ -47,19 +54,26 @@ namespace RuneChess.Core
         }
 
         /// <summary>
-        /// Run the player's team against the mirror enemy to a resolved outcome (or the
-        /// timer) and return the final <see cref="BattleState"/> with its accumulated
-        /// player-centric combat totals. Returns <c>null</c> when there is nothing to
-        /// fight (empty team), so callers can show a neutral summary.
+        /// Run the player's team against the round's data-driven enemy roster to a
+        /// resolved outcome (or the timer) and return the final <see cref="BattleState"/>
+        /// with its accumulated player-centric combat totals. Returns <c>null</c> when
+        /// there is nothing to fight (empty team, or a round with no authored enemy
+        /// roster such as an event/shop round), so callers can show a neutral summary.
         /// </summary>
-        public static BattleState? ResolveMirrorMatch(
+        public static BattleState? ResolveRoundMatch(
             IReadOnlyList<BoardHero> team,
+            PveRoundDefinition round,
             double durationSeconds = BattleState.DefaultDurationSeconds,
             double tickSeconds = DefaultTickSeconds)
         {
             if (team is null)
             {
                 throw new ArgumentNullException(nameof(team));
+            }
+
+            if (round is null)
+            {
+                throw new ArgumentNullException(nameof(round));
             }
 
             if (tickSeconds <= 0.0)
@@ -72,10 +86,16 @@ namespace RuneChess.Core
                 return null;
             }
 
+            var enemies = BuildRoundEnemies(round);
+            if (enemies.Count == 0)
+            {
+                return null;
+            }
+
             var allies = team
                 .Select(boardHero => BattleUnit.FromBoardHero(boardHero, TacticalSide.Player))
                 .ToList();
-            var units = allies.Concat(BuildMirrorEnemies(team)).ToList();
+            var units = allies.Concat(enemies).ToList();
 
             var battle = BattleState.Create(units, durationSeconds);
 

@@ -1909,25 +1909,51 @@ Require(hudWithUnits.KeyUnits.Count == 2 && hudWithUnits.KeyUnits[0].IsPlayer, "
 Require(Math.Abs(hudWithUnits.KeyUnits[1].HealthBar - 1.0) < 1e-9 && Math.Abs(hudWithUnits.KeyUnits[1].ManaBar - 0.0) < 1e-9, "combat HUD clamps key-unit health/mana bars to 0..1");
 RequireThrows(() => CombatHudModel.Build(null!), "combat HUD rejects a null combat state");
 
-// Level-complete summary: the player-centric combat totals on BattleState, the mirror
-// autobattle, and the LevelCompleteModel formatting that feeds the results screen.
+// Level-complete summary: the player-centric combat totals on BattleState, the
+// data-driven round autobattle, and the LevelCompleteModel formatting that feeds
+// the results screen.
 var levelCompleteTeam = new List<BoardHero>
 {
     new(new HeroInstance("lc_front", "iron_guard", 2), new TacticalPosition(2, 1)),
     new(new HeroInstance("lc_back", "iron_guard", 1), new TacticalPosition(3, 1))
 };
-var mirrorEnemies = LevelCombatSimulator.BuildMirrorEnemies(levelCompleteTeam);
-Require(mirrorEnemies.Count == levelCompleteTeam.Count, "mirror enemy roster matches the team size");
-Require(mirrorEnemies.All(unit => unit.Side == TacticalSide.Enemy && unit.Position.IsEnemySide), "mirror enemies sit on the enemy half");
-Require(mirrorEnemies[0].Position.Row == TacticalField.MvpRows - 1 - levelCompleteTeam[0].Position.Row, "mirror enemy reflects the ally row");
 
-var resolvedBattle = LevelCombatSimulator.ResolveMirrorMatch(levelCompleteTeam);
-Require(resolvedBattle is not null, "a non-empty team produces a resolvable battle");
+// Every combat round in the schedule carries a data-driven enemy roster; non-combat
+// rounds (event, enhanced shop) intentionally have none.
+foreach (var scheduledRound in PveRunSchedule.Rounds)
+{
+    Require(scheduledRound.HasEnemyRoster == scheduledRound.HasCombat,
+        "combat rounds define a data-driven enemy roster and non-combat rounds do not");
+    foreach (var enemy in scheduledRound.Roster)
+    {
+        Require(enemy.Position.IsEnemySide, "every PvE roster unit stands on the enemy half of the field");
+        Require(HeroCatalog.TryGet(enemy.HeroId, out _), "every PvE roster unit references a known hero id");
+        Require(enemy.Stars >= 1, "every PvE roster unit has at least one star");
+    }
+}
+
+var combatRound = PveRunSchedule.GetRound(2);
+var roundEnemies = LevelCombatSimulator.BuildRoundEnemies(combatRound);
+Require(roundEnemies.Count == combatRound.Roster.Count, "round enemy units match the authored roster size");
+Require(roundEnemies.All(unit => unit.Side == TacticalSide.Enemy && unit.Position.IsEnemySide), "round enemies sit on the enemy half");
+Require(roundEnemies[0].Position == combatRound.Roster[0].Position, "round enemies keep the authored roster positions");
+RequireThrows(() => LevelCombatSimulator.BuildRoundEnemies(null!), "building round enemies rejects a null round");
+var offBoardRound = combatRound with
+{
+    EnemyRoster = new List<PveEnemyUnit> { new("iron_guard", 1, new TacticalPosition(3, 0)) }
+};
+RequireThrows(() => LevelCombatSimulator.BuildRoundEnemies(offBoardRound), "round enemies must be authored on the enemy half");
+
+var resolvedBattle = LevelCombatSimulator.ResolveRoundMatch(levelCompleteTeam, combatRound);
+Require(resolvedBattle is not null, "a non-empty team versus a roster round produces a resolvable battle");
 var resolved = resolvedBattle!;
 Require(resolved.PlayerDamageDealt > 0.0, "the resolved battle accumulates player damage dealt");
 Require(resolved.PlayerHealingDone >= 0.0 && resolved.PlayerShieldGranted >= 0.0, "player healing/shield totals are non-negative");
-Require(LevelCombatSimulator.ResolveMirrorMatch(new List<BoardHero>()) is null, "an empty team yields no battle to resolve");
-RequireThrows(() => LevelCombatSimulator.ResolveMirrorMatch(null!), "the mirror simulator rejects a null team");
+Require(LevelCombatSimulator.ResolveRoundMatch(new List<BoardHero>(), combatRound) is null, "an empty team yields no battle to resolve");
+var eventRound = PveRunSchedule.GetRound(4);
+Require(LevelCombatSimulator.ResolveRoundMatch(levelCompleteTeam, eventRound) is null, "a round without an enemy roster yields no battle to resolve");
+RequireThrows(() => LevelCombatSimulator.ResolveRoundMatch(null!, combatRound), "the round simulator rejects a null team");
+RequireThrows(() => LevelCombatSimulator.ResolveRoundMatch(levelCompleteTeam, null!), "the round simulator rejects a null round");
 
 var freshBattleStats = BattleState.Create(new[]
 {

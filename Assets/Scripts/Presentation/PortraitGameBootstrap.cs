@@ -1039,18 +1039,18 @@ namespace RuneChess.Presentation
 
         /// <summary>
         /// Resolve the per-level statistics for the completion screen. Combat totals come
-        /// from a deterministic core autobattle of the player's placed team (mirror enemy
-        /// for the MVP); match-3 moves and gold come from the live run state.
+        /// from a deterministic core autobattle of the player's placed team against the
+        /// round's data-driven PvE roster; match-3 moves and gold come from the live run state.
         /// </summary>
         private LevelCompleteModel BuildLevelCompleteModel(PveRoundDefinition round)
         {
             // The round is cleared by reaching this screen (ResolveRoundReward claims it);
             // a depleted run is the only defeat state. The combat magnitudes come from the
-            // deterministic mirror autobattle so damage/healing/shields are real numbers.
+            // deterministic round autobattle so damage/healing/shields are real numbers.
             var outcome = runState.Phase == RunPhase.Defeat
                 ? BattleOutcome.PlayerDefeat
                 : BattleOutcome.PlayerVictory;
-            var battle = LevelCombatSimulator.ResolveMirrorMatch(runState.Team);
+            var battle = LevelCombatSimulator.ResolveRoundMatch(runState.Team, round);
             if (battle is null)
             {
                 return LevelCompleteModel.Build(
