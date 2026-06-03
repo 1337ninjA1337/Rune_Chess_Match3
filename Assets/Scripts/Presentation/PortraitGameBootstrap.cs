@@ -954,7 +954,7 @@ namespace RuneChess.Presentation
         private void AddBattlePanel(Transform parent)
         {
             var panel = CreatePanel("Battle Panel", parent, GameColors.PanelDeep);
-            AddLayoutElement(panel, 218);
+            AddLayoutElement(panel, 272);
             AddOutline(panel, GameColors.Border);
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
@@ -965,9 +965,80 @@ namespace RuneChess.Presentation
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            AddPanelHeader(panel.transform, "TACTICAL FIELD", "6x4 AUTO BATTLE");
+            var combat = runState.Combat ?? CombatState.Start(runeSeed);
+            var hud = CombatHudModel.Build(combat, BuildKeyHudUnits());
+
+            AddPanelHeader(panel.transform, "TACTICAL FIELD", $"SPEED {hud.SpeedLabel}");
+            AddBattleTimerRow(panel.transform, hud);
             AddTacticalGrid(panel.transform);
-            AddBattleTelemetry(panel.transform);
+            AddBattleKeyUnitsRow(panel.transform, hud);
+        }
+
+        private void AddBattleTimerRow(Transform parent, CombatHudModel hud)
+        {
+            var row = CreatePanel("Battle Timer Row", parent, Color.clear);
+            AddLayoutElement(row, 24);
+
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 6;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+
+            CreateStatusPill(row.transform, "TIME", hud.TimerLabel, GameColors.Health);
+            CreateStatusPill(row.transform, "MATCHES", hud.Match3MovesUsed.ToString(), GameColors.Mana);
+            CreateStatusPill(row.transform, "POWER", $"x{hud.LastMatchPower}", GameColors.Commander);
+        }
+
+        private void AddBattleKeyUnitsRow(Transform parent, CombatHudModel hud)
+        {
+            var row = CreatePanel("Battle Key Units", parent, Color.clear);
+            AddLayoutElement(row, 42);
+
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 5;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+
+            foreach (var unit in hud.KeyUnits)
+            {
+                CreateKeyUnitCard(row.transform, unit);
+            }
+        }
+
+        private void CreateKeyUnitCard(Transform parent, CombatHudUnit unit)
+        {
+            var card = CreatePanel($"Key {unit.Name}", parent, unit.IsPlayer ? GameColors.AllyCellOccupied : GameColors.EnemyCellOccupied);
+            AddOutline(card, unit.IsPlayer ? GameColors.Heal : GameColors.Health);
+            CreateOverlayText(unit.Name, card.transform, 10, GameColors.Text, TextAnchor.MiddleCenter);
+            AddOverlayBar(card.transform, "HP", GameColors.Health, (float)unit.HealthBar, 0.06f, 0.18f);
+            AddOverlayBar(card.transform, "MP", GameColors.Mana, (float)unit.ManaBar, 0.82f, 0.94f);
+        }
+
+        private List<CombatHudUnit> BuildKeyHudUnits()
+        {
+            var allies = new List<CombatHudUnit>();
+            var enemies = new List<CombatHudUnit>();
+            foreach (var unit in Units)
+            {
+                var hudUnit = new CombatHudUnit(unit.ShortName, unit.IsPlayer, unit.Health, unit.Mana);
+                if (unit.IsPlayer)
+                {
+                    if (allies.Count < 2)
+                    {
+                        allies.Add(hudUnit);
+                    }
+                }
+                else if (enemies.Count < 2)
+                {
+                    enemies.Add(hudUnit);
+                }
+            }
+
+            var keyUnits = new List<CombatHudUnit>(allies);
+            keyUnits.AddRange(enemies);
+            return keyUnits;
         }
 
         private void AddTacticalGrid(Transform parent)
@@ -999,21 +1070,6 @@ namespace RuneChess.Presentation
                     }
                 }
             }
-        }
-
-        private void AddBattleTelemetry(Transform parent)
-        {
-            var row = CreatePanel("Battle Telemetry", parent, Color.clear);
-            AddLayoutElement(row, 24);
-
-            var layout = row.AddComponent<HorizontalLayoutGroup>();
-            layout.spacing = 6;
-            layout.childControlWidth = true;
-            layout.childForceExpandWidth = true;
-
-            CreateStatusPill(row.transform, "ALLY", "3 UNITS", GameColors.AllyCellOccupied);
-            CreateStatusPill(row.transform, "CHAIN", "x2 READY", GameColors.Commander);
-            CreateStatusPill(row.transform, "ENEMY", "3 UNITS", GameColors.EnemyCellOccupied);
         }
 
         private void AddRunePanel(Transform parent)

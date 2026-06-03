@@ -1889,6 +1889,26 @@ Require(fullPlacement.HighlightedTargetCount == 0, "no targets highlight once th
 RequireThrows(() => idlePlacement.CellAt(new TacticalPosition(-1, 0)), "placement model rejects off-board cell queries");
 RequireThrows(() => TacticalPlacementModel.Build(null!), "placement model rejects a null run");
 
+// Combat HUD view-model (battle timer, speed indicator, key-unit bars).
+var hudCombat = CombatState.Start(1337, 60).AdvanceTimer(15);
+var combatHud = CombatHudModel.Build(hudCombat);
+Require(combatHud.RemainingSeconds == 45 && combatHud.TimerLabel == "0:45", "combat HUD shows the remaining battle time as m:ss");
+Require(Math.Abs(combatHud.TimerFraction - 0.75) < 1e-9, "combat HUD timer fraction tracks remaining/total duration");
+Require(!combatHud.IsSlowed && combatHud.CombatSpeedPercent == 100 && combatHud.SpeedLabel == "NORMAL", "combat HUD reports normal speed when not slowed");
+Require(combatHud.KeyUnits.Count == 0, "combat HUD defaults to no key units when none are supplied");
+Require(CombatHudModel.FormatTimer(75) == "1:15" && CombatHudModel.FormatTimer(5) == "0:05", "combat HUD formats minutes and zero-padded seconds");
+Require(CombatHudModel.FormatTimer(-10) == "0:00", "combat HUD clamps negative durations to zero");
+var expiredHud = CombatHudModel.Build(CombatState.Start(7, 30).AdvanceTimer(30));
+Require(expiredHud.IsTimerExpired && expiredHud.TimerFraction == 0.0 && expiredHud.TimerLabel == "0:00", "combat HUD reports an expired timer at zero");
+var hudWithUnits = CombatHudModel.Build(hudCombat, new List<CombatHudUnit>
+{
+    new CombatHudUnit("Sentinel", true, 0.8, 0.4),
+    new CombatHudUnit("Vanguard", false, 1.2, -0.1)
+});
+Require(hudWithUnits.KeyUnits.Count == 2 && hudWithUnits.KeyUnits[0].IsPlayer, "combat HUD carries the supplied key units in order");
+Require(Math.Abs(hudWithUnits.KeyUnits[1].HealthBar - 1.0) < 1e-9 && Math.Abs(hudWithUnits.KeyUnits[1].ManaBar - 0.0) < 1e-9, "combat HUD clamps key-unit health/mana bars to 0..1");
+RequireThrows(() => CombatHudModel.Build(null!), "combat HUD rejects a null combat state");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
