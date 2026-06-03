@@ -866,10 +866,10 @@ namespace RuneChess.Presentation
 
         private void AddRunSummaryPanel(Transform parent)
         {
-            var isVictory = runState.Phase == RunPhase.Victory || (runState.IsFinalRound && runState.Phase != RunPhase.Defeat);
+            var summary = RunSummaryModel.Build(runState);
             var panel = CreatePanel("Run Summary Panel", parent, GameColors.PanelDeep);
-            AddLayoutElement(panel, 430);
-            AddOutline(panel, GameColors.WithAlpha(isVictory ? GameColors.Gold : GameColors.Health, 0.72f));
+            AddLayoutElement(panel, 560);
+            AddOutline(panel, GameColors.WithAlpha(summary.IsVictory ? GameColors.Gold : GameColors.Health, 0.72f));
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
             stack.padding = new RectOffset(10, 10, 10, 10);
@@ -879,9 +879,9 @@ namespace RuneChess.Presentation
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            AddPanelHeader(panel.transform, "ИТОГ ЗАБЕГА", isVictory ? "RUN CLEARED" : "RUN ENDED");
-            CreateText(isVictory ? "ЗАБЕГ ПРОЙДЕН" : "ЗАБЕГ ОКОНЧЕН", panel.transform, 22, isVictory ? GameColors.Heal : GameColors.Health, TextAnchor.MiddleCenter);
-            CreateText($"Пройдено раундов: {runState.Round} / {PveRunSchedule.FinalRound}", panel.transform, 13, GameColors.Text, TextAnchor.MiddleCenter);
+            AddPanelHeader(panel.transform, "ИТОГ ЗАБЕГА", summary.IsVictory ? "RUN CLEARED" : "RUN ENDED");
+            CreateText(summary.ResultLabel, panel.transform, 22, summary.IsVictory ? GameColors.Heal : GameColors.Health, TextAnchor.MiddleCenter);
+            CreateText($"Пройдено раундов: {summary.ProgressLabel}", panel.transform, 13, GameColors.Text, TextAnchor.MiddleCenter);
 
             var stats = CreatePanel("Run Summary Stats", panel.transform, Color.clear);
             AddLayoutElement(stats, 40);
@@ -891,10 +891,44 @@ namespace RuneChess.Presentation
             statsLayout.childControlWidth = true;
             statsLayout.childForceExpandWidth = true;
 
-            CreateStatusPill(stats.transform, "HP RUN", runState.RunHealth.ToString(), GameColors.Health);
-            CreateStatusPill(stats.transform, "GOLD", runState.Gold.ToString(), GameColors.Gold);
-            CreateStatusPill(stats.transform, "LEVEL", runState.PlayerLevel.ToString(), GameColors.Mana);
-            CreateStatusPill(stats.transform, "TEAM", runState.Team.Count.ToString(), GameColors.Commander);
+            CreateStatusPill(stats.transform, "HP RUN", summary.RunHealth.ToString(), GameColors.Health);
+            CreateStatusPill(stats.transform, "GOLD", summary.Gold.ToString(), GameColors.Gold);
+            CreateStatusPill(stats.transform, "LEVEL", summary.PlayerLevel.ToString(), GameColors.Mana);
+            CreateStatusPill(stats.transform, "TEAM", summary.Team.Count.ToString(), GameColors.Commander);
+
+            if (summary.BestHero is { } best)
+            {
+                var bestPanel = CreatePanel("Best Hero", panel.transform, GameColors.WithAlpha(GameColors.Gold, 0.16f));
+                AddOutline(bestPanel, GameColors.WithAlpha(GameColors.Gold, 0.5f));
+                AddLayoutElement(bestPanel, 46);
+                var bestStack = bestPanel.AddComponent<VerticalLayoutGroup>();
+                bestStack.padding = new RectOffset(8, 8, 4, 4);
+                bestStack.childAlignment = TextAnchor.MiddleCenter;
+                bestStack.childForceExpandHeight = false;
+                CreateText($"ЛУЧШИЙ ГЕРОЙ: {best.Name} {new string('*', Mathf.Clamp(best.Stars, 0, 3))}", bestPanel.transform, 14, GameColors.Gold, TextAnchor.MiddleCenter);
+                CreateText($"{best.Faction} / {best.Class} / {best.Cost}g", bestPanel.transform, 10, GameColors.Muted, TextAnchor.MiddleCenter);
+            }
+
+            CreateText("СОСТАВ КОМАНДЫ", panel.transform, 12, GameColors.Text, TextAnchor.MiddleCenter);
+            if (summary.Team.Count == 0)
+            {
+                CreateText("Команда пуста", panel.transform, 11, GameColors.Muted, TextAnchor.MiddleCenter);
+            }
+            else
+            {
+                foreach (var hero in summary.Team)
+                {
+                    var row = CreatePanel($"Team {hero.HeroId}", panel.transform, GameColors.PanelRaised);
+                    AddLayoutElement(row, 30);
+                    var rowLayout = row.AddComponent<HorizontalLayoutGroup>();
+                    rowLayout.padding = new RectOffset(8, 8, 2, 2);
+                    rowLayout.childAlignment = TextAnchor.MiddleLeft;
+                    rowLayout.childControlWidth = true;
+                    rowLayout.childForceExpandWidth = true;
+                    CreateText($"{hero.Name} {new string('*', Mathf.Clamp(hero.Stars, 0, 3))}", row.transform, 12, GameColors.Text, TextAnchor.MiddleLeft);
+                    CreateText($"{hero.Class}", row.transform, 10, GameColors.Muted, TextAnchor.MiddleRight);
+                }
+            }
         }
 
         private void SetNavigationForScreen(AppScreen screen)

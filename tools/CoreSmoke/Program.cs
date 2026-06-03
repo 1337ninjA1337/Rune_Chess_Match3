@@ -1949,6 +1949,33 @@ Require(clampedSummary.DamageDealt == 10 && clampedSummary.HealingDone == 4 && c
 RequireThrows(() => LevelCompleteModel.Build(null!, CombatState.Start(1), 0), "level-complete rejects a null battle");
 RequireThrows(() => LevelCompleteModel.Build(resolved, null!, 0), "level-complete rejects a null combat state");
 
+// End-of-run summary: roster aggregation, best-hero ranking and victory/progress counts.
+var summaryRun = RunState.NewRun() with
+{
+    Gold = 18,
+    PlayerLevel = 5,
+    Team = new List<BoardHero>
+    {
+        new(new HeroInstance("sum_back", "oath_archer", 1), new TacticalPosition(3, 0)),
+        new(new HeroInstance("sum_front", "iron_guard", 2), new TacticalPosition(2, 0))
+    }
+};
+var midRunSummary = RunSummaryModel.Build(summaryRun);
+Require(midRunSummary.Team.Count == 2, "run summary lists the full team roster");
+Require(!midRunSummary.IsVictory && midRunSummary.RoundsCleared == 0, "an unfinished round-one run has cleared no rounds");
+Require(midRunSummary.BestHero is not null && midRunSummary.BestHero!.HeroId == "iron_guard", "run summary picks the higher-star hero as best");
+Require(midRunSummary.Gold == 18 && midRunSummary.PlayerLevel == 5, "run summary carries the accumulated rewards");
+Require(midRunSummary.ProgressLabel == $"0 / {PveRunSchedule.FinalRound}", "run summary formats round progress");
+
+var victorySummary = RunSummaryModel.Build(finalReward);
+Require(victorySummary.IsVictory, "a final-round reward run reports victory");
+Require(victorySummary.RoundsCleared == PveRunSchedule.FinalRound, "a victorious run clears every round");
+Require(victorySummary.ResultLabel == "ЗАБЕГ ПРОЙДЕН", "run summary labels a cleared run");
+
+var emptyTeamSummary = RunSummaryModel.Build(RunState.NewRun());
+Require(emptyTeamSummary.Team.Count == 0 && emptyTeamSummary.BestHero is null, "an empty team yields no best hero");
+RequireThrows(() => RunSummaryModel.Build(null!), "run summary rejects a null run");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
