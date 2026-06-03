@@ -791,18 +791,110 @@ namespace RuneChess.Presentation
                 return;
             }
 
+            ResolveRoundReward();
             SetNavigationForScreen(AppScreen.LevelComplete);
             ClearChildren(contentRoot);
             AddHeader(contentRoot);
             AddRewardSummaryPanel(contentRoot);
+
+            var atRunEnd = runState.IsFinalRound || runState.Phase == RunPhase.Victory || runState.Phase == RunPhase.Defeat;
             AddScreenNavigationRow(
                 contentRoot,
                 "К уровням",
                 "MAP",
                 ShowLevelSelectScreen,
-                "Дальше",
-                "NEXT",
-                ShowPreparationScreen);
+                atRunEnd ? "Итог забега" : "Следующий",
+                atRunEnd ? "SUMMARY" : "NEXT",
+                AdvanceToNextLevel);
+        }
+
+        /// <summary>
+        /// Drive the run state machine into the reward phase when the level-complete screen
+        /// opens, so the round gold is claimed once and the run can advance. Guarded so
+        /// re-entering the screen never double-claims or throws.
+        /// </summary>
+        private void ResolveRoundReward()
+        {
+            if (runState.Phase == RunPhase.Preparation && runState.Team.Count > 0)
+            {
+                runState = runState.StartCombat().ClaimReward();
+            }
+        }
+
+        /// <summary>
+        /// Advance from the level-complete screen to the next round's preparation without
+        /// leaving the run or reloading the scene. On the final round (or a resolved run)
+        /// it routes to the run summary instead.
+        /// </summary>
+        private void AdvanceToNextLevel()
+        {
+            if (runState.IsFinalRound || runState.Phase == RunPhase.Victory || runState.Phase == RunPhase.Defeat)
+            {
+                ShowRunSummaryScreen();
+                return;
+            }
+
+            if (runState.Phase == RunPhase.Reward)
+            {
+                runState = runState.AdvanceRound();
+            }
+
+            var card = LevelSelectModel.Build(runState)[runState.Round - 1];
+            StartLevelTransitionToPreparation(card);
+        }
+
+        private void ShowRunSummaryScreen()
+        {
+            if (contentRoot == null)
+            {
+                return;
+            }
+
+            SetNavigationForScreen(AppScreen.RunSummary);
+            ClearChildren(contentRoot);
+            AddHeader(contentRoot);
+            AddRunSummaryPanel(contentRoot);
+            AddScreenNavigationRow(
+                contentRoot,
+                "В меню",
+                "MENU",
+                ShowMainMenu,
+                "К уровням",
+                "MAP",
+                ShowLevelSelectScreen);
+        }
+
+        private void AddRunSummaryPanel(Transform parent)
+        {
+            var isVictory = runState.Phase == RunPhase.Victory || (runState.IsFinalRound && runState.Phase != RunPhase.Defeat);
+            var panel = CreatePanel("Run Summary Panel", parent, GameColors.PanelDeep);
+            AddLayoutElement(panel, 430);
+            AddOutline(panel, GameColors.WithAlpha(isVictory ? GameColors.Gold : GameColors.Health, 0.72f));
+
+            var stack = panel.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(10, 10, 10, 10);
+            stack.spacing = 8;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            AddPanelHeader(panel.transform, "ИТОГ ЗАБЕГА", isVictory ? "RUN CLEARED" : "RUN ENDED");
+            CreateText(isVictory ? "ЗАБЕГ ПРОЙДЕН" : "ЗАБЕГ ОКОНЧЕН", panel.transform, 22, isVictory ? GameColors.Heal : GameColors.Health, TextAnchor.MiddleCenter);
+            CreateText($"Пройдено раундов: {runState.Round} / {PveRunSchedule.FinalRound}", panel.transform, 13, GameColors.Text, TextAnchor.MiddleCenter);
+
+            var stats = CreatePanel("Run Summary Stats", panel.transform, Color.clear);
+            AddLayoutElement(stats, 40);
+            var statsLayout = stats.AddComponent<HorizontalLayoutGroup>();
+            statsLayout.spacing = 6;
+            statsLayout.childAlignment = TextAnchor.MiddleCenter;
+            statsLayout.childControlWidth = true;
+            statsLayout.childForceExpandWidth = true;
+
+            CreateStatusPill(stats.transform, "HP RUN", runState.RunHealth.ToString(), GameColors.Health);
+            CreateStatusPill(stats.transform, "GOLD", runState.Gold.ToString(), GameColors.Gold);
+            CreateStatusPill(stats.transform, "LEVEL", runState.PlayerLevel.ToString(), GameColors.Mana);
+            CreateStatusPill(stats.transform, "TEAM", runState.Team.Count.ToString(), GameColors.Commander);
         }
 
         private void SetNavigationForScreen(AppScreen screen)
@@ -918,11 +1010,17 @@ namespace RuneChess.Presentation
         /// </summary>
         private LevelCompleteModel BuildLevelCompleteModel(PveRoundDefinition round)
         {
+            // The round is cleared by reaching this screen (ResolveRoundReward claims it);
+            // a depleted run is the only defeat state. The combat magnitudes come from the
+            // deterministic mirror autobattle so damage/healing/shields are real numbers.
+            var outcome = runState.Phase == RunPhase.Defeat
+                ? BattleOutcome.PlayerDefeat
+                : BattleOutcome.PlayerVictory;
             var battle = LevelCombatSimulator.ResolveMirrorMatch(runState.Team);
             if (battle is null)
             {
                 return LevelCompleteModel.Build(
-                    outcome: BattleOutcome.PlayerVictory,
+                    outcome: outcome,
                     durationSeconds: runState.Combat?.ElapsedSeconds ?? 0,
                     match3MovesUsed: runeMovesUsed,
                     damageDealt: 0.0,
@@ -932,8 +1030,8 @@ namespace RuneChess.Presentation
             }
 
             return LevelCompleteModel.Build(
-                outcome: battle.Outcome,
-                durationSeconds: (int)System.Math.Round(battle.ElapsedSeconds, System.MidpointRounding.AwayFromZero),
+                outcome: outcome,
+                durationSeconds: (int)Math.Round(battle.ElapsedSeconds, MidpointRounding.AwayFromZero),
                 match3MovesUsed: runeMovesUsed,
                 damageDealt: battle.PlayerDamageDealt,
                 healingDone: battle.PlayerHealingDone,
