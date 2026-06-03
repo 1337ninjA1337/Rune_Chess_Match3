@@ -1909,6 +1909,46 @@ Require(hudWithUnits.KeyUnits.Count == 2 && hudWithUnits.KeyUnits[0].IsPlayer, "
 Require(Math.Abs(hudWithUnits.KeyUnits[1].HealthBar - 1.0) < 1e-9 && Math.Abs(hudWithUnits.KeyUnits[1].ManaBar - 0.0) < 1e-9, "combat HUD clamps key-unit health/mana bars to 0..1");
 RequireThrows(() => CombatHudModel.Build(null!), "combat HUD rejects a null combat state");
 
+// Level-complete summary: the player-centric combat totals on BattleState, the mirror
+// autobattle, and the LevelCompleteModel formatting that feeds the results screen.
+var levelCompleteTeam = new List<BoardHero>
+{
+    new(new HeroInstance("lc_front", "iron_guard", 2), new TacticalPosition(2, 1)),
+    new(new HeroInstance("lc_back", "iron_guard", 1), new TacticalPosition(3, 1))
+};
+var mirrorEnemies = LevelCombatSimulator.BuildMirrorEnemies(levelCompleteTeam);
+Require(mirrorEnemies.Count == levelCompleteTeam.Count, "mirror enemy roster matches the team size");
+Require(mirrorEnemies.All(unit => unit.Side == TacticalSide.Enemy && unit.Position.IsEnemySide), "mirror enemies sit on the enemy half");
+Require(mirrorEnemies[0].Position.Row == TacticalField.MvpRows - 1 - levelCompleteTeam[0].Position.Row, "mirror enemy reflects the ally row");
+
+var resolvedBattle = LevelCombatSimulator.ResolveMirrorMatch(levelCompleteTeam);
+Require(resolvedBattle is not null, "a non-empty team produces a resolvable battle");
+var resolved = resolvedBattle!;
+Require(resolved.PlayerDamageDealt > 0.0, "the resolved battle accumulates player damage dealt");
+Require(resolved.PlayerHealingDone >= 0.0 && resolved.PlayerShieldGranted >= 0.0, "player healing/shield totals are non-negative");
+Require(LevelCombatSimulator.ResolveMirrorMatch(new List<BoardHero>()) is null, "an empty team yields no battle to resolve");
+RequireThrows(() => LevelCombatSimulator.ResolveMirrorMatch(null!), "the mirror simulator rejects a null team");
+
+var freshBattleStats = BattleState.Create(new[]
+{
+    BattleUnit.FromHero(HeroCatalog.Get("iron_guard"), 1, "stat_ally", TacticalSide.Player, new TacticalPosition(2, 0)),
+    BattleUnit.FromHero(HeroCatalog.Get("iron_guard"), 1, "stat_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0))
+});
+Require(freshBattleStats.PlayerDamageDealt == 0.0 && freshBattleStats.PlayerHealingDone == 0.0 && freshBattleStats.PlayerShieldGranted == 0.0, "a fresh battle starts with zero accumulated combat totals");
+
+var levelComplete = LevelCompleteModel.Build(resolved, CombatState.Start(7), 12);
+Require(levelComplete.GoldEarned == 12, "level-complete model carries the gold reward");
+Require(levelComplete.DamageDealt > 0, "level-complete model reports rounded damage dealt");
+Require(levelComplete.IsVictory == (resolved.Outcome == BattleOutcome.PlayerVictory), "level-complete victory flag matches the battle outcome");
+Require(levelComplete.StatRow().Length == 6, "level-complete stat row exposes all six stats");
+Require(LevelCompleteModel.FormatDuration(75) == "1:15", "level-complete duration formats as m:ss");
+Require(LevelCompleteModel.DescribeOutcome(BattleOutcome.PlayerVictory) == "ПОБЕДА", "level-complete describes a victory outcome");
+var clampedSummary = LevelCompleteModel.Build(BattleOutcome.PlayerDefeat, -3, -2, 9.6, 4.4, 2.5, -1);
+Require(clampedSummary.DurationSeconds == 0 && clampedSummary.Match3MovesUsed == 0 && clampedSummary.GoldEarned == 0, "level-complete clamps negative inputs to zero");
+Require(clampedSummary.DamageDealt == 10 && clampedSummary.HealingDone == 4 && clampedSummary.ShieldGranted == 3, "level-complete rounds combat totals away from zero");
+RequireThrows(() => LevelCompleteModel.Build(null!, CombatState.Start(1), 0), "level-complete rejects a null battle");
+RequireThrows(() => LevelCompleteModel.Build(resolved, null!, 0), "level-complete rejects a null combat state");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)

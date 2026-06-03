@@ -22,7 +22,10 @@ public sealed record BattleState(
     SynergyModifiers PlayerSynergyModifiers = default,
     SynergyModifiers EnemySynergyModifiers = default,
     double PlayerRedRuneCharge = 0.0,
-    double EnemyRedRuneCharge = 0.0
+    double EnemyRedRuneCharge = 0.0,
+    double PlayerDamageDealt = 0.0,
+    double PlayerHealingDone = 0.0,
+    double PlayerShieldGranted = 0.0
 )
 {
     public const double DefaultDurationSeconds = 60.0;
@@ -83,6 +86,59 @@ public sealed record BattleState(
     public double TotalHealthPercent(TacticalSide side)
     {
         return Units.Where(unit => unit.Side == side).Sum(unit => unit.HealthPercent);
+    }
+
+    /// <summary>
+    /// Player-centric combat totals accumulated over the battle for the level-complete
+    /// summary screen: damage the player dealt to enemies, healing restored on the player
+    /// side, and shield granted to the player side. Healing/shield are summed from the
+    /// per-unit positive deltas of each step, so they are a faithful MVP approximation
+    /// even when an ally is also taking damage in the same step.
+    /// </summary>
+    private static (double damage, double healing, double shield) DiffPlayerCombatStats(
+        IReadOnlyList<BattleUnit> before,
+        IReadOnlyList<BattleUnit> after)
+    {
+        var beforeById = new Dictionary<string, BattleUnit>(before.Count);
+        foreach (var unit in before)
+        {
+            beforeById[unit.UnitId] = unit;
+        }
+
+        double damage = 0.0;
+        double healing = 0.0;
+        double shield = 0.0;
+        foreach (var unit in after)
+        {
+            if (!beforeById.TryGetValue(unit.UnitId, out var prior))
+            {
+                continue;
+            }
+
+            if (unit.Side == TacticalSide.Enemy)
+            {
+                var priorPool = prior.CurrentHealth + prior.Shield;
+                var nowPool = unit.CurrentHealth + unit.Shield;
+                if (priorPool > nowPool)
+                {
+                    damage += priorPool - nowPool;
+                }
+            }
+            else
+            {
+                if (unit.CurrentHealth > prior.CurrentHealth)
+                {
+                    healing += unit.CurrentHealth - prior.CurrentHealth;
+                }
+
+                if (unit.Shield > prior.Shield)
+                {
+                    shield += unit.Shield - prior.Shield;
+                }
+            }
+        }
+
+        return (damage, healing, shield);
     }
 
     public BattleState Tick(double deltaSeconds)
@@ -219,6 +275,7 @@ public sealed record BattleState(
         }
 
         var elapsed = Math.Min(DurationSeconds, ElapsedSeconds + deltaSeconds);
+        var (tickDamage, tickHealing, tickShield) = DiffPlayerCombatStats(Units, units);
         return new BattleState(
             units,
             elapsed,
@@ -228,7 +285,10 @@ public sealed record BattleState(
             PlayerSynergyModifiers,
             EnemySynergyModifiers,
             PlayerRedRuneCharge + playerRedRuneChargeGain,
-            EnemyRedRuneCharge + enemyRedRuneChargeGain);
+            EnemyRedRuneCharge + enemyRedRuneChargeGain,
+            PlayerDamageDealt + tickDamage,
+            PlayerHealingDone + tickHealing,
+            PlayerShieldGranted + tickShield);
     }
 
     /// <summary>
@@ -321,6 +381,7 @@ public sealed record BattleState(
         ApplyMageBlueMatch4BonusCharge(units, casterSide, combatEffect, casterSynergyModifiers, enemySynergyModifiers);
 
         var outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds);
+        var (effectDamage, effectHealing, effectShield) = DiffPlayerCombatStats(Units, units);
         return new BattleState(
             units,
             ElapsedSeconds,
@@ -330,7 +391,10 @@ public sealed record BattleState(
             PlayerSynergyModifiers,
             EnemySynergyModifiers,
             casterSide == TacticalSide.Player ? PlayerRedRuneCharge - consumedRedCharge : PlayerRedRuneCharge,
-            casterSide == TacticalSide.Enemy ? EnemyRedRuneCharge - consumedRedCharge : EnemyRedRuneCharge);
+            casterSide == TacticalSide.Enemy ? EnemyRedRuneCharge - consumedRedCharge : EnemyRedRuneCharge,
+            PlayerDamageDealt + effectDamage,
+            PlayerHealingDone + effectHealing,
+            PlayerShieldGranted + effectShield);
     }
 
     /// <summary>Grants blue-rune mana (matchedBlueRunes * 8) to a side's frontmost living unit.</summary>

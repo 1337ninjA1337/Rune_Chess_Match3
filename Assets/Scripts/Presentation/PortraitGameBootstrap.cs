@@ -876,7 +876,7 @@ namespace RuneChess.Presentation
         {
             var round = runState.CurrentRoundDefinition;
             var panel = CreatePanel("Level Complete Panel", parent, GameColors.PanelDeep);
-            AddLayoutElement(panel, 354);
+            AddLayoutElement(panel, 430);
             AddOutline(panel, GameColors.WithAlpha(GameColors.Gold, 0.72f));
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
@@ -887,22 +887,14 @@ namespace RuneChess.Presentation
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            AddPanelHeader(panel.transform, "НАГРАДА УРОВНЯ", $"ROUND {round.Round} COMPLETE");
-            CreateText(round.EnemyName, panel.transform, 20, GameColors.Text, TextAnchor.MiddleCenter);
+            var summary = BuildLevelCompleteModel(round);
+
+            AddPanelHeader(panel.transform, "ЗАВЕРШЕНИЕ УРОВНЯ", $"ROUND {round.Round} COMPLETE");
+            CreateText(summary.ResultLabel, panel.transform, 22, summary.IsVictory ? GameColors.Heal : GameColors.Health, TextAnchor.MiddleCenter);
+            CreateText(round.EnemyName, panel.transform, 16, GameColors.Text, TextAnchor.MiddleCenter);
             CreateText(round.DesignGoal, panel.transform, 11, GameColors.Muted, TextAnchor.MiddleCenter);
 
-            var stats = CreatePanel("Reward Stats", panel.transform, Color.clear);
-            AddLayoutElement(stats, 52);
-
-            var statsLayout = stats.AddComponent<HorizontalLayoutGroup>();
-            statsLayout.spacing = 6;
-            statsLayout.childAlignment = TextAnchor.MiddleCenter;
-            statsLayout.childControlWidth = true;
-            statsLayout.childForceExpandWidth = true;
-
-            CreateStatusPill(stats.transform, "MATCHES", runeMovesUsed.ToString(), GameColors.Mana);
-            CreateStatusPill(stats.transform, "POWER", runeScore.ToString(), GameColors.Commander);
-            CreateStatusPill(stats.transform, "GOLD", round.BaseGoldReward.ToString(), GameColors.Gold);
+            AddLevelCompleteStatGrid(panel.transform, summary);
 
             var reward = new LevelCard(
                 round.Round,
@@ -917,6 +909,68 @@ namespace RuneChess.Presentation
 
             CreateText(reward.RewardSummary, panel.transform, 13, GameColors.Gold, TextAnchor.MiddleCenter);
             CreateText($"FLOW: {navigationState.Previous?.ToString().ToUpperInvariant() ?? "COMBAT"} > {navigationState.Current.ToString().ToUpperInvariant()}", panel.transform, 9, GameColors.Muted, TextAnchor.MiddleCenter);
+        }
+
+        /// <summary>
+        /// Resolve the per-level statistics for the completion screen. Combat totals come
+        /// from a deterministic core autobattle of the player's placed team (mirror enemy
+        /// for the MVP); match-3 moves and gold come from the live run state.
+        /// </summary>
+        private LevelCompleteModel BuildLevelCompleteModel(PveRoundDefinition round)
+        {
+            var battle = LevelCombatSimulator.ResolveMirrorMatch(runState.Team);
+            if (battle is null)
+            {
+                return LevelCompleteModel.Build(
+                    outcome: BattleOutcome.PlayerVictory,
+                    durationSeconds: runState.Combat?.ElapsedSeconds ?? 0,
+                    match3MovesUsed: runeMovesUsed,
+                    damageDealt: 0.0,
+                    healingDone: 0.0,
+                    shieldGranted: 0.0,
+                    goldEarned: round.BaseGoldReward);
+            }
+
+            return LevelCompleteModel.Build(
+                outcome: battle.Outcome,
+                durationSeconds: (int)System.Math.Round(battle.ElapsedSeconds, System.MidpointRounding.AwayFromZero),
+                match3MovesUsed: runeMovesUsed,
+                damageDealt: battle.PlayerDamageDealt,
+                healingDone: battle.PlayerHealingDone,
+                shieldGranted: battle.PlayerShieldGranted,
+                goldEarned: round.BaseGoldReward);
+        }
+
+        /// <summary>Render the six level-complete stat pills as two rows of three.</summary>
+        private void AddLevelCompleteStatGrid(Transform parent, LevelCompleteModel summary)
+        {
+            var stats = summary.StatRow();
+            var accents = new[]
+            {
+                GameColors.Mana,
+                GameColors.Commander,
+                GameColors.Health,
+                GameColors.Heal,
+                GameColors.Shield,
+                GameColors.Gold
+            };
+
+            for (var rowStart = 0; rowStart < stats.Length; rowStart += 3)
+            {
+                var row = CreatePanel($"Level Complete Stat Row {rowStart / 3}", parent, Color.clear);
+                AddLayoutElement(row, 40);
+
+                var rowLayout = row.AddComponent<HorizontalLayoutGroup>();
+                rowLayout.spacing = 6;
+                rowLayout.childAlignment = TextAnchor.MiddleCenter;
+                rowLayout.childControlWidth = true;
+                rowLayout.childForceExpandWidth = true;
+
+                for (var i = rowStart; i < rowStart + 3 && i < stats.Length; i += 1)
+                {
+                    CreateStatusPill(row.transform, $"{stats[i].Label} {stats[i].Meta}".Trim(), stats[i].Value, accents[i]);
+                }
+            }
         }
 
         private void AddHeader(Transform parent)
