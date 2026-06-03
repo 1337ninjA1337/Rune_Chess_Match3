@@ -1847,6 +1847,48 @@ Require(LevelSelectModel.Build(currentRound: 5, runComplete: true)[9].Status == 
 Require(LevelSelectModel.Build(RunState.NewRun())[0].Status == LevelCardStatus.Current, "a new run highlights round one");
 RequireThrows(() => LevelSelectModel.Build(currentRound: 11), "level select rejects rounds outside the schedule");
 
+// Preparation tactical placement view-model (bench -> field with highlighted drop targets).
+var placementRun = RunState.NewRun();
+var halfRows = TacticalField.Mvp.HalfRows;
+var idlePlacement = TacticalPlacementModel.Build(placementRun);
+Require(idlePlacement.Cells.Count == TacticalField.Mvp.CellCount, "placement model covers every tactical cell");
+Require(idlePlacement.Cells.Count(cell => cell.State == TacticalCellState.Unavailable) == TacticalField.Mvp.CellCount / 2, "the enemy half is unavailable during preparation");
+Require(!idlePlacement.HasSelection && idlePlacement.HighlightedTargetCount == 0, "no cells highlight without a picked bench hero");
+Require(idlePlacement.Cells.Where(cell => cell.Position.IsPlayerSide).All(cell => cell.State == TacticalCellState.Free), "player cells read as free until a hero is picked");
+
+var benchRun = placementRun with { Bench = new List<HeroInstance> { new HeroInstance("ph_1", "iron_guard", 1) } };
+var selectedPlacement = TacticalPlacementModel.Build(benchRun, "ph_1");
+Require(selectedPlacement.HasSelection, "a valid bench id activates the selection");
+Require(selectedPlacement.HighlightedTargetCount == TacticalField.Mvp.CellCount / 2, "picking a bench hero highlights every free player cell");
+Require(selectedPlacement.Cells.Where(cell => cell.IsPlacementTarget).All(cell => cell.Position.IsPlayerSide), "highlighted drop targets live only on the player half");
+
+var stalePlacement = TacticalPlacementModel.Build(benchRun, "missing_id");
+Require(!stalePlacement.HasSelection && stalePlacement.HighlightedTargetCount == 0, "a bench id that is not present does not highlight the board");
+
+var placedRun = benchRun.PlaceHeroFromBench("ph_1", new TacticalPosition(halfRows, 0));
+var placedPlacement = TacticalPlacementModel.Build(placedRun, "ph_1");
+var occupiedCell = placedPlacement.CellAt(new TacticalPosition(halfRows, 0));
+Require(occupiedCell.State == TacticalCellState.OccupiedAlly && occupiedCell.HeroInstanceId == "ph_1", "a placed hero reads as an occupied ally cell");
+Require(occupiedCell.IsOccupiedByAlly && placedPlacement.PlacedHeroCount == 1, "placed hero count tracks the team size");
+Require(!placedPlacement.HasSelection, "an emptied bench clears the selection");
+
+var fullTeam = new List<BoardHero>
+{
+    new BoardHero(new HeroInstance("t1", "iron_guard", 1), new TacticalPosition(halfRows, 0)),
+    new BoardHero(new HeroInstance("t2", "oath_archer", 1), new TacticalPosition(halfRows, 1))
+};
+var fullFieldRun = placementRun with
+{
+    PlayerLevel = 1,
+    Team = fullTeam,
+    Bench = new List<HeroInstance> { new HeroInstance("ph_x", "field_medic", 1) }
+};
+var fullPlacement = TacticalPlacementModel.Build(fullFieldRun, "ph_x");
+Require(fullPlacement.IsFieldFull && !fullPlacement.CanPlaceMore, "the field reports full at the player-level hero limit");
+Require(fullPlacement.HighlightedTargetCount == 0, "no targets highlight once the field hits the player-level limit");
+RequireThrows(() => idlePlacement.CellAt(new TacticalPosition(-1, 0)), "placement model rejects off-board cell queries");
+RequireThrows(() => TacticalPlacementModel.Build(null!), "placement model rejects a null run");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)

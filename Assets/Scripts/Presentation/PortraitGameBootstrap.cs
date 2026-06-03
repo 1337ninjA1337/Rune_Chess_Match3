@@ -29,13 +29,6 @@ namespace RuneChess.Presentation
             new UnitVisual("H", "Healer", "Support", 3, 2, true, 0.81f, 0.84f, GameColors.Heal)
         };
 
-        private static readonly UnitVisual[] Bench =
-        {
-            new UnitVisual("IG", "Iron Guard", "Tank", 0, 0, true, 1f, 0.12f, GameColors.AllyCellOccupied),
-            new UnitVisual("OA", "Oath Archer", "Carry", 0, 0, true, 1f, 0.42f, GameColors.Health),
-            new UnitVisual("FM", "Field Medic", "Heal", 0, 0, true, 1f, 0.55f, GameColors.Heal)
-        };
-
         private static readonly UnitVisual[] Shop =
         {
             new UnitVisual("WC", "Wild Claw", "Bruiser", 0, 0, true, 1f, 0f, GameColors.Health),
@@ -44,6 +37,7 @@ namespace RuneChess.Presentation
         };
 
         private RunState runState = RunState.NewRun();
+        private string selectedBenchInstanceId;
         private Match3Board runeBoard;
         private BoardPoint? selectedRune;
         private Match3MoveHint currentHint;
@@ -681,6 +675,7 @@ namespace RuneChess.Presentation
             }
 
             SetNavigationForScreen(AppScreen.Preparation);
+            EnsurePreparationDemoRoster();
             ClearChildren(contentRoot);
             AddHeader(contentRoot);
             AddPreparationPanel(contentRoot);
@@ -1567,7 +1562,7 @@ namespace RuneChess.Presentation
             AddPanelHeader(panel.transform, "PREPARATION", $"G{runState.Gold}  LV{runState.PlayerLevel}");
             AddPreparationTacticalPanel(panel.transform);
             AddPreparationEconomyRow(panel.transform);
-            AddHeroRow(panel.transform, "Bench", Bench, 54, false);
+            AddPreparationBenchRow(panel.transform);
             AddHeroRow(panel.transform, "Shop", Shop, 70, true);
             AddActionRow(panel.transform);
         }
@@ -1586,8 +1581,50 @@ namespace RuneChess.Presentation
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            AddPanelHeader(field.transform, "TACTICAL FIELD", "PLAYER HALF ACTIVE");
-            AddTacticalGrid(field.transform);
+            var model = TacticalPlacementModel.Build(runState, selectedBenchInstanceId);
+            var meta = model.HasSelection
+                ? (model.CanPlaceMore ? "ВЫБЕРИ КЛЕТКУ" : "ПОЛЕ ЗАПОЛНЕНО")
+                : $"ПОЛЕ {model.PlacedHeroCount}/{model.FieldLimit}";
+            AddPanelHeader(field.transform, "TACTICAL FIELD", meta);
+            AddPreparationTacticalGrid(field.transform, model);
+        }
+
+        private void AddPreparationTacticalGrid(Transform parent, TacticalPlacementModel model)
+        {
+            var gridRoot = CreatePanel("Preparation Tactical Grid", parent, Color.clear);
+            AddLayoutElement(gridRoot, 150);
+
+            var grid = gridRoot.AddComponent<GridLayoutGroup>();
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = model.Field.Columns;
+            grid.spacing = new Vector2(3, 3);
+            grid.cellSize = new Vector2(57, 36);
+            grid.childAlignment = TextAnchor.MiddleCenter;
+
+            foreach (var cell in model.Cells)
+            {
+                var cellObject = CreatePanel(
+                    $"Cell {cell.Position.Row}:{cell.Position.Column}",
+                    gridRoot.transform,
+                    GameColors.TacticalCellColor(cell.State));
+
+                var outlineColor = cell.IsPlacementTarget
+                    ? GameColors.WithAlpha(GameColors.Heal, 0.95f)
+                    : GameColors.WithAlpha(GameColors.Border, 0.45f);
+                AddOutline(cellObject, outlineColor);
+                AddCellLaneMarker(cellObject.transform, cell.Position);
+
+                if (cell.IsOccupiedByAlly)
+                {
+                    var instanceId = cell.HeroInstanceId;
+                    AddPreparationHeroToken(cellObject.transform, cell.HeroId, () => OnBoardHeroClicked(instanceId));
+                }
+                else if (cell.IsPlacementTarget)
+                {
+                    var position = cell.Position;
+                    MakeClickable(cellObject, () => OnPlacementCellClicked(position));
+                }
+            }
         }
 
         private void AddPreparationEconomyRow(Transform parent)
@@ -1606,6 +1643,170 @@ namespace RuneChess.Presentation
             CreateStatusPill(row.transform, "GOLD", runState.Gold.ToString(), GameColors.Gold);
             CreateStatusPill(row.transform, "LV", runState.PlayerLevel.ToString(), GameColors.Mana);
             CreateStatusPill(row.transform, "FIELD", $"{runState.Team.Count}/{fieldLimit}", GameColors.Heal);
+        }
+
+        private void AddPreparationBenchRow(Transform parent)
+        {
+            var row = CreatePanel("Bench Row", parent, Color.clear);
+            AddLayoutElement(row, 56);
+
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 5;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+
+            CreateText("BENCH", row.transform, 10, GameColors.Muted, TextAnchor.MiddleCenter);
+
+            if (runState.Bench.Count == 0)
+            {
+                CreateText("СКАМЕЙКА ПУСТА", row.transform, 9, GameColors.Muted, TextAnchor.MiddleCenter);
+                return;
+            }
+
+            foreach (var hero in runState.Bench)
+            {
+                var instanceId = hero.InstanceId;
+                var selected = instanceId == selectedBenchInstanceId;
+                AddBenchHeroCard(row.transform, hero, selected, () => OnBenchHeroClicked(instanceId));
+            }
+        }
+
+        private void AddBenchHeroCard(Transform parent, HeroInstance hero, bool selected, Action onClick)
+        {
+            var definition = HeroCatalog.TryGet(hero.HeroId, out var known) ? known : null;
+            var tint = definition is null ? GameColors.PanelRaised : GameColors.RuneColor(definition.RuneAffinity);
+            var name = definition?.Name ?? hero.HeroId;
+            var role = definition is null ? string.Empty : definition.Role.ToString().ToUpperInvariant();
+
+            var card = CreatePanel($"Bench {hero.InstanceId}", parent, selected ? GameColors.PanelRaised : GameColors.Panel);
+            AddOutline(card, selected ? GameColors.WithAlpha(GameColors.Heal, 0.95f) : GameColors.WithAlpha(tint, 0.75f));
+            MakeClickable(card, onClick);
+
+            var layout = card.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(5, 5, 4, 4);
+            layout.spacing = 1;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childForceExpandHeight = false;
+
+            var swatch = CreatePanel("Bench Swatch", card.transform, tint);
+            swatch.GetComponent<Image>().raycastTarget = false;
+            AddLayoutElement(swatch, 12);
+            CreateText(HeroShortName(name), card.transform, 11, GameColors.Text, TextAnchor.MiddleCenter).raycastTarget = false;
+            CreateText(selected ? "ВЫБРАН" : role, card.transform, 8, selected ? GameColors.Heal : GameColors.Muted, TextAnchor.MiddleCenter).raycastTarget = false;
+        }
+
+        private void AddPreparationHeroToken(Transform parent, string heroId, Action onClick)
+        {
+            var definition = HeroCatalog.TryGet(heroId, out var known) ? known : null;
+            var tint = definition is null ? GameColors.AllyCellOccupied : GameColors.RuneColor(definition.RuneAffinity);
+            var label = HeroShortName(definition?.Name ?? heroId);
+
+            var token = CreatePanel($"Board {heroId}", parent, tint);
+            SetAnchoredFill(token, 0.10f, 0.10f, 0.10f, 0.10f);
+            AddOutline(token, GameColors.Heal);
+            MakeClickable(token, onClick);
+            CreateOverlayText(label, token.transform, 13, GameColors.Text, TextAnchor.MiddleCenter);
+        }
+
+        private static void MakeClickable(GameObject target, Action onClick)
+        {
+            var image = target.GetComponent<Image>();
+            if (image != null)
+            {
+                image.raycastTarget = true;
+            }
+
+            var button = target.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(() => onClick());
+        }
+
+        private void OnBenchHeroClicked(string instanceId)
+        {
+            selectedBenchInstanceId = selectedBenchInstanceId == instanceId ? null : instanceId;
+            ShowPreparationScreen();
+        }
+
+        private void OnPlacementCellClicked(TacticalPosition position)
+        {
+            if (string.IsNullOrEmpty(selectedBenchInstanceId))
+            {
+                return;
+            }
+
+            try
+            {
+                runState = runState.PlaceHeroFromBench(selectedBenchInstanceId, position);
+            }
+            catch (InvalidOperationException)
+            {
+                // Illegal placement (cell taken, field full, wrong side); leave state untouched.
+            }
+
+            selectedBenchInstanceId = null;
+            ShowPreparationScreen();
+        }
+
+        private void OnBoardHeroClicked(string instanceId)
+        {
+            try
+            {
+                runState = runState.MoveHeroToBench(instanceId);
+            }
+            catch (InvalidOperationException)
+            {
+                // Bench full or hero not on board; leave state untouched.
+            }
+
+            selectedBenchInstanceId = null;
+            ShowPreparationScreen();
+        }
+
+        private void EnsurePreparationDemoRoster()
+        {
+            if (runState.Phase != RunPhase.Preparation)
+            {
+                return;
+            }
+
+            // Seed a small demo bench only on a fresh run so the visual MVP can show
+            // the bench -> field placement flow without a wired shop. Once the player
+            // has any hero on the bench or board this is a no-op.
+            if (runState.Team.Count > 0 || runState.Bench.Count > 0)
+            {
+                return;
+            }
+
+            var demoBench = new List<HeroInstance>
+            {
+                new HeroInstance("demo_iron_guard", "iron_guard", 1),
+                new HeroInstance("demo_oath_archer", "oath_archer", 1),
+                new HeroInstance("demo_field_medic", "field_medic", 1)
+            };
+
+            runState = runState with { Bench = demoBench };
+        }
+
+        private static string HeroShortName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return "?";
+            }
+
+            var initials = string.Empty;
+            var words = name.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var word in words)
+            {
+                initials += char.ToUpperInvariant(word[0]);
+                if (initials.Length >= 3)
+                {
+                    break;
+                }
+            }
+
+            return initials.Length > 0 ? initials : name.Substring(0, 1).ToUpperInvariant();
         }
 
         private void AddHeroRow(Transform parent, string label, UnitVisual[] heroes, float height, bool showCost)
@@ -1660,6 +1861,7 @@ namespace RuneChess.Presentation
         {
             var markerColor = position.IsPlayerSide ? GameColors.WithAlpha(GameColors.Heal, 0.14f) : GameColors.WithAlpha(GameColors.Health, 0.16f);
             var marker = CreatePanel("Lane Marker", parent, markerColor);
+            marker.GetComponent<Image>().raycastTarget = false;
             var rect = marker.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0f, position.IsFrontline ? 0f : 0.84f);
             rect.anchorMax = new Vector2(1f, position.IsFrontline ? 0.16f : 1f);
