@@ -2013,6 +2013,74 @@ var emptyTeamSummary = RunSummaryModel.Build(RunState.NewRun());
 Require(emptyTeamSummary.Team.Count == 0 && emptyTeamSummary.BestHero is null, "an empty team yields no best hero");
 RequireThrows(() => RunSummaryModel.Build(null!), "run summary rejects a null run");
 
+// Account progress meta model (GDD "Метапрогрессия" / main screen "прогресс аккаунта").
+var startingAccount = AccountProgress.Starting;
+Require(startingAccount.AccountLevel == 1 && startingAccount.AccountXp == 0 && startingAccount.SoftCurrency == 0, "a fresh account starts at level one with no XP or currency");
+Require(startingAccount.UnlockedCommanders == CommanderCatalog.All.Count && startingAccount.UnlockedHeroes == HeroCatalog.All.Count, "a fresh account unlocks the full MVP rosters");
+Require(startingAccount.CommanderUnlockLabel == $"{CommanderCatalog.All.Count} / {CommanderCatalog.All.Count}", "account commander unlock label formats unlocked/total");
+Require(startingAccount.HeroUnlockLabel == $"{HeroCatalog.All.Count} / {HeroCatalog.All.Count}", "account hero unlock label formats unlocked/total");
+Require(AccountProgress.XpForNextLevel(1) == 100 && AccountProgress.XpForNextLevel(2) == 200, "account XP curve scales with level");
+Require(startingAccount.XpToNextLevel == 100 && Math.Abs(startingAccount.LevelProgressRatio) < 1e-9, "a fresh account needs a full bar to reach level two");
+var accountAfterGains = startingAccount.WithGains(50, 10);
+Require(accountAfterGains.AccountLevel == 1 && accountAfterGains.AccountXp == 50 && accountAfterGains.SoftCurrency == 10, "account gains add XP and currency without an early level up");
+var accountLevelUp = startingAccount.WithGains(150, 0);
+Require(accountLevelUp.AccountLevel == 2 && accountLevelUp.AccountXp == 50, "account XP overflow rolls into the next level");
+var accountFromRun = startingAccount.WithRunRewards(RunSummaryModel.Build(RunState.NewRun()));
+Require(accountFromRun.AccountXp == 50 && accountFromRun.SoftCurrency == 10, "an unfinished run grants the base account reward");
+var accountFromVictory = startingAccount.WithRunRewards(victorySummary);
+Require(accountFromVictory.SoftCurrency > accountFromRun.SoftCurrency, "clearing the run grants more soft currency than bailing early");
+RequireThrows(() => AccountProgress.XpForNextLevel(0), "account XP curve rejects levels below one");
+RequireThrows(() => startingAccount.WithGains(-1, 0), "account gains reject negative XP");
+
+// Main menu view-model (GDD UI screen 1 "Главный экран").
+var freshMenu = MainMenuModel.Build(RunState.NewRun(), AccountProgress.Starting);
+Require(!freshMenu.RunInProgress && freshMenu.StartRunLabel == "Начать забег", "the main menu offers a new run when none is in progress");
+Require(freshMenu.StartRunMeta == "ROUND 1 / 10" && freshMenu.FinalRound == PveRunSchedule.FinalRound, "the main menu start button shows the run progress");
+Require(freshMenu.CommanderId == CommanderCatalog.Default.Id && freshMenu.CommanderName == CommanderCatalog.Default.Name, "the main menu surfaces the selected commander");
+Require(freshMenu.CollectionLabel == $"{HeroCatalog.All.Count} / {HeroCatalog.All.Count}", "the main menu collection button shows unlocked heroes");
+var ongoingRun = RunState.NewRun();
+ongoingRun = ongoingRun with { Round = 3 };
+Require(MainMenuModel.Build(ongoingRun, AccountProgress.Starting).StartRunLabel == "Продолжить забег", "the main menu offers to continue a run already in progress");
+RequireThrows(() => MainMenuModel.Build(null!, AccountProgress.Starting), "the main menu rejects a null run");
+RequireThrows(() => MainMenuModel.Build(RunState.NewRun(), null!), "the main menu rejects null account progress");
+
+// Commander selection view-model (GDD UI screen 2 "Выбор командира").
+var commanderSelect = CommanderSelectModel.Build("warlord");
+Require(commanderSelect.Commanders.Count == CommanderCatalog.All.Count, "commander select lists every commander");
+Require(commanderSelect.SelectedId == "warlord" && commanderSelect.Selected.Name == "Воевода", "commander select highlights the chosen commander");
+Require(commanderSelect.Commanders.Count(card => card.IsSelected) == 1, "exactly one commander card is selected");
+Require(commanderSelect.Selected.RecommendedStylesLabel.Contains("/"), "commander select joins recommended styles for display");
+Require(commanderSelect.WithSelection("alchemist").SelectedId == "alchemist", "commander select can switch the chosen commander");
+RequireThrows(() => CommanderSelectModel.Build("unknown_commander"), "commander select rejects an unknown commander id");
+
+// Hero collection / details view-model (GDD UI screens 1 and 7).
+var collection = HeroCollectionModel.Build();
+Require(collection.Count == HeroCatalog.All.Count, "the collection lists the whole hero roster");
+for (var i = 1; i < collection.Heroes.Count; i += 1)
+{
+    Require(collection.Heroes[i - 1].Rarity <= collection.Heroes[i].Rarity, "the collection is ordered by rarity");
+}
+var ironGuardEntry = collection.Heroes.Single(hero => hero.HeroId == "iron_guard");
+Require(ironGuardEntry.RuneAffinity == RuneType.Yellow && ironGuardEntry.RuneAffinityLabel == "Жёлтая руна", "a collection entry exposes the hero's preferred rune");
+Require(ironGuardEntry.Faction == "Империя" && ironGuardEntry.Cost == 1, "a collection entry carries faction and cost for the detail view");
+Require(ironGuardEntry.StatsLabel.Contains("HP") && ironGuardEntry.StatsLabel.Contains("ATK"), "a collection entry summarizes hero stats");
+Require(!string.IsNullOrWhiteSpace(ironGuardEntry.Ability) && !string.IsNullOrWhiteSpace(ironGuardEntry.Passive), "a collection entry carries ability and passive text");
+
+// Settings model (GDD UI screen 10 "Настройки").
+var defaultSettings = SettingsModel.Default;
+Require(defaultSettings.SoundEnabled && defaultSettings.MusicEnabled && defaultSettings.VibrationEnabled, "default settings enable sound, music and vibration");
+Require(defaultSettings.Language == SettingsLanguage.Russian && !defaultSettings.TutorialCompleted, "default settings start in Russian with the tutorial active");
+Require(!defaultSettings.ToggleSound().SoundEnabled, "settings can toggle sound off");
+Require(defaultSettings.CycleGraphicsQuality().GraphicsQuality == GraphicsQuality.High, "settings cycle graphics quality from medium to high");
+Require(defaultSettings.CycleLanguage().Language == SettingsLanguage.English, "settings cycle the language");
+Require(defaultSettings.CycleBattleSpeed().BattleSpeed == BattleSpeed.Fast, "settings cycle the battle speed");
+Require(Math.Abs(defaultSettings.CycleBattleSpeed().BattleSpeedMultiplier - 1.5) < 1e-9, "fast battle speed applies a 1.5x multiplier");
+Require(defaultSettings.CompleteTutorial().ResetTutorial().TutorialCompleted == false, "resetting the tutorial clears the completed flag");
+
+// Collection screen navigation (GDD main-menu access to the hero collection).
+Require(AppNavigationState.AtMainMenu.CanNavigateTo(AppScreen.Collection), "the main menu can open the hero collection");
+Require(AppNavigationState.AtMainMenu.NavigateTo(AppScreen.Collection).CanNavigateTo(AppScreen.MainMenu), "the collection screen can return to the main menu");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)

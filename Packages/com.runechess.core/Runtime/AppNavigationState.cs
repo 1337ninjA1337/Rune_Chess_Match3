@@ -16,13 +16,14 @@ namespace RuneChess.Core
         private static readonly IReadOnlyDictionary<AppScreen, IReadOnlyList<AppScreen>> Transitions =
             new Dictionary<AppScreen, IReadOnlyList<AppScreen>>
             {
-                [AppScreen.MainMenu] = new[] { AppScreen.CommanderSelect, AppScreen.LevelSelect, AppScreen.Settings },
+                [AppScreen.MainMenu] = new[] { AppScreen.CommanderSelect, AppScreen.LevelSelect, AppScreen.Collection, AppScreen.Settings },
                 [AppScreen.CommanderSelect] = new[] { AppScreen.MainMenu, AppScreen.LevelSelect },
                 [AppScreen.LevelSelect] = new[] { AppScreen.Preparation, AppScreen.MainMenu },
                 [AppScreen.Preparation] = new[] { AppScreen.Combat, AppScreen.LevelSelect },
                 [AppScreen.Combat] = new[] { AppScreen.LevelComplete },
                 [AppScreen.LevelComplete] = new[] { AppScreen.Preparation, AppScreen.RunSummary, AppScreen.LevelSelect },
                 [AppScreen.RunSummary] = new[] { AppScreen.MainMenu, AppScreen.LevelSelect },
+                [AppScreen.Collection] = new[] { AppScreen.MainMenu },
                 [AppScreen.Settings] = new[] { AppScreen.MainMenu }
             };
 

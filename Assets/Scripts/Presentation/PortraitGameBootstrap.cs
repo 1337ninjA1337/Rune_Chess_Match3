@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using RuneChess.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -51,6 +52,10 @@ namespace RuneChess.Presentation
         private string runeStatus = "READY";
         private AppNavigationState navigationState = AppNavigationState.AtMainMenu;
         private Text mainMenuStatusText;
+        private AccountProgress accountProgress = AccountProgress.Starting;
+        private SettingsModel settings = SettingsModel.Default;
+        private string commanderSelectId;
+        private string selectedCollectionHeroId;
         private bool isScreenTransitionRunning;
         private bool isRuneAnimationRunning;
         private static PortraitGameBootstrap activeInstance;
@@ -204,7 +209,7 @@ namespace RuneChess.Presentation
             AddMainMenuTitle(menu.transform);
             AddSelectedCommanderCard(menu.transform);
             AddMainMenuButtons(menu.transform);
-            AddMainMenuRunPreview(menu.transform);
+            AddMainMenuAccountProgress(menu.transform);
             AddMainMenuStatus(menu.transform);
         }
 
@@ -275,8 +280,10 @@ namespace RuneChess.Presentation
 
         private void AddMainMenuButtons(Transform parent)
         {
+            var model = MainMenuModel.Build(runState, accountProgress);
+
             var buttons = CreatePanel("Main Menu Buttons", parent, Color.clear);
-            AddLayoutElement(buttons, 196);
+            AddLayoutElement(buttons, 308);
 
             var stack = buttons.AddComponent<VerticalLayoutGroup>();
             stack.spacing = 7;
@@ -285,40 +292,42 @@ namespace RuneChess.Presentation
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            CreateMenuButton(buttons.transform, "Новый забег", "ROUND 1", GameColors.ButtonPrimary, true, StartNewRunFromMenu);
+            CreateMenuButton(buttons.transform, model.StartRunLabel, model.StartRunMeta, GameColors.ButtonPrimary, true, StartNewRunFromMenu);
+            CreateMenuButton(buttons.transform, "Выбор командира", model.CommanderName.ToUpperInvariant(), GameColors.Button, false, ShowCommanderSelectScreen);
             CreateMenuButton(buttons.transform, "Выбор уровня", "PVE MAP", GameColors.Button, false, ShowLevelSelectScreen);
-            CreateMenuButton(buttons.transform, "Настройки", "AUDIO / GAME", GameColors.Button, false, () => SelectMainMenuDestination(AppScreen.Settings));
+            CreateMenuButton(buttons.transform, "Коллекция героев", model.CollectionLabel, GameColors.Button, false, ShowCollectionScreen);
+            CreateMenuButton(buttons.transform, "Настройки", "AUDIO / GAME", GameColors.Button, false, ShowSettingsScreen);
         }
 
-        private void AddMainMenuRunPreview(Transform parent)
+        private void AddMainMenuAccountProgress(Transform parent)
         {
-            var preview = CreatePanel("Main Menu Run Preview", parent, GameColors.Panel);
-            AddLayoutElement(preview, 124);
+            var account = accountProgress;
+
+            var preview = CreatePanel("Main Menu Account Progress", parent, GameColors.Panel);
+            AddLayoutElement(preview, 90);
             AddOutline(preview, GameColors.WithAlpha(GameColors.Border, 0.65f));
 
             var stack = preview.AddComponent<VerticalLayoutGroup>();
-            stack.padding = new RectOffset(8, 8, 7, 7);
-            stack.spacing = 6;
+            stack.padding = new RectOffset(8, 8, 6, 6);
+            stack.spacing = 5;
             stack.childAlignment = TextAnchor.UpperCenter;
             stack.childControlWidth = true;
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            AddPanelHeader(preview.transform, "ЗАБЕГ", $"ROUND {runState.Round}  {runState.Phase.ToString().ToUpperInvariant()}");
+            AddPanelHeader(preview.transform, "ПРОГРЕСС АККАУНТА", $"LVL {account.AccountLevel}");
 
-            var stats = CreatePanel("Main Menu Run Stats", preview.transform, Color.clear);
-            AddLayoutElement(stats, 48);
+            var stats = CreatePanel("Main Menu Account Stats", preview.transform, Color.clear);
+            AddLayoutElement(stats, 44);
             var statsLayout = stats.AddComponent<HorizontalLayoutGroup>();
             statsLayout.spacing = 6;
             statsLayout.childAlignment = TextAnchor.MiddleCenter;
             statsLayout.childControlWidth = true;
             statsLayout.childForceExpandWidth = true;
 
-            CreateStatusPill(stats.transform, "HP", runState.RunHealth.ToString(), GameColors.Health);
-            CreateStatusPill(stats.transform, "GOLD", runState.Gold.ToString(), GameColors.Gold);
-            CreateStatusPill(stats.transform, "LEVEL", runState.PlayerLevel.ToString(), GameColors.Mana);
-
-            CreateText($"NEXT: {runState.NextEnemyId}", preview.transform, 10, GameColors.Muted, TextAnchor.MiddleCenter);
+            CreateStatusPill(stats.transform, "XP", $"{account.AccountXp}/{AccountProgress.XpForNextLevel(account.AccountLevel)}", GameColors.Mana);
+            CreateStatusPill(stats.transform, "МОНЕТЫ", account.SoftCurrency.ToString(), GameColors.Gold);
+            CreateStatusPill(stats.transform, "ГЕРОИ", account.HeroUnlockLabel, GameColors.Heal);
         }
 
         private void AddMainMenuStatus(Transform parent)
@@ -565,6 +574,464 @@ namespace RuneChess.Presentation
         private string BuildMainMenuStatus()
         {
             return $"{navigationState.Current.ToString().ToUpperInvariant()}  CMD {runState.Commander.Energy:0}/{runState.Commander.MaxEnergy:0}";
+        }
+
+        // ----- Commander selection screen (GDD UI screen 2) -----
+
+        private void ShowCommanderSelectScreen()
+        {
+            if (contentRoot == null)
+            {
+                return;
+            }
+
+            commanderSelectId ??= runState.Commander.Id;
+            navigationState = AppNavigationState.AtMainMenu.NavigateTo(AppScreen.CommanderSelect);
+            ClearChildren(contentRoot);
+            AddCommanderSelectScreen(contentRoot);
+        }
+
+        private void AddCommanderSelectScreen(Transform parent)
+        {
+            var model = CommanderSelectModel.Build(commanderSelectId ?? runState.Commander.Id);
+
+            var screen = CreatePanel("Commander Select Screen", parent, GameColors.PanelDeep);
+            AddLayoutElement(screen, 824);
+            AddOutline(screen, GameColors.Border);
+
+            var stack = screen.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(10, 10, 10, 10);
+            stack.spacing = 7;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            var header = CreatePanel("Commander Select Header", screen.transform, GameColors.Panel);
+            AddLayoutElement(header, 64);
+            AddOutline(header, GameColors.WithAlpha(GameColors.Commander, 0.6f));
+            var headerStack = header.AddComponent<VerticalLayoutGroup>();
+            headerStack.padding = new RectOffset(8, 8, 7, 7);
+            headerStack.spacing = 2;
+            headerStack.childAlignment = TextAnchor.MiddleCenter;
+            headerStack.childForceExpandHeight = false;
+            CreateText("ВЫБОР КОМАНДИРА", header.transform, 22, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateText("Стартовая пассивка и бонус забега", header.transform, 10, GameColors.Muted, TextAnchor.MiddleCenter);
+
+            var list = CreatePanel("Commander Cards", screen.transform, Color.clear);
+            AddLayoutElement(list, 640);
+            var listStack = list.AddComponent<VerticalLayoutGroup>();
+            listStack.spacing = 6;
+            listStack.childAlignment = TextAnchor.UpperCenter;
+            listStack.childControlWidth = true;
+            listStack.childForceExpandWidth = true;
+            listStack.childForceExpandHeight = false;
+
+            foreach (var card in model.Commanders)
+            {
+                CreateCommanderSelectCard(list.transform, card);
+            }
+
+            var actions = CreatePanel("Commander Select Actions", screen.transform, Color.clear);
+            AddLayoutElement(actions, 58);
+            var actionsLayout = actions.AddComponent<HorizontalLayoutGroup>();
+            actionsLayout.spacing = 7;
+            actionsLayout.childAlignment = TextAnchor.MiddleCenter;
+            actionsLayout.childControlWidth = true;
+            actionsLayout.childForceExpandWidth = true;
+            CreateMenuButton(actions.transform, "Меню", "BACK", GameColors.Button, false, ShowMainMenu);
+            CreateMenuButton(actions.transform, "Подтвердить", model.Selected.Name.ToUpperInvariant(), GameColors.ButtonPrimary, true, ConfirmCommanderSelection);
+        }
+
+        private void CreateCommanderSelectCard(Transform parent, CommanderCard card)
+        {
+            var accent = card.IsSelected ? GameColors.Commander : GameColors.Border;
+            var cardObject = CreatePanel($"Commander {card.Id}", parent, card.IsSelected ? GameColors.PanelRaised : GameColors.Panel);
+            AddLayoutElement(cardObject, 198);
+            AddOutline(cardObject, GameColors.WithAlpha(accent, card.IsSelected ? 0.85f : 0.45f));
+
+            var image = cardObject.GetComponent<Image>();
+            image.raycastTarget = true;
+            var button = cardObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(() => SelectCommanderCard(card.Id));
+
+            var stack = cardObject.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(10, 10, 7, 7);
+            stack.spacing = 3;
+            stack.childAlignment = TextAnchor.UpperLeft;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            AddPanelHeader(cardObject.transform, card.Name.ToUpperInvariant(), card.IsSelected ? "ВЫБРАН" : "ВЫБРАТЬ");
+            CreateText(card.Passive, cardObject.transform, 11, GameColors.Text, TextAnchor.UpperLeft);
+            CreateText($"Старт: {card.StartingBonusDescription}", cardObject.transform, 10, GameColors.Gold, TextAnchor.UpperLeft);
+            CreateText($"Стиль: {card.RecommendedStylesLabel}", cardObject.transform, 10, GameColors.Muted, TextAnchor.UpperLeft);
+        }
+
+        private void SelectCommanderCard(string commanderId)
+        {
+            commanderSelectId = commanderId;
+            ShowCommanderSelectScreen();
+        }
+
+        private void ConfirmCommanderSelection()
+        {
+            var chosen = commanderSelectId ?? runState.Commander.Id;
+            runState = RunState.NewRun(chosen);
+            commanderSelectId = chosen;
+            ShowMainMenu();
+        }
+
+        // ----- Hero collection / details screen (GDD UI screens 1 and 7) -----
+
+        private void ShowCollectionScreen()
+        {
+            if (contentRoot == null)
+            {
+                return;
+            }
+
+            navigationState = AppNavigationState.AtMainMenu.NavigateTo(AppScreen.Collection);
+            ClearChildren(contentRoot);
+            AddCollectionScreen(contentRoot);
+        }
+
+        private void AddCollectionScreen(Transform parent)
+        {
+            var model = HeroCollectionModel.Build();
+            if (string.IsNullOrEmpty(selectedCollectionHeroId)
+                || !model.Heroes.Any(hero => hero.HeroId == selectedCollectionHeroId))
+            {
+                selectedCollectionHeroId = model.Heroes[0].HeroId;
+            }
+
+            var selected = model.Heroes.First(hero => hero.HeroId == selectedCollectionHeroId);
+
+            var screen = CreatePanel("Collection Screen", parent, GameColors.PanelDeep);
+            AddLayoutElement(screen, 824);
+            AddOutline(screen, GameColors.Border);
+
+            var stack = screen.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(10, 10, 10, 10);
+            stack.spacing = 6;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            var header = CreatePanel("Collection Header", screen.transform, GameColors.Panel);
+            AddLayoutElement(header, 54);
+            AddOutline(header, GameColors.WithAlpha(GameColors.Border, 0.6f));
+            var headerStack = header.AddComponent<VerticalLayoutGroup>();
+            headerStack.padding = new RectOffset(8, 8, 6, 6);
+            headerStack.spacing = 1;
+            headerStack.childAlignment = TextAnchor.MiddleCenter;
+            headerStack.childForceExpandHeight = false;
+            CreateText("КОЛЛЕКЦИЯ ГЕРОЕВ", header.transform, 20, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateText($"{model.Count} героев MVP", header.transform, 9, GameColors.Muted, TextAnchor.MiddleCenter);
+
+            AddHeroDetailPanel(screen.transform, selected);
+
+            var listRoot = CreateScrollList(screen.transform, 432, 4);
+            foreach (var hero in model.Heroes)
+            {
+                CreateCollectionRow(listRoot, hero, hero.HeroId == selectedCollectionHeroId);
+            }
+
+            var actions = CreatePanel("Collection Actions", screen.transform, Color.clear);
+            AddLayoutElement(actions, 56);
+            var actionsLayout = actions.AddComponent<HorizontalLayoutGroup>();
+            actionsLayout.spacing = 7;
+            actionsLayout.childAlignment = TextAnchor.MiddleCenter;
+            actionsLayout.childControlWidth = true;
+            actionsLayout.childForceExpandWidth = true;
+            CreateMenuButton(actions.transform, "Меню", "BACK", GameColors.Button, false, ShowMainMenu);
+        }
+
+        private void AddHeroDetailPanel(Transform parent, HeroCollectionEntry hero)
+        {
+            var rarityColor = GetRarityColor(hero.Rarity);
+
+            var panel = CreatePanel($"Hero Detail {hero.HeroId}", parent, GameColors.Panel);
+            AddLayoutElement(panel, 210);
+            AddOutline(panel, GameColors.WithAlpha(rarityColor, 0.75f));
+
+            var stack = panel.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(10, 10, 7, 7);
+            stack.spacing = 3;
+            stack.childAlignment = TextAnchor.UpperLeft;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            var identity = CreatePanel($"Hero Identity {hero.HeroId}", panel.transform, Color.clear);
+            AddLayoutElement(identity, 46);
+            var identityRow = identity.AddComponent<HorizontalLayoutGroup>();
+            identityRow.spacing = 8;
+            identityRow.childAlignment = TextAnchor.MiddleLeft;
+            identityRow.childControlWidth = true;
+            identityRow.childForceExpandWidth = true;
+
+            var portrait = CreatePanel($"Hero Portrait {hero.HeroId}", identity.transform, GameColors.WithAlpha(GameColors.RuneColor(hero.RuneAffinity), 0.5f));
+            SetLayoutWidth(portrait, 44, 0f);
+            AddOutline(portrait, GameColors.WithAlpha(rarityColor, 0.8f));
+            CreateOverlayText(hero.Name.Length > 0 ? hero.Name.Substring(0, 1) : "?", portrait.transform, 18, GameColors.Text, TextAnchor.MiddleCenter);
+
+            var nameBlock = CreatePanel($"Hero Name {hero.HeroId}", identity.transform, Color.clear);
+            SetLayoutWidth(nameBlock, 260, 3f);
+            var nameStack = nameBlock.AddComponent<VerticalLayoutGroup>();
+            nameStack.spacing = 1;
+            nameStack.childAlignment = TextAnchor.MiddleLeft;
+            nameStack.childForceExpandHeight = false;
+            CreateText(hero.Name, nameBlock.transform, 16, GameColors.Text, TextAnchor.MiddleLeft);
+            CreateText($"{GetRarityLabel(hero.Rarity)}  •  {hero.Cost}G", nameBlock.transform, 10, rarityColor, TextAnchor.MiddleLeft);
+
+            CreateText($"{hero.Faction} / {hero.Class} / {hero.RuneAffinityLabel}", panel.transform, 11, rarityColor, TextAnchor.UpperLeft);
+            CreateText($"{GetStarLabel(hero.Stars)}  {hero.Role.ToString().ToUpperInvariant()}", panel.transform, 10, GameColors.Muted, TextAnchor.UpperLeft);
+            CreateText(hero.StatsLabel, panel.transform, 10, GameColors.Text, TextAnchor.UpperLeft);
+            CreateText($"Способность: {hero.Ability}", panel.transform, 10, GameColors.Mana, TextAnchor.UpperLeft);
+            CreateText($"Пассивка: {hero.Passive}", panel.transform, 10, GameColors.Heal, TextAnchor.UpperLeft);
+        }
+
+        private void CreateCollectionRow(Transform parent, HeroCollectionEntry hero, bool isSelected)
+        {
+            var rarityColor = GetRarityColor(hero.Rarity);
+            var rowObject = CreatePanel($"Collection Row {hero.HeroId}", parent, isSelected ? GameColors.PanelRaised : GameColors.Panel);
+            AddLayoutElement(rowObject, 50);
+            AddOutline(rowObject, GameColors.WithAlpha(rarityColor, isSelected ? 0.8f : 0.4f));
+
+            var image = rowObject.GetComponent<Image>();
+            image.raycastTarget = true;
+            var button = rowObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(() => SelectCollectionHero(hero.HeroId));
+
+            var row = rowObject.AddComponent<HorizontalLayoutGroup>();
+            row.padding = new RectOffset(7, 7, 4, 4);
+            row.spacing = 6;
+            row.childAlignment = TextAnchor.MiddleCenter;
+            row.childControlWidth = true;
+            row.childForceExpandWidth = true;
+
+            var swatch = CreatePanel($"Collection Swatch {hero.HeroId}", rowObject.transform, GameColors.RuneColor(hero.RuneAffinity));
+            SetLayoutWidth(swatch, 10, 0f);
+            AddOutline(swatch, GameColors.WithAlpha(GameColors.Text, 0.3f));
+
+            var info = CreatePanel($"Collection Info {hero.HeroId}", rowObject.transform, Color.clear);
+            SetLayoutWidth(info, 210, 2.4f);
+            var infoStack = info.AddComponent<VerticalLayoutGroup>();
+            infoStack.spacing = 1;
+            infoStack.childAlignment = TextAnchor.MiddleLeft;
+            infoStack.childForceExpandHeight = false;
+            CreateText(hero.Name, info.transform, 12, GameColors.Text, TextAnchor.MiddleLeft);
+            CreateText($"{hero.Faction} / {hero.Class}", info.transform, 8, GameColors.Muted, TextAnchor.MiddleLeft);
+
+            var meta = CreatePanel($"Collection Meta {hero.HeroId}", rowObject.transform, Color.clear);
+            SetLayoutWidth(meta, 70, 1f);
+            var metaStack = meta.AddComponent<VerticalLayoutGroup>();
+            metaStack.spacing = 1;
+            metaStack.childAlignment = TextAnchor.MiddleRight;
+            metaStack.childForceExpandHeight = false;
+            CreateText(GetRarityLabel(hero.Rarity), meta.transform, 9, rarityColor, TextAnchor.MiddleRight);
+            CreateText($"{hero.Cost}G", meta.transform, 9, GameColors.Gold, TextAnchor.MiddleRight);
+        }
+
+        private void SelectCollectionHero(string heroId)
+        {
+            selectedCollectionHeroId = heroId;
+            ShowCollectionScreen();
+        }
+
+        // ----- Settings screen (GDD UI screen 10) -----
+
+        private void ShowSettingsScreen()
+        {
+            if (contentRoot == null)
+            {
+                return;
+            }
+
+            navigationState = AppNavigationState.AtMainMenu.NavigateTo(AppScreen.Settings);
+            ClearChildren(contentRoot);
+            AddSettingsScreen(contentRoot);
+        }
+
+        private void AddSettingsScreen(Transform parent)
+        {
+            var screen = CreatePanel("Settings Screen", parent, GameColors.PanelDeep);
+            AddLayoutElement(screen, 824);
+            AddOutline(screen, GameColors.Border);
+
+            var stack = screen.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(10, 10, 10, 10);
+            stack.spacing = 7;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            var header = CreatePanel("Settings Header", screen.transform, GameColors.Panel);
+            AddLayoutElement(header, 56);
+            AddOutline(header, GameColors.WithAlpha(GameColors.Border, 0.6f));
+            var headerStack = header.AddComponent<VerticalLayoutGroup>();
+            headerStack.padding = new RectOffset(8, 8, 7, 7);
+            headerStack.spacing = 1;
+            headerStack.childAlignment = TextAnchor.MiddleCenter;
+            headerStack.childForceExpandHeight = false;
+            CreateText("НАСТРОЙКИ", header.transform, 22, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateText("Звук, язык, графика и обучение", header.transform, 9, GameColors.Muted, TextAnchor.MiddleCenter);
+
+            var list = CreatePanel("Settings List", screen.transform, Color.clear);
+            AddLayoutElement(list, 648);
+            var listStack = list.AddComponent<VerticalLayoutGroup>();
+            listStack.spacing = 6;
+            listStack.childAlignment = TextAnchor.UpperCenter;
+            listStack.childControlWidth = true;
+            listStack.childForceExpandWidth = true;
+            listStack.childForceExpandHeight = false;
+
+            CreateSettingRow(list.transform, "Звук", OnOffLabel(settings.SoundEnabled), GameColors.Heal, () => ApplySettings(settings.ToggleSound()));
+            CreateSettingRow(list.transform, "Музыка", OnOffLabel(settings.MusicEnabled), GameColors.Mana, () => ApplySettings(settings.ToggleMusic()));
+            CreateSettingRow(list.transform, "Вибрация", OnOffLabel(settings.VibrationEnabled), GameColors.Commander, () => ApplySettings(settings.ToggleVibration()));
+            CreateSettingRow(list.transform, "Язык", GetLanguageLabel(settings.Language), GameColors.Gold, () => ApplySettings(settings.CycleLanguage()));
+            CreateSettingRow(list.transform, "Качество графики", GetGraphicsLabel(settings.GraphicsQuality), GameColors.Mana, () => ApplySettings(settings.CycleGraphicsQuality()));
+            CreateSettingRow(list.transform, "Скорость боя", GetBattleSpeedLabel(settings.BattleSpeed), GameColors.Health, () => ApplySettings(settings.CycleBattleSpeed()));
+            CreateSettingRow(list.transform, "Обучение", settings.TutorialCompleted ? "ПРОЙДЕНО" : "АКТИВНО", GameColors.Commander, () => ApplySettings(settings.ResetTutorial()));
+
+            var actions = CreatePanel("Settings Actions", screen.transform, Color.clear);
+            AddLayoutElement(actions, 56);
+            var actionsLayout = actions.AddComponent<HorizontalLayoutGroup>();
+            actionsLayout.spacing = 7;
+            actionsLayout.childAlignment = TextAnchor.MiddleCenter;
+            actionsLayout.childControlWidth = true;
+            actionsLayout.childForceExpandWidth = true;
+            CreateMenuButton(actions.transform, "Меню", "BACK", GameColors.Button, false, ShowMainMenu);
+        }
+
+        private void CreateSettingRow(Transform parent, string label, string valueLabel, Color accent, Action onActivate)
+        {
+            var row = CreatePanel($"Setting {label}", parent, GameColors.Panel);
+            AddLayoutElement(row, 54);
+            AddOutline(row, GameColors.WithAlpha(GameColors.Border, 0.5f));
+
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(12, 8, 6, 6);
+            layout.spacing = 8;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+
+            CreateText(label, row.transform, 14, GameColors.Text, TextAnchor.MiddleLeft);
+
+            var control = CreatePanel($"Setting {label} Control", row.transform, GameColors.WithAlpha(accent, 0.3f));
+            SetLayoutWidth(control, 132, 0f);
+            AddOutline(control, GameColors.WithAlpha(accent, 0.6f));
+            var image = control.GetComponent<Image>();
+            image.raycastTarget = true;
+            var button = control.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(() => onActivate());
+            CreateOverlayText(valueLabel, control.transform, 12, GameColors.Text, TextAnchor.MiddleCenter);
+        }
+
+        private void ApplySettings(SettingsModel updated)
+        {
+            settings = updated;
+            ShowSettingsScreen();
+        }
+
+        // ----- Shared screen helpers -----
+
+        private Transform CreateScrollList(Transform parent, float height, float itemSpacing)
+        {
+            var scrollObject = CreatePanel("Scroll View", parent, GameColors.PanelDeep);
+            AddLayoutElement(scrollObject, height);
+            AddOutline(scrollObject, GameColors.WithAlpha(GameColors.Border, 0.45f));
+
+            var scrollRect = scrollObject.AddComponent<ScrollRect>();
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 18f;
+
+            var viewport = CreatePanel("Viewport", scrollObject.transform, GameColors.WithAlpha(GameColors.Background, 0.001f));
+            Stretch(viewport);
+            viewport.AddComponent<RectMask2D>();
+            viewport.GetComponent<Image>().raycastTarget = true;
+
+            var content = CreatePanel("Content", viewport.transform, Color.clear);
+            var contentRect = content.GetComponent<RectTransform>();
+            contentRect.anchorMin = new Vector2(0f, 1f);
+            contentRect.anchorMax = new Vector2(1f, 1f);
+            contentRect.pivot = new Vector2(0.5f, 1f);
+            contentRect.offsetMin = Vector2.zero;
+            contentRect.offsetMax = Vector2.zero;
+
+            var contentLayout = content.AddComponent<VerticalLayoutGroup>();
+            contentLayout.padding = new RectOffset(6, 6, 6, 6);
+            contentLayout.spacing = itemSpacing;
+            contentLayout.childAlignment = TextAnchor.UpperCenter;
+            contentLayout.childControlWidth = true;
+            contentLayout.childForceExpandWidth = true;
+            contentLayout.childForceExpandHeight = false;
+
+            var fitter = content.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scrollRect.viewport = viewport.GetComponent<RectTransform>();
+            scrollRect.content = contentRect;
+
+            return content.transform;
+        }
+
+        private static string OnOffLabel(bool value) => value ? "ВКЛ" : "ВЫКЛ";
+
+        private static string GetLanguageLabel(SettingsLanguage language) => language switch
+        {
+            SettingsLanguage.Russian => "Русский",
+            SettingsLanguage.English => "English",
+            _ => language.ToString()
+        };
+
+        private static string GetGraphicsLabel(GraphicsQuality quality) => quality switch
+        {
+            GraphicsQuality.Low => "Низкое",
+            GraphicsQuality.Medium => "Среднее",
+            GraphicsQuality.High => "Высокое",
+            _ => quality.ToString()
+        };
+
+        private static string GetBattleSpeedLabel(BattleSpeed speed) => speed switch
+        {
+            BattleSpeed.Normal => "Обычная x1.0",
+            BattleSpeed.Fast => "Быстрая x1.5",
+            _ => speed.ToString()
+        };
+
+        private static string GetRarityLabel(HeroRarity rarity) => rarity switch
+        {
+            HeroRarity.Common => "Обычный",
+            HeroRarity.Rare => "Редкий",
+            HeroRarity.Epic => "Эпический",
+            HeroRarity.Legendary => "Легендарный",
+            _ => rarity.ToString()
+        };
+
+        private static Color GetRarityColor(HeroRarity rarity) => rarity switch
+        {
+            HeroRarity.Common => GameColors.Muted,
+            HeroRarity.Rare => GameColors.Mana,
+            HeroRarity.Epic => GameColors.Commander,
+            HeroRarity.Legendary => GameColors.Gold,
+            _ => GameColors.Text
+        };
+
+        private static string GetStarLabel(int stars)
+        {
+            stars = Mathf.Clamp(stars, 0, 5);
+            return stars <= 0 ? "—" : new string('★', stars);
         }
 
         private static string GetRoundTypeLabel(PveRoundType type)

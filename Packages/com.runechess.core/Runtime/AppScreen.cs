@@ -14,6 +14,7 @@ namespace RuneChess.Core
         Combat,
         LevelComplete,
         RunSummary,
+        Collection,
         Settings
     }
 }
