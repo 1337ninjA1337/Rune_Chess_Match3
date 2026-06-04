@@ -32,6 +32,8 @@ namespace RuneChess.Presentation
 
         private RunState runState = RunState.NewRun();
         private string selectedBenchInstanceId;
+        private string selectedArtifactId;
+        private int rewardClaimedForRound;
         private Match3Board runeBoard;
         private BoardPoint? selectedRune;
         private Match3MoveHint currentHint;
@@ -359,6 +361,8 @@ namespace RuneChess.Presentation
         private void StartNewRunFromMenu()
         {
             runState = RunState.NewRun(runState.Commander.Id);
+            selectedArtifactId = null;
+            rewardClaimedForRound = 0;
             navigationState = AppNavigationState.AtMainMenu
                 .NavigateTo(AppScreen.LevelSelect)
                 .NavigateTo(AppScreen.Preparation);
@@ -1256,6 +1260,7 @@ namespace RuneChess.Presentation
             ClearChildren(contentRoot);
             AddHeader(contentRoot);
             AddRewardSummaryPanel(contentRoot);
+            AddRoundRewardPanel(contentRoot);
 
             var atRunEnd = runState.IsFinalRound || runState.Phase == RunPhase.Victory || runState.Phase == RunPhase.Defeat;
             AddScreenNavigationRow(
@@ -1288,6 +1293,8 @@ namespace RuneChess.Presentation
         /// </summary>
         private void AdvanceToNextLevel()
         {
+            ApplySelectedArtifactReward();
+
             if (runState.IsFinalRound || runState.Phase == RunPhase.Victory || runState.Phase == RunPhase.Defeat)
             {
                 ShowRunSummaryScreen();
@@ -1462,7 +1469,7 @@ namespace RuneChess.Presentation
         {
             var round = runState.CurrentRoundDefinition;
             var panel = CreatePanel("Level Complete Panel", parent, GameColors.PanelDeep);
-            AddLayoutElement(panel, 430);
+            AddLayoutElement(panel, 360);
             AddOutline(panel, GameColors.WithAlpha(GameColors.Gold, 0.72f));
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
@@ -1481,20 +1488,146 @@ namespace RuneChess.Presentation
             CreateText(round.DesignGoal, panel.transform, 11, GameColors.Muted, TextAnchor.MiddleCenter);
 
             AddLevelCompleteStatGrid(panel.transform, summary);
+        }
 
-            var reward = new LevelCard(
-                round.Round,
-                round.Type,
-                round.EnemyName,
-                round.DesignGoal,
-                round.BaseGoldReward,
-                round.RoundReward,
-                round.DifficultyTier,
-                round.HasCombat,
-                LevelCardStatus.Current);
+        /// <summary>
+        /// Render the reward screen elements the GDD "Экран награды" lists: the gold earned
+        /// for the round (with breakdown), the choice of one of three artifacts when the round
+        /// grants one, the possible hero reward and the continue hint. The artifact choice is
+        /// interactive: tapping a card selects it, and the selection is applied to the run when
+        /// the player continues. Driven entirely by <see cref="RewardScreenModel"/>.
+        /// </summary>
+        private void AddRoundRewardPanel(Transform parent)
+        {
+            var reward = RewardScreenModel.Build(runState);
 
-            CreateText(reward.RewardSummary, panel.transform, 13, GameColors.Gold, TextAnchor.MiddleCenter);
-            CreateText($"FLOW: {navigationState.Previous?.ToString().ToUpperInvariant() ?? "COMBAT"} > {navigationState.Current.ToString().ToUpperInvariant()}", panel.transform, 9, GameColors.Muted, TextAnchor.MiddleCenter);
+            // Drop any stale selection that does not belong to this round's offered choices.
+            if (!string.IsNullOrEmpty(selectedArtifactId) && !reward.IsOfferedArtifact(selectedArtifactId))
+            {
+                selectedArtifactId = null;
+            }
+
+            var panelHeight = 92f
+                + (reward.OffersHeroReward ? 40f : 0f)
+                + (reward.OffersArtifactChoice ? 36f + (reward.ArtifactOptions.Count * 50f) : 0f);
+
+            var panel = CreatePanel("Round Reward Panel", parent, GameColors.PanelDeep);
+            AddLayoutElement(panel, panelHeight);
+            AddOutline(panel, GameColors.WithAlpha(GameColors.Gold, 0.5f));
+            var stack = panel.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(10, 10, 8, 8);
+            stack.spacing = 6;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            AddPanelHeader(panel.transform, "НАГРАДА", "REWARD");
+
+            // Gold per round (element "золото за раунд").
+            var goldRow = CreatePanel("Reward Gold Row", panel.transform, Color.clear);
+            AddLayoutElement(goldRow, 30);
+            var goldLayout = goldRow.AddComponent<HorizontalLayoutGroup>();
+            goldLayout.spacing = 6;
+            goldLayout.childAlignment = TextAnchor.MiddleCenter;
+            goldLayout.childControlWidth = true;
+            goldLayout.childForceExpandWidth = true;
+            foreach (var line in reward.GoldLines)
+            {
+                CreateStatusPill(goldRow.transform, line.Meta, $"+{line.Amount}", GameColors.Gold);
+            }
+            CreateStatusPill(goldRow.transform, "ВСЕГО", $"+{reward.TotalGold}", GameColors.Gold);
+
+            // Possible hero reward (element "возможная награда героем").
+            if (reward.OffersHeroReward)
+            {
+                var heroNote = CreatePanel("Reward Hero Note", panel.transform, GameColors.WithAlpha(GameColors.Commander, 0.16f));
+                AddOutline(heroNote, GameColors.WithAlpha(GameColors.Commander, 0.5f));
+                AddLayoutElement(heroNote, 34);
+                var heroStack = heroNote.AddComponent<VerticalLayoutGroup>();
+                heroStack.padding = new RectOffset(8, 8, 3, 3);
+                heroStack.childAlignment = TextAnchor.MiddleCenter;
+                heroStack.childForceExpandHeight = false;
+                CreateText($"НАГРАДА ГЕРОЕМ: {reward.HeroRewardLabel}", heroNote.transform, 12, GameColors.Commander, TextAnchor.MiddleCenter);
+            }
+
+            // Choose one of three artifacts (element "выбор одного из трёх артефактов").
+            if (reward.OffersArtifactChoice)
+            {
+                CreateText(
+                    reward.ArtifactIsRare ? "ВЫБЕРИ РЕДКИЙ АРТЕФАКТ" : "ВЫБЕРИ АРТЕФАКТ",
+                    panel.transform,
+                    12,
+                    GameColors.Text,
+                    TextAnchor.MiddleCenter);
+
+                foreach (var option in reward.ArtifactOptions)
+                {
+                    AddArtifactOptionCard(panel.transform, option, option.Id == selectedArtifactId);
+                }
+
+                var hint = string.IsNullOrEmpty(selectedArtifactId)
+                    ? "Выбери артефакт перед продолжением."
+                    : $"Выбран: {ArtifactCatalog.Get(selectedArtifactId).Name}";
+                CreateText(hint, panel.transform, 10, GameColors.Muted, TextAnchor.MiddleCenter);
+            }
+
+            // Continue control (element "кнопка продолжения").
+            CreateText(
+                $"ДАЛЕЕ: {reward.ContinueLabel.ToUpperInvariant()}",
+                panel.transform,
+                10,
+                GameColors.Muted,
+                TextAnchor.MiddleCenter);
+        }
+
+        private void AddArtifactOptionCard(Transform parent, RewardArtifactOption option, bool selected)
+        {
+            var card = CreatePanel($"Artifact {option.Id}", parent, selected ? GameColors.PanelRaised : GameColors.Panel);
+            AddOutline(card, selected ? GameColors.WithAlpha(GameColors.Heal, 0.95f) : GameColors.WithAlpha(GameColors.Gold, 0.5f));
+            AddLayoutElement(card, 46);
+
+            var cardStack = card.AddComponent<VerticalLayoutGroup>();
+            cardStack.padding = new RectOffset(8, 8, 3, 3);
+            cardStack.spacing = 1;
+            cardStack.childAlignment = TextAnchor.MiddleLeft;
+            cardStack.childControlWidth = true;
+            cardStack.childForceExpandWidth = true;
+            cardStack.childForceExpandHeight = false;
+
+            var title = $"{(selected ? "● " : string.Empty)}{option.Name}{(option.IsRare ? " ★" : string.Empty)}";
+            CreateText(title, card.transform, 13, selected ? GameColors.Heal : GameColors.Gold, TextAnchor.MiddleLeft).raycastTarget = false;
+            CreateText(option.Description, card.transform, 9, GameColors.Muted, TextAnchor.MiddleLeft).raycastTarget = false;
+
+            MakeClickable(card, () => OnArtifactOptionClicked(option.Id));
+        }
+
+        private void OnArtifactOptionClicked(string artifactId)
+        {
+            selectedArtifactId = selectedArtifactId == artifactId ? null : artifactId;
+            ShowRewardScreen();
+        }
+
+        /// <summary>
+        /// Add the artifact the player picked on the reward screen to the run, once per round.
+        /// Guarded against double-claiming when the screen is re-entered or the player taps
+        /// continue twice.
+        /// </summary>
+        private void ApplySelectedArtifactReward()
+        {
+            if (string.IsNullOrEmpty(selectedArtifactId) || rewardClaimedForRound == runState.Round)
+            {
+                return;
+            }
+
+            if (!ArtifactCatalog.TryGet(selectedArtifactId, out var option))
+            {
+                return;
+            }
+
+            runState = runState.AddArtifact(option.ToArtifactState());
+            rewardClaimedForRound = runState.Round;
+            selectedArtifactId = null;
         }
 
         /// <summary>
