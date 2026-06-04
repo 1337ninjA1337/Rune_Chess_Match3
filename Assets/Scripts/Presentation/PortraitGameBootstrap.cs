@@ -30,13 +30,6 @@ namespace RuneChess.Presentation
             new UnitVisual("H", "Healer", "Support", 3, 2, true, 0.81f, 0.84f, GameColors.Heal)
         };
 
-        private static readonly UnitVisual[] Shop =
-        {
-            new UnitVisual("WC", "Wild Claw", "Bruiser", 0, 0, true, 1f, 0f, GameColors.Health),
-            new UnitVisual("TS", "Thorn Shaman", "Summon", 0, 0, true, 1f, 0f, GameColors.Heal),
-            new UnitVisual("MC", "Mist Cut", "Assassin", 0, 0, true, 1f, 0f, GameColors.Commander)
-        };
-
         private RunState runState = RunState.NewRun();
         private string selectedBenchInstanceId;
         private Match3Board runeBoard;
@@ -2258,7 +2251,7 @@ namespace RuneChess.Presentation
         private void AddPreparationPanel(Transform parent)
         {
             var panel = CreatePanel("Preparation Panel", parent, GameColors.PanelDeep);
-            AddLayoutElement(panel, 514);
+            AddLayoutElement(panel, 548);
             AddOutline(panel, GameColors.Border);
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
@@ -2269,12 +2262,15 @@ namespace RuneChess.Presentation
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            AddPanelHeader(panel.transform, "PREPARATION", $"G{runState.Gold}  LV{runState.PlayerLevel}");
+            var prep = PreparationScreenModel.Build(runState, selectedBenchInstanceId);
+
+            AddPanelHeader(panel.transform, "PREPARATION", $"R{prep.Round}/10  {GetRoundTypeLabel(prep.RoundType)}");
             AddPreparationTacticalPanel(panel.transform);
-            AddPreparationEconomyRow(panel.transform);
+            AddPreparationEconomyRow(panel.transform, prep);
+            AddPreparationInfoRow(panel.transform, prep);
             AddPreparationBenchRow(panel.transform);
-            AddHeroRow(panel.transform, "Shop", Shop, 70, true);
-            AddActionRow(panel.transform);
+            AddPreparationShopRow(panel.transform, prep);
+            AddPreparationActionRow(panel.transform, prep);
         }
 
         private void AddPreparationTacticalPanel(Transform parent)
@@ -2337,7 +2333,7 @@ namespace RuneChess.Presentation
             }
         }
 
-        private void AddPreparationEconomyRow(Transform parent)
+        private void AddPreparationEconomyRow(Transform parent, PreparationScreenModel prep)
         {
             var row = CreatePanel("Preparation Economy Row", parent, Color.clear);
             AddLayoutElement(row, 40);
@@ -2348,11 +2344,76 @@ namespace RuneChess.Presentation
             layout.childControlWidth = true;
             layout.childForceExpandWidth = true;
 
-            var fieldLimit = EconomyConfig.Default.GetHeroLimitForLevel(runState.PlayerLevel);
             CreateStatusPill(row.transform, "HP", runState.RunHealth.ToString(), GameColors.Health);
-            CreateStatusPill(row.transform, "GOLD", runState.Gold.ToString(), GameColors.Gold);
-            CreateStatusPill(row.transform, "LV", runState.PlayerLevel.ToString(), GameColors.Mana);
-            CreateStatusPill(row.transform, "FIELD", $"{runState.Team.Count}/{fieldLimit}", GameColors.Heal);
+            CreateStatusPill(row.transform, "GOLD", prep.Gold.ToString(), GameColors.Gold);
+            CreateStatusPill(row.transform, "LV", prep.PlayerLevel.ToString(), GameColors.Mana);
+            CreateStatusPill(row.transform, "XP", prep.XpLabel, GameColors.Mana);
+            CreateStatusPill(row.transform, "FIELD", $"{prep.PlacedHeroCount}/{prep.HeroLimit}", GameColors.Heal);
+        }
+
+        private void AddPreparationInfoRow(Transform parent, PreparationScreenModel prep)
+        {
+            var row = CreatePanel("Preparation Info Row", parent, Color.clear);
+            AddLayoutElement(row, 34);
+
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 6;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+
+            AddPreparationSynergyPanel(row.transform, prep);
+            AddPreparationEnemyPanel(row.transform, prep);
+        }
+
+        private void AddPreparationSynergyPanel(Transform parent, PreparationScreenModel prep)
+        {
+            var panel = CreatePanel("Synergy Panel", parent, GameColors.WithAlpha(GameColors.Mana, 0.16f));
+            AddOutline(panel, GameColors.WithAlpha(GameColors.Mana, 0.5f));
+
+            var stack = panel.AddComponent<HorizontalLayoutGroup>();
+            stack.padding = new RectOffset(5, 5, 2, 2);
+            stack.spacing = 4;
+            stack.childAlignment = TextAnchor.MiddleLeft;
+            stack.childControlWidth = false;
+            stack.childForceExpandWidth = false;
+
+            CreateText("SYN", panel.transform, 8, GameColors.Muted, TextAnchor.MiddleLeft);
+            if (prep.ActiveSynergies.Count == 0)
+            {
+                CreateText("—", panel.transform, 9, GameColors.Muted, TextAnchor.MiddleLeft);
+                return;
+            }
+
+            foreach (var synergy in prep.ActiveSynergies)
+            {
+                CreateText($"{synergy.Definition.Name} {synergy.UnitCount}", panel.transform, 9, GameColors.Text, TextAnchor.MiddleLeft);
+            }
+        }
+
+        private void AddPreparationEnemyPanel(Transform parent, PreparationScreenModel prep)
+        {
+            var panel = CreatePanel("Enemy Preview Panel", parent, GameColors.WithAlpha(GameColors.Health, 0.16f));
+            AddOutline(panel, GameColors.WithAlpha(GameColors.Health, 0.5f));
+
+            var stack = panel.AddComponent<HorizontalLayoutGroup>();
+            stack.padding = new RectOffset(5, 5, 2, 2);
+            stack.spacing = 4;
+            stack.childAlignment = TextAnchor.MiddleLeft;
+            stack.childControlWidth = false;
+            stack.childForceExpandWidth = false;
+
+            CreateText("ENEMY", panel.transform, 8, GameColors.Muted, TextAnchor.MiddleLeft);
+            if (prep.EnemyPreview.Count == 0)
+            {
+                CreateText(prep.HasCombat ? "—" : "БЕЗ БОЯ", panel.transform, 9, GameColors.Muted, TextAnchor.MiddleLeft);
+                return;
+            }
+
+            foreach (var enemy in prep.EnemyPreview)
+            {
+                CreateText($"{HeroShortName(enemy.Name)}{enemy.Stars}*", panel.transform, 9, GameColors.Text, TextAnchor.MiddleLeft);
+            }
         }
 
         private void AddPreparationBenchRow(Transform parent)
@@ -2537,7 +2598,61 @@ namespace RuneChess.Presentation
             }
         }
 
-        private void AddActionRow(Transform parent)
+        private void AddPreparationShopRow(Transform parent, PreparationScreenModel prep)
+        {
+            var row = CreatePanel("Shop Row", parent, Color.clear);
+            AddLayoutElement(row, 70);
+
+            var layout = row.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 5;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = true;
+
+            CreateText("SHOP", row.transform, 10, GameColors.Muted, TextAnchor.MiddleCenter);
+
+            if (prep.Shop.Count == 0)
+            {
+                CreateText("МАГАЗИН ПУСТ", row.transform, 9, GameColors.Muted, TextAnchor.MiddleCenter);
+                return;
+            }
+
+            foreach (var offer in prep.Shop)
+            {
+                AddShopOfferCard(row.transform, offer);
+            }
+        }
+
+        private void AddShopOfferCard(Transform parent, PreparationShopOffer offer)
+        {
+            var tint = GameColors.RuneColor(offer.RuneAffinity);
+            var card = CreatePanel($"Shop {offer.OfferId}", parent, offer.CanBuy ? GameColors.PanelRaised : GameColors.Panel);
+            AddOutline(card, offer.CanBuy ? GameColors.WithAlpha(tint, 0.85f) : GameColors.WithAlpha(GameColors.Border, 0.5f));
+            if (offer.CanBuy)
+            {
+                var index = offer.OfferIndex;
+                MakeClickable(card, () => OnBuyShopOffer(index));
+            }
+
+            var layout = card.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(5, 5, 4, 4);
+            layout.spacing = 1;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childForceExpandHeight = false;
+
+            var swatch = CreatePanel("Shop Swatch", card.transform, tint);
+            swatch.GetComponent<Image>().raycastTarget = false;
+            AddLayoutElement(swatch, 12);
+            CreateText(HeroShortName(offer.Name), card.transform, 11, GameColors.Text, TextAnchor.MiddleCenter).raycastTarget = false;
+            CreateText(
+                $"{offer.Cost}G  {offer.Role.ToString().ToUpperInvariant()}",
+                card.transform,
+                8,
+                offer.CanAfford ? GameColors.Gold : GameColors.Muted,
+                TextAnchor.MiddleCenter).raycastTarget = false;
+        }
+
+        private void AddPreparationActionRow(Transform parent, PreparationScreenModel prep)
         {
             var row = CreatePanel("Action Row", parent, Color.clear);
             AddLayoutElement(row, 34);
@@ -2547,10 +2662,77 @@ namespace RuneChess.Presentation
             layout.childControlWidth = true;
             layout.childForceExpandWidth = true;
 
-            CreateActionButton(row.transform, "SHOP", GameColors.Button);
-            CreateActionButton(row.transform, "REROLL", GameColors.Button);
-            CreateActionButton(row.transform, "XP", GameColors.Button);
-            CreateActionButton(row.transform, "FIGHT", GameColors.ButtonPrimary, ShowCombatScreen);
+            CreateActionButton(
+                row.transform,
+                prep.RerollLabel.ToUpperInvariant(),
+                prep.CanReroll ? GameColors.Button : GameColors.Panel,
+                prep.CanReroll ? OnRerollShop : (Action)null);
+            CreateActionButton(
+                row.transform,
+                prep.BuyXpLabel.ToUpperInvariant(),
+                prep.CanBuyXp ? GameColors.Button : GameColors.Panel,
+                prep.CanBuyXp ? OnBuyXp : (Action)null);
+            CreateActionButton(
+                row.transform,
+                "FIGHT",
+                prep.CanStartBattle ? GameColors.ButtonPrimary : GameColors.Panel,
+                prep.CanStartBattle ? OnStartBattle : (Action)null);
+        }
+
+        private void OnBuyShopOffer(int offerIndex)
+        {
+            try
+            {
+                runState = runState.BuyHero(offerIndex);
+            }
+            catch (InvalidOperationException)
+            {
+                // Not enough gold or the bench is full; leave the run untouched.
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // The offer slot is no longer present; leave the run untouched.
+            }
+
+            ShowPreparationScreen();
+        }
+
+        private void OnRerollShop()
+        {
+            try
+            {
+                // No shop RNG generator lives in core yet, so a reroll refreshes the
+                // deterministic level-appropriate offers while still spending the gold and
+                // counting the reroll. Swap in a randomized pool once one exists.
+                var refreshed = ShopState.ForPlayerLevel(runState.PlayerLevel).Offers;
+                runState = runState.RerollShop(refreshed);
+            }
+            catch (InvalidOperationException)
+            {
+                // Not enough gold to reroll; leave the run untouched.
+            }
+
+            selectedBenchInstanceId = null;
+            ShowPreparationScreen();
+        }
+
+        private void OnBuyXp()
+        {
+            try
+            {
+                runState = runState.BuyXp();
+            }
+            catch (InvalidOperationException)
+            {
+                // Not enough gold to buy XP; leave the run untouched.
+            }
+
+            ShowPreparationScreen();
+        }
+
+        private void OnStartBattle()
+        {
+            ShowCombatScreen();
         }
 
         private Text AddPanelHeader(Transform parent, string title, string meta)
