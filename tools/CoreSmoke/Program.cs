@@ -2177,6 +2177,54 @@ Require(defaultSettings.CompleteTutorial().ResetTutorial().TutorialCompleted == 
 Require(AppNavigationState.AtMainMenu.CanNavigateTo(AppScreen.Collection), "the main menu can open the hero collection");
 Require(AppNavigationState.AtMainMenu.NavigateTo(AppScreen.Collection).CanNavigateTo(AppScreen.MainMenu), "the collection screen can return to the main menu");
 
+// Artifact catalog (reward-screen artifact choices, GDD "Экран награды").
+Require(ArtifactCatalog.All.Count >= 6, "the artifact catalog ships the MVP reward pool");
+var commonOffer = ArtifactCatalog.OfferThree(1741);
+Require(commonOffer.Count == ArtifactCatalog.OfferCount, "an artifact offer presents exactly three choices");
+Require(commonOffer.Select(option => option.Id).Distinct().Count() == ArtifactCatalog.OfferCount, "the three artifact choices are distinct");
+Require(commonOffer.All(option => !option.IsRare), "a normal round draws from the common artifact pool");
+Require(ArtifactCatalog.OfferThree(1741).SequenceEqual(commonOffer), "an artifact offer is deterministic for a given seed");
+var rareOffer = ArtifactCatalog.OfferThree(2044, rare: true);
+Require(rareOffer.Count == ArtifactCatalog.OfferCount && rareOffer.All(option => option.IsRare), "a boss round draws three rare artifacts");
+Require(ArtifactCatalog.TryGet("BLOOD_CHALICE", out var bloodChalice) && bloodChalice.Name == "Кровавый Кубок", "artifact lookup is case-insensitive");
+Require(!ArtifactCatalog.TryGet("unknown_artifact", out _), "artifact lookup rejects unknown ids");
+Require(commonOffer[0].ToArtifactState().Id == commonOffer[0].Id, "a chosen artifact converts into a stored artifact state");
+RequireThrows(() => ArtifactCatalog.Get("unknown_artifact"), "artifact get throws on unknown ids");
+
+// Reward screen view-model (GDD UI screen "Экран награды": gold, artifacts, hero, continue).
+var heroChoiceRound = PveRunSchedule.GetRound(3);
+var heroReward = RewardScreenModel.Build(heroChoiceRound, isVictory: true, baseGold: heroChoiceRound.BaseGoldReward, bonusGold: 1);
+Require(heroReward.TotalGold == heroChoiceRound.BaseGoldReward + 1, "the reward screen sums base and bonus gold");
+Require(heroReward.GoldLines.Count == 2 && heroReward.GoldLines[1].Amount == 1, "the reward screen breaks out the combat bonus line");
+Require(heroReward.ResultLabel == "НАГРАДА ЗА РАУНД", "the reward screen labels a cleared round");
+Require(heroReward.OffersHeroReward && heroReward.HeroRewardLabel.Length > 0, "the hero-choice round offers a hero reward");
+Require(!heroReward.OffersArtifactChoice && heroReward.ArtifactOptions.Count == 0, "the hero-choice round offers no artifact");
+Require(!heroReward.IsRunVictory && heroReward.ContinueLabel == "Продолжить", "a mid-run reward screen continues to the next round");
+
+var eliteRound = PveRunSchedule.GetRound(5);
+var artifactReward = RewardScreenModel.Build(eliteRound, isVictory: true, baseGold: eliteRound.BaseGoldReward);
+Require(artifactReward.OffersArtifactChoice && artifactReward.ArtifactOptions.Count == ArtifactCatalog.OfferCount, "the elite round offers three artifacts");
+Require(!artifactReward.ArtifactIsRare && artifactReward.ArtifactOptions.All(option => !option.IsRare), "the elite round offers common artifacts");
+Require(artifactReward.IsOfferedArtifact(artifactReward.ArtifactOptions[0].Id), "the reward screen recognizes its own offered artifacts");
+Require(!artifactReward.IsOfferedArtifact("phoenix_feather"), "the reward screen rejects an artifact it did not offer");
+Require(artifactReward.GoldLines.Count == 1, "a reward screen with no bonus shows only the base gold line");
+
+var bossReward = RewardScreenModel.Build(PveRunSchedule.GetRound(8), isVictory: true, baseGold: 7);
+Require(bossReward.ArtifactIsRare && bossReward.ArtifactOptions.All(option => option.IsRare), "the boss round offers rare artifacts");
+
+var finalReward = RewardScreenModel.Build(PveRunSchedule.GetRound(10), isVictory: true, baseGold: 0);
+Require(finalReward.IsRunVictory && finalReward.ContinueLabel == "Итог забега", "the final round routes the continue button to the run summary");
+
+var defeatReward = RewardScreenModel.Build(PveRunSchedule.GetRound(2), isVictory: false, baseGold: 0);
+Require(!defeatReward.IsVictory && defeatReward.ResultLabel == "РАУНД ЗАВЕРШЁН", "the reward screen labels an unwon round");
+
+var rewardFromRun = RewardScreenModel.Build(RunState.NewRun() with { Phase = RunPhase.Reward });
+Require(rewardFromRun.Round == 1 && rewardFromRun.OffersHeroReward, "the reward screen builds from a run in the reward phase");
+RequireThrows(() => RewardScreenModel.Build((PveRoundDefinition)null!, true, 0), "the reward screen rejects a null round");
+RequireThrows(() => RewardScreenModel.Build(heroChoiceRound, true, -1), "the reward screen rejects negative base gold");
+RequireThrows(() => RewardScreenModel.Build(heroChoiceRound, true, 0, -1), "the reward screen rejects negative bonus gold");
+RequireThrows(() => RewardScreenModel.Build((RunState)null!), "the reward screen rejects a null run");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
