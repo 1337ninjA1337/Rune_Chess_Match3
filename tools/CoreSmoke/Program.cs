@@ -1949,6 +1949,62 @@ Require(hudWithUnits.KeyUnits.Count == 2 && hudWithUnits.KeyUnits[0].IsPlayer, "
 Require(Math.Abs(hudWithUnits.KeyUnits[1].HealthBar - 1.0) < 1e-9 && Math.Abs(hudWithUnits.KeyUnits[1].ManaBar - 0.0) < 1e-9, "combat HUD clamps key-unit health/mana bars to 0..1");
 RequireThrows(() => CombatHudModel.Build(null!), "combat HUD rejects a null combat state");
 
+// Combat screen view-model (battlefield with heroes/enemies, HP/mana bars, 7x7 rune
+// board, active rune effects, round timer and pause).
+var screenBattle = BattleState.Create(new[]
+{
+    BattleUnit.FromHero(HeroCatalog.Get("iron_guard"), 1, "screen_ally_tank", TacticalSide.Player, new TacticalPosition(2, 1)),
+    BattleUnit.FromHero(HeroCatalog.Get("rune_apprentice"), 1, "screen_ally_caster", TacticalSide.Player, new TacticalPosition(3, 2)),
+    BattleUnit.FromHero(HeroCatalog.Get("oath_archer"), 1, "screen_enemy_archer", TacticalSide.Enemy, new TacticalPosition(1, 1))
+});
+var screenCombat = CombatState.Start(1337, 60).AdvanceTimer(15);
+var screenRound = PveRunSchedule.GetRound(2);
+var combatScreen = CombatScreenModel.Build(screenBattle, screenCombat, screenRound);
+Require(combatScreen.Round == 2 && combatScreen.RoundType == PveRoundType.Combat, "combat screen carries the round header");
+Require(combatScreen.FieldColumns == TacticalField.MvpColumns && combatScreen.FieldRows == TacticalField.MvpRows, "combat screen exposes the MVP tactical field size");
+Require(combatScreen.Battlefield.Count == TacticalField.Mvp.CellCount, "combat screen enumerates every tactical cell");
+Require(combatScreen.AlivePlayerUnits == 2 && combatScreen.AliveEnemyUnits == 1, "combat screen counts living units per side");
+var screenAllyCell = combatScreen.Battlefield.Single(cell => cell.Position == new TacticalPosition(2, 1));
+Require(screenAllyCell.State == TacticalCellState.OccupiedAlly && screenAllyCell.Unit!.IsPlayer, "an ally-occupied cell reports the ally state and unit");
+Require(screenAllyCell.Unit!.IsFrontline && Math.Abs(screenAllyCell.Unit!.HealthBar - 1.0) < 1e-9, "a fresh field unit shows a full health bar on the frontline");
+var screenCasterCell = combatScreen.Battlefield.Single(cell => cell.Position == new TacticalPosition(3, 2));
+Require(screenCasterCell.Unit!.HasMana && screenCasterCell.Unit!.ManaBar >= 0.0, "a caster field unit exposes a mana bar");
+var screenEnemyCell = combatScreen.Battlefield.Single(cell => cell.Position == new TacticalPosition(1, 1));
+Require(screenEnemyCell.State == TacticalCellState.OccupiedEnemy && screenEnemyCell.Unit!.IsEnemy, "an enemy-occupied cell reports the enemy state and unit");
+Require(combatScreen.Battlefield.Count(cell => cell.State == TacticalCellState.Free) == TacticalField.Mvp.CellCount - 3, "unoccupied tactical cells stay free");
+Require(combatScreen.RuneBoard.Count == Match3Board.CellCount, "combat screen enumerates the whole 7x7 rune board");
+Require(combatScreen.BoardRows == Match3Board.Rows && combatScreen.BoardColumns == Match3Board.Columns, "combat screen exposes the 7x7 board size");
+Require(combatScreen.Hud.RemainingSeconds == 45 && combatScreen.Hud.TimerLabel == "0:45", "combat screen embeds the round timer HUD");
+Require(combatScreen.Hud.KeyUnits.Count == 2, "combat screen highlights one key unit per side on the HUD");
+Require(combatScreen.ActiveRuneEffects.Count == 0, "combat screen has no rune effects without a recent match");
+Require(!combatScreen.IsPaused && combatScreen.PauseButtonLabel == "Пауза", "combat screen starts unpaused with a pause button");
+Require(!combatScreen.IsResolved && combatScreen.Outcome == BattleOutcome.Ongoing, "a fresh combat screen reports an ongoing battle");
+Require(!combatScreen.ShowMatchHint, "combat screen hides the idle match hint before the delay");
+
+var pausedScreen = CombatScreenModel.Build(screenBattle, screenCombat, screenRound, isPaused: true);
+Require(pausedScreen.IsPaused && pausedScreen.PauseButtonLabel == "Продолжить", "a paused combat screen shows the resume label");
+
+var hintScreen = CombatScreenModel.Build(screenBattle, screenCombat.AdvanceTimer(CombatState.MatchHintDelaySeconds), screenRound);
+Require(hintScreen.ShowMatchHint && hintScreen.RuneBoard.Any(cell => cell.IsHintHighlighted), "combat screen highlights the idle match hint after the delay");
+
+var screenRuneEffects = new List<RuneEffect>
+{
+    Effect(RuneEffectKind.PhysicalDamage, 12.4, rune: RuneType.Red),
+    Effect(RuneEffectKind.Healing, 8.0, mass: true, rune: RuneType.Green, chainNumber: 2)
+};
+var effectScreen = CombatScreenModel.Build(screenBattle, screenCombat, screenRound, screenRuneEffects);
+Require(effectScreen.ActiveRuneEffects.Count == 2, "combat screen surfaces the supplied rune effects");
+Require(effectScreen.ActiveRuneEffects[0].Power == 12 && effectScreen.ActiveRuneEffects[0].Label == "Красная руна · Физ. урон", "a rune-effect chip rounds power and labels the rune effect");
+Require(effectScreen.ActiveRuneEffects[1].IsMassEffect && effectScreen.ActiveRuneEffects[1].ChainNumber == 2, "a mass rune-effect chip records its chain number");
+
+var runInCombatView = RunState.NewRun() with { Phase = RunPhase.Combat, Round = 2, Combat = screenCombat };
+var runScreen = CombatScreenModel.Build(runInCombatView, screenBattle);
+Require(runScreen.Round == 2 && runScreen.RuneBoard.Count == Match3Board.CellCount, "combat screen can be built straight from a run in combat");
+RequireThrows(() => CombatScreenModel.Build(RunState.NewRun(), screenBattle), "combat screen rejects a run with no active combat");
+RequireThrows(() => CombatScreenModel.Build((BattleState)null!, screenCombat, screenRound), "combat screen rejects a null battle");
+RequireThrows(() => CombatScreenModel.Build(screenBattle, null!, screenRound), "combat screen rejects a null combat state");
+RequireThrows(() => CombatScreenModel.Build(screenBattle, screenCombat, null!), "combat screen rejects a null round");
+
 // Level-complete summary: the player-centric combat totals on BattleState, the mirror
 // autobattle, and the LevelCompleteModel formatting that feeds the results screen.
 var levelCompleteTeam = new List<BoardHero>
