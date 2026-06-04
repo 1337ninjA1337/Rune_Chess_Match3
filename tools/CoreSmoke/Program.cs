@@ -1889,6 +1889,46 @@ Require(fullPlacement.HighlightedTargetCount == 0, "no targets highlight once th
 RequireThrows(() => idlePlacement.CellAt(new TacticalPosition(-1, 0)), "placement model rejects off-board cell queries");
 RequireThrows(() => TacticalPlacementModel.Build(null!), "placement model rejects a null run");
 
+// Preparation screen view-model: field, bench, shop, economy, synergies, enemy preview, start button.
+var freshPrep = PreparationScreenModel.Build(RunState.NewRun());
+Require(freshPrep.Round == 1 && freshPrep.RoundType == PveRoundType.Tutorial, "preparation screen reads the current round");
+Require(freshPrep.EnemyPreview.Count == 2 && freshPrep.EnemyPreview.All(unit => unit.IsFrontline), "preparation screen previews the round-1 enemy roster");
+Require(freshPrep.EnemyPreview[0].Name == "Железный Страж", "preparation enemy preview resolves catalog names");
+Require(freshPrep.Shop.Count == 3 && freshPrep.Shop.All(offer => offer.CanBuy), "a fresh shop is fully affordable with starting gold and an empty bench");
+Require(freshPrep.GoldLabel == "5 золота" && freshPrep.PlayerLevelLabel == "Ур. 1", "preparation screen shows gold and player level");
+Require(freshPrep.XpLabel == "0 / 4 XP" && !freshPrep.IsMaxLevel, "preparation screen shows XP toward the next level");
+Require(freshPrep.HeroLimit == 2 && freshPrep.FieldLimitLabel == "0 / 2 героев", "preparation screen reports the player-level field limit");
+Require(freshPrep.RerollLabel == "Reroll (2)" && freshPrep.CanReroll, "preparation reroll button shows its cost and affordability");
+Require(freshPrep.BuyXpLabel == "Купить опыт (4)" && freshPrep.CanBuyXp, "preparation buy-XP button shows its cost and affordability");
+Require(!freshPrep.CanStartBattle, "the battle cannot start until a hero is placed");
+Require(freshPrep.ActiveSynergies.Count == 0, "a fresh team has no active synergies");
+
+var prepBench = new List<HeroInstance>
+{
+    new HeroInstance("pb_1", "iron_guard", 1),
+    new HeroInstance("pb_2", "rune_apprentice", 2)
+};
+var prepTeam = new List<BoardHero>
+{
+    new BoardHero(new HeroInstance("pt_1", "iron_guard", 1), new TacticalPosition(halfRows, 0)),
+    new BoardHero(new HeroInstance("pt_2", "oath_archer", 1), new TacticalPosition(halfRows, 1))
+};
+var richPrep = PreparationScreenModel.Build(placementRun with { Gold = 3, Team = prepTeam, Bench = prepBench }, "pb_1");
+Require(richPrep.Bench.Count == 2 && richPrep.Bench[0].IsSelected && !richPrep.Bench[1].IsSelected, "the picked bench hero is marked selected");
+Require(richPrep.Bench[0].Name == "Железный Страж" && richPrep.Bench[0].SellValue == 1, "bench rows carry catalog data and sell value");
+Require(richPrep.Bench[1].SellValue == HeroEconomy.CalculateSellValue(richPrep.Bench[1].Cost, 2), "a 2-star bench hero sells for its invested copies");
+Require(richPrep.CanStartBattle && richPrep.PlacedHeroCount == 2, "a placed team enables the start-battle button");
+Require(richPrep.ActiveSynergies.Any(progress => progress.Definition.Name == "Империя"), "two Empire heroes light up the Empire synergy indicator");
+Require(richPrep.CanReroll && !richPrep.CanBuyXp, "3 gold affords a reroll but not the 4-gold XP purchase");
+Require(richPrep.Placement.HighlightedTargetCount == 0, "a full field stops highlighting drop targets");
+
+var cappedPrep = PreparationScreenModel.Build(placementRun with { PlayerLevel = 5, Xp = 0 });
+Require(cappedPrep.IsMaxLevel && cappedPrep.XpLabel == "MAX" && cappedPrep.HeroLimit == 6, "preparation screen reports the level cap and its field limit");
+
+var stalePrep = PreparationScreenModel.Build(placementRun, "missing_id");
+Require(stalePrep.Bench.Count == 0 && !stalePrep.Placement.HasSelection, "a stale bench selection leaves the screen unselected");
+RequireThrows(() => PreparationScreenModel.Build(null!), "preparation screen rejects a null run");
+
 // Combat HUD view-model (battle timer, speed indicator, key-unit bars).
 var hudCombat = CombatState.Start(1337, 60).AdvanceTimer(15);
 var combatHud = CombatHudModel.Build(hudCombat);
