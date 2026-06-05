@@ -19,7 +19,8 @@ namespace RuneChess.Core
         string NextEnemyId,
         CombatState? Combat,
         string? DefeatReason,
-        bool RoundArtifactClaimed = false
+        bool RoundArtifactClaimed = false,
+        bool RoundHeroClaimed = false
     )
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
@@ -398,6 +399,72 @@ namespace RuneChess.Core
         private static bool RoundOffersArtifactChoice(PveRoundReward reward) =>
             reward.Artifact || reward.RareArtifact || reward.ArtifactOrGold;
 
+        /// <summary>
+        /// The hero choices the current reward round offers (GDD "награда героем"), drawn
+        /// deterministically from the round seed. The 1-cost starter round draws Common heroes;
+        /// the hero-choice rounds draw Common and Rare heroes. Empty when the round grants no hero.
+        /// </summary>
+        public IReadOnlyList<RewardHeroOption> RewardHeroOptions()
+        {
+            var reward = CurrentRoundDefinition.RoundReward;
+            if (!reward.GrantsStarterHero && !reward.HeroChoice)
+            {
+                return Array.Empty<RewardHeroOption>();
+            }
+
+            var maxRarity = reward.GrantsStarterHero ? HeroRarity.Common : HeroRarity.Rare;
+            return HeroCatalog.OfferRewardHeroes(CurrentRoundDefinition.CombatRuneSeed, maxRarity);
+        }
+
+        /// <summary>
+        /// Claim the hero reward offered for the current round (GDD "награды героем после
+        /// выбранных раундов"). The chosen id must be one of <see cref="RewardHeroOptions"/>;
+        /// only hero-reward rounds allow a pick, only one hero may be taken per round and the
+        /// bench must have a free slot. The hero joins the bench at one star.
+        /// </summary>
+        public RunState ClaimRewardHero(string heroId, EconomyConfig? economy = null)
+        {
+            if (Phase != RunPhase.Reward)
+            {
+                throw new InvalidOperationException("Hero rewards can only be chosen on the reward screen.");
+            }
+
+            if (string.IsNullOrWhiteSpace(heroId))
+            {
+                throw new ArgumentException("Hero id is required.", nameof(heroId));
+            }
+
+            if (RoundHeroClaimed)
+            {
+                throw new InvalidOperationException("A hero reward has already been chosen for this round.");
+            }
+
+            var options = RewardHeroOptions();
+            if (options.Count == 0)
+            {
+                throw new InvalidOperationException("This round does not offer a hero reward.");
+            }
+
+            var chosen = options.FirstOrDefault(option =>
+                string.Equals(option.Id, heroId, StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("The chosen hero was not one of the offered choices.");
+
+            var config = economy ?? EconomyConfig.Default;
+            if (Bench.Count >= config.StartingBenchSize)
+            {
+                throw new InvalidOperationException("Bench is full.");
+            }
+
+            var bench = Bench.ToList();
+            bench.Add(new HeroInstance(CreateInstanceId(chosen.Id), chosen.Id, Stars: 1));
+
+            return this with
+            {
+                Bench = bench,
+                RoundHeroClaimed = true
+            };
+        }
+
         public RunState StartCombat(int? runeSeed = null, int? durationSeconds = null)
         {
             EnsurePreparationPhase();
@@ -532,7 +599,8 @@ namespace RuneChess.Core
                     Phase = RunPhase.Reward,
                     Combat = null,
                     DefeatReason = null,
-                    RoundArtifactClaimed = false
+                    RoundArtifactClaimed = false,
+                    RoundHeroClaimed = false
                 };
             }
 
@@ -570,7 +638,8 @@ namespace RuneChess.Core
                 Phase = IsFinalRound ? RunPhase.Victory : RunPhase.Reward,
                 Combat = null,
                 DefeatReason = null,
-                RoundArtifactClaimed = false
+                RoundArtifactClaimed = false,
+                RoundHeroClaimed = false
             };
         }
 

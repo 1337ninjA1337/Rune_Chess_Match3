@@ -2294,6 +2294,34 @@ Require(tomeRun.BuyXp().Gold == tomeRun.Gold - tomeRun.EffectiveBuyXpCost() && t
 Require(RunState.NewRun().EffectiveBuyXpCost() == EconomyConfig.Default.BuyXpCost, "without artifacts the XP cost is unchanged");
 Require(PreparationScreenModel.Build(tomeRun).BuyXpCost == tomeRun.EffectiveBuyXpCost(), "the preparation screen shows the discounted XP cost");
 
+// Claiming the hero reward (GDD "награды героем после выбранных раундов").
+var starterRewardRun = RunState.NewRun() with { Round = 1, Phase = RunPhase.Reward };
+var starterHeroOptions = starterRewardRun.RewardHeroOptions();
+Require(starterHeroOptions.Count == HeroCatalog.RewardOfferCount, "the starter-hero round offers three heroes to claim");
+Require(starterHeroOptions.All(option => option.Rarity == HeroRarity.Common && option.Cost == 1), "the starter-hero round offers 1-cost common heroes");
+Require(starterHeroOptions.Select(option => option.Id).Distinct().Count() == HeroCatalog.RewardOfferCount, "the offered reward heroes are distinct");
+Require(starterRewardRun.RewardHeroOptions().SequenceEqual(starterHeroOptions), "the reward hero offer is deterministic for a round");
+var afterHeroPick = starterRewardRun.ClaimRewardHero(starterHeroOptions[2].Id);
+Require(afterHeroPick.Bench.Count == 1 && afterHeroPick.Bench[0].HeroId == starterHeroOptions[2].Id && afterHeroPick.Bench[0].Stars == 1, "claiming a hero reward adds the chosen 1-star hero to the bench");
+Require(afterHeroPick.RoundHeroClaimed, "claiming a hero reward marks the round's hero choice as taken");
+Require(starterRewardRun.ClaimRewardHero(starterHeroOptions[0].Id.ToUpperInvariant()).Bench.Count == 1, "the hero claim accepts an offered id case-insensitively");
+RequireThrows(() => afterHeroPick.ClaimRewardHero(starterHeroOptions[0].Id), "only one hero reward may be claimed per round");
+RequireThrows(() => starterRewardRun.ClaimRewardHero("astral_regent"), "claiming rejects a hero that was not offered");
+RequireThrows(() => starterRewardRun.ClaimRewardHero(" "), "the hero claim rejects a blank id");
+var heroChoiceRewardRun = RunState.NewRun() with { Round = 3, Phase = RunPhase.Reward };
+Require(heroChoiceRewardRun.RewardHeroOptions().Count == HeroCatalog.RewardOfferCount && heroChoiceRewardRun.RewardHeroOptions().All(option => option.Rarity <= HeroRarity.Rare), "the hero-choice round offers common and rare heroes");
+var noHeroRewardRun = RunState.NewRun() with { Round = 2, Phase = RunPhase.Reward };
+Require(noHeroRewardRun.RewardHeroOptions().Count == 0, "a gold-only round offers no hero reward");
+RequireThrows(() => noHeroRewardRun.ClaimRewardHero("iron_guard"), "a gold-only round rejects a hero claim");
+RequireThrows(() => (starterRewardRun with { Phase = RunPhase.Preparation }).ClaimRewardHero(starterHeroOptions[0].Id), "hero rewards can only be claimed on the reward screen");
+var fullBenchRewardRun = starterRewardRun with
+{
+    Bench = Enumerable.Range(0, EconomyConfig.Default.StartingBenchSize)
+        .Select(index => new HeroInstance($"reward_full_{index}", "iron_guard", 1))
+        .ToList()
+};
+RequireThrows(() => fullBenchRewardRun.ClaimRewardHero(starterHeroOptions[0].Id), "a hero reward cannot be claimed when the bench is full");
+
 // Event catalog and event screen view-model (GDD UI screen "Экран события").
 Require(EventCatalog.All.Count == 4, "the event catalog ships the four MVP event archetypes");
 Require(

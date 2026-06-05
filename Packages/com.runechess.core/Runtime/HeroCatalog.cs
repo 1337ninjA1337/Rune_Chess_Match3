@@ -4,6 +4,13 @@ using System.Linq;
 
 namespace RuneChess.Core
 {
+    /// <summary>
+    /// A hero the reward screen offers as a "награда героем" choice (GDD "Экран награды":
+    /// возможная награда героем). It carries the flattened identity a card renders; claiming
+    /// it adds a 1-star <see cref="HeroInstance"/> to the bench via <see cref="RunState.ClaimRewardHero"/>.
+    /// </summary>
+    public sealed record RewardHeroOption(string Id, string Name, HeroRarity Rarity, int Cost, HeroRole Role);
+
     public static class HeroCatalog
     {
         public static HeroDefinition IronGuard { get; } = new(
@@ -514,6 +521,53 @@ namespace RuneChess.Core
             }
 
             return ById.TryGetValue(id.Trim(), out hero!);
+        }
+
+        /// <summary>Number of hero choices a reward round presents.</summary>
+        public const int RewardOfferCount = 3;
+
+        /// <summary>
+        /// Build the deterministic reward-hero offer for a round. The same <paramref name="seed"/>
+        /// always yields the same distinct choices so the reward screen is reproducible per round.
+        /// <paramref name="maxRarity"/> bounds the pool (Common for the 1-cost starter reward,
+        /// Rare for the early hero-choice rounds).
+        /// </summary>
+        public static IReadOnlyList<RewardHeroOption> OfferRewardHeroes(
+            int seed,
+            HeroRarity maxRarity,
+            int count = RewardOfferCount)
+        {
+            if (count < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count), "A reward offer needs at least one hero.");
+            }
+
+            var pool = All.Where(hero => hero.Rarity <= maxRarity).ToList();
+            if (pool.Count < count)
+            {
+                throw new InvalidOperationException("Hero reward pool is too small for the requested offer.");
+            }
+
+            return pool
+                .Select((hero, index) => (hero, key: DeterministicKey(seed, index)))
+                .OrderBy(entry => entry.key)
+                .ThenBy(entry => entry.hero.Id, StringComparer.Ordinal)
+                .Take(count)
+                .Select(entry => new RewardHeroOption(entry.hero.Id, entry.hero.Name, entry.hero.Rarity, entry.hero.Cost, entry.hero.Role))
+                .ToList();
+        }
+
+        /// <summary>Stable scrambling key so a seed shuffles the pool reproducibly.</summary>
+        private static uint DeterministicKey(int seed, int index)
+        {
+            unchecked
+            {
+                var hash = ((uint)seed * 2654435761u) + ((uint)index * 40503u);
+                hash ^= hash >> 13;
+                hash *= 2246822519u;
+                hash ^= hash >> 16;
+                return hash;
+            }
         }
     }
 }
