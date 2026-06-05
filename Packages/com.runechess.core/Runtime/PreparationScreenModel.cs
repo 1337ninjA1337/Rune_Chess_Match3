@@ -214,9 +214,9 @@ namespace RuneChess.Core
                 EnemyPreview: enemyPreview,
                 RerollCost: config.RerollCost,
                 CanReroll: inPreparation && run.Gold >= config.RerollCost,
-                BuyXpCost: config.BuyXpCost,
+                BuyXpCost: run.EffectiveBuyXpCost(config),
                 XpPerPurchase: config.XpPerPurchase,
-                CanBuyXp: inPreparation && run.Gold >= config.BuyXpCost,
+                CanBuyXp: inPreparation && run.Gold >= run.EffectiveBuyXpCost(config),
                 CanStartBattle: inPreparation && run.Team.Count > 0);
         }
     }

@@ -2274,6 +2274,26 @@ Require(noArtifactRun.RewardArtifactOptions().Count == 0, "a gold-only round off
 RequireThrows(() => noArtifactRun.ClaimRewardArtifact("blood_chalice"), "a gold-only round rejects an artifact claim");
 RequireThrows(() => (artifactRewardRun with { Phase = RunPhase.Preparation }).ClaimRewardArtifact("blood_chalice"), "artifacts can only be claimed on the reward screen");
 
+// Economy artifact modifiers (GDD P1 "артефакты как модификаторы ... экономики").
+Require(ArtifactModifiers.None.RoundEndGoldBonus == 0 && ArtifactModifiers.None.BuyXpDiscount == 0, "a run with no artifacts has neutral economy modifiers");
+Require(RunState.NewRun().Modifiers.RoundEndGoldBonus == 0, "a fresh run owns no economy artifacts");
+var merchantArtifacts = new List<ArtifactState> { new("merchant_seal", "Печать Торговца") };
+var merchantModifiers = ArtifactModifiers.From(merchantArtifacts);
+Require(merchantModifiers.RoundEndGoldBonus == ArtifactModifiers.MerchantSealRoundEndGold && merchantModifiers.BuyXpDiscount == 0, "the merchant seal adds round-end gold and nothing else");
+Require(ArtifactModifiers.From(new List<ArtifactState> { new("merchant_seal", "x"), new("merchant_seal", "x") }).RoundEndGoldBonus == 2 * ArtifactModifiers.MerchantSealRoundEndGold, "duplicate economy artifacts stack");
+var tomeModifiers = ArtifactModifiers.From(new List<ArtifactState> { new("apprentice_tome", "Том Ученика") });
+Require(tomeModifiers.BuyXpDiscount == ArtifactModifiers.ApprenticeTomeXpDiscount && tomeModifiers.RoundEndGoldBonus == 0, "the apprentice tome discounts XP and nothing else");
+Require(ArtifactModifiers.From(new List<ArtifactState> { new("phoenix_feather", "x") }).RoundEndGoldBonus == 0, "a combat artifact contributes no economy modifier");
+RequireThrows(() => ArtifactModifiers.From(null!), "the economy modifiers reject a null artifact list");
+var merchantRun = RunState.NewRun() with { Artifacts = merchantArtifacts, Phase = RunPhase.Combat };
+var merchantReward = merchantRun.ClaimReward(goldReward: 0);
+Require(merchantReward.Gold == merchantRun.Gold + ArtifactModifiers.MerchantSealRoundEndGold, "the merchant seal grants its round-end gold when a reward is claimed");
+var tomeRun = RunState.NewRun() with { Artifacts = new List<ArtifactState> { new("apprentice_tome", "Том Ученика") } };
+Require(tomeRun.EffectiveBuyXpCost() == EconomyConfig.Default.BuyXpCost - ArtifactModifiers.ApprenticeTomeXpDiscount, "the apprentice tome lowers the effective XP cost");
+Require(tomeRun.BuyXp().Gold == tomeRun.Gold - tomeRun.EffectiveBuyXpCost() && tomeRun.BuyXp().Xp == EconomyConfig.Default.XpPerPurchase, "buying XP with the apprentice tome spends the discounted cost");
+Require(RunState.NewRun().EffectiveBuyXpCost() == EconomyConfig.Default.BuyXpCost, "without artifacts the XP cost is unchanged");
+Require(PreparationScreenModel.Build(tomeRun).BuyXpCost == tomeRun.EffectiveBuyXpCost(), "the preparation screen shows the discounted XP cost");
+
 // Event catalog and event screen view-model (GDD UI screen "Экран события").
 Require(EventCatalog.All.Count == 4, "the event catalog ships the four MVP event archetypes");
 Require(

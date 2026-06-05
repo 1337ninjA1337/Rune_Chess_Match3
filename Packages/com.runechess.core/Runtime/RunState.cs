@@ -27,6 +27,10 @@ namespace RuneChess.Core
         private const int AlchemistChainReactionGoldBonus = 1;
 
         public PveRoundDefinition CurrentRoundDefinition => PveRunSchedule.GetRound(Round);
+
+        /// <summary>Economy modifiers contributed by the artifacts this run currently owns.</summary>
+        public ArtifactModifiers Modifiers => ArtifactModifiers.From(Artifacts);
+
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
         public bool IsRunWon => Phase == RunPhase.Victory;
         public bool IsRunLost => Phase == RunPhase.Defeat;
@@ -258,19 +262,30 @@ namespace RuneChess.Core
             throw new InvalidOperationException("Hero instance was not found on the bench or board.");
         }
 
+        /// <summary>
+        /// Gold cost of one experience purchase after the economy artifact discount
+        /// ("Том Ученика"), never below zero.
+        /// </summary>
+        public int EffectiveBuyXpCost(EconomyConfig? economy = null)
+        {
+            var config = economy ?? EconomyConfig.Default;
+            return Math.Max(0, config.BuyXpCost - Modifiers.BuyXpDiscount);
+        }
+
         public RunState BuyXp(EconomyConfig? economy = null)
         {
             EnsurePreparationPhase();
             var config = economy ?? EconomyConfig.Default;
+            var cost = EffectiveBuyXpCost(config);
 
-            if (Gold < config.BuyXpCost)
+            if (Gold < cost)
             {
                 throw new InvalidOperationException("Not enough gold to buy XP.");
             }
 
             return this with
             {
-                Gold = Gold - config.BuyXpCost,
+                Gold = Gold - cost,
                 Xp = Xp + config.XpPerPurchase
             };
         }
@@ -543,6 +558,7 @@ namespace RuneChess.Core
             var alchemistGoldBonus = Commander.Id == CommanderCatalog.Alchemist.Id && Combat?.HadChainReaction == true
                 ? AlchemistChainReactionGoldBonus
                 : 0;
+            var artifactGoldBonus = Modifiers.RoundEndGoldBonus;
             if (resolvedGoldReward < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(goldReward), "Gold reward cannot be negative.");
@@ -550,7 +566,7 @@ namespace RuneChess.Core
 
             return this with
             {
-                Gold = Gold + resolvedGoldReward + chainGoldBonus + alchemistGoldBonus,
+                Gold = Gold + resolvedGoldReward + chainGoldBonus + alchemistGoldBonus + artifactGoldBonus,
                 Phase = IsFinalRound ? RunPhase.Victory : RunPhase.Reward,
                 Combat = null,
                 DefeatReason = null,
