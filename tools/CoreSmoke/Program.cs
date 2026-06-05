@@ -2255,6 +2255,25 @@ RequireThrows(() => RewardScreenModel.Build(heroChoiceRound, true, -1), "the rew
 RequireThrows(() => RewardScreenModel.Build(heroChoiceRound, true, 0, -1), "the reward screen rejects negative bonus gold");
 RequireThrows(() => RewardScreenModel.Build((RunState)null!), "the reward screen rejects a null run");
 
+// Claiming one of the three offered artifacts (GDD "выбор одного из трёх артефактов после подходящих раундов").
+var artifactRewardRun = RunState.NewRun() with { Round = 5, Phase = RunPhase.Reward };
+var offeredArtifacts = artifactRewardRun.RewardArtifactOptions();
+Require(offeredArtifacts.Count == ArtifactCatalog.OfferCount, "an artifact reward round offers three choices to claim");
+Require(offeredArtifacts.SequenceEqual(artifactRewardRun.RewardArtifactOptions()), "the offered artifacts are deterministic for a round");
+var afterArtifactPick = artifactRewardRun.ClaimRewardArtifact(offeredArtifacts[1].Id);
+Require(afterArtifactPick.Artifacts.Count == 1 && afterArtifactPick.Artifacts[0].Id == offeredArtifacts[1].Id, "claiming an artifact stores the chosen one on the run");
+Require(afterArtifactPick.RoundArtifactClaimed, "claiming an artifact marks the round's choice as taken");
+Require(artifactRewardRun.ClaimRewardArtifact(offeredArtifacts[0].Id.ToUpperInvariant()).Artifacts.Count == 1, "the artifact claim accepts an offered id case-insensitively");
+RequireThrows(() => afterArtifactPick.ClaimRewardArtifact(offeredArtifacts[0].Id), "only one artifact may be claimed per round");
+RequireThrows(() => artifactRewardRun.ClaimRewardArtifact("phoenix_feather"), "claiming rejects an artifact that was not offered");
+RequireThrows(() => artifactRewardRun.ClaimRewardArtifact(" "), "claiming rejects a blank artifact id");
+var bossArtifactRun = RunState.NewRun() with { Round = 8, Phase = RunPhase.Reward };
+Require(bossArtifactRun.RewardArtifactOptions().All(option => option.IsRare), "the boss reward round offers rare artifacts to claim");
+var noArtifactRun = RunState.NewRun() with { Round = 2, Phase = RunPhase.Reward };
+Require(noArtifactRun.RewardArtifactOptions().Count == 0, "a gold-only round offers no artifact to claim");
+RequireThrows(() => noArtifactRun.ClaimRewardArtifact("blood_chalice"), "a gold-only round rejects an artifact claim");
+RequireThrows(() => (artifactRewardRun with { Phase = RunPhase.Preparation }).ClaimRewardArtifact("blood_chalice"), "artifacts can only be claimed on the reward screen");
+
 // Event catalog and event screen view-model (GDD UI screen "Экран события").
 Require(EventCatalog.All.Count == 4, "the event catalog ships the four MVP event archetypes");
 Require(

@@ -18,7 +18,8 @@ namespace RuneChess.Core
         RunPhase Phase,
         string NextEnemyId,
         CombatState? Combat,
-        string? DefeatReason
+        string? DefeatReason,
+        bool RoundArtifactClaimed = false
     )
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
@@ -327,6 +328,61 @@ namespace RuneChess.Core
             return this with { Artifacts = artifacts };
         }
 
+        /// <summary>
+        /// The three artifacts the current reward round offers, drawn deterministically
+        /// from the round seed (GDD "Экран награды": выбор одного из трёх артефактов).
+        /// Empty when the current round grants no artifact choice.
+        /// </summary>
+        public IReadOnlyList<RewardArtifactOption> RewardArtifactOptions()
+        {
+            var reward = CurrentRoundDefinition.RoundReward;
+            if (!RoundOffersArtifactChoice(reward))
+            {
+                return Array.Empty<RewardArtifactOption>();
+            }
+
+            return ArtifactCatalog.OfferThree(CurrentRoundDefinition.CombatRuneSeed, rare: reward.RareArtifact);
+        }
+
+        /// <summary>
+        /// Claim one of the three artifacts the reward screen offers for the current round
+        /// (GDD "выбор одного из трёх артефактов после подходящих раундов"). The chosen id
+        /// must be one of <see cref="RewardArtifactOptions"/>; only artifact-reward rounds
+        /// allow a pick and only one artifact may be taken per round.
+        /// </summary>
+        public RunState ClaimRewardArtifact(string artifactId)
+        {
+            if (Phase != RunPhase.Reward)
+            {
+                throw new InvalidOperationException("Artifacts can only be chosen on the reward screen.");
+            }
+
+            if (string.IsNullOrWhiteSpace(artifactId))
+            {
+                throw new ArgumentException("Artifact id is required.", nameof(artifactId));
+            }
+
+            if (RoundArtifactClaimed)
+            {
+                throw new InvalidOperationException("An artifact has already been chosen for this round.");
+            }
+
+            var options = RewardArtifactOptions();
+            if (options.Count == 0)
+            {
+                throw new InvalidOperationException("This round does not offer an artifact choice.");
+            }
+
+            var chosen = options.FirstOrDefault(option =>
+                string.Equals(option.Id, artifactId, StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("The chosen artifact was not one of the offered choices.");
+
+            return (this with { RoundArtifactClaimed = true }).AddArtifact(chosen.ToArtifactState());
+        }
+
+        private static bool RoundOffersArtifactChoice(PveRoundReward reward) =>
+            reward.Artifact || reward.RareArtifact || reward.ArtifactOrGold;
+
         public RunState StartCombat(int? runeSeed = null, int? durationSeconds = null)
         {
             EnsurePreparationPhase();
@@ -460,7 +516,8 @@ namespace RuneChess.Core
                 {
                     Phase = RunPhase.Reward,
                     Combat = null,
-                    DefeatReason = null
+                    DefeatReason = null,
+                    RoundArtifactClaimed = false
                 };
             }
 
@@ -496,7 +553,8 @@ namespace RuneChess.Core
                 Gold = Gold + resolvedGoldReward + chainGoldBonus + alchemistGoldBonus,
                 Phase = IsFinalRound ? RunPhase.Victory : RunPhase.Reward,
                 Combat = null,
-                DefeatReason = null
+                DefeatReason = null,
+                RoundArtifactClaimed = false
             };
         }
 
