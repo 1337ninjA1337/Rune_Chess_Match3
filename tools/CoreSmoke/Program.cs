@@ -2127,6 +2127,21 @@ var accountFromVictory = startingAccount.WithRunRewards(victorySummary);
 Require(accountFromVictory.SoftCurrency > accountFromRun.SoftCurrency, "clearing the run grants more soft currency than bailing early");
 RequireThrows(() => AccountProgress.XpForNextLevel(0), "account XP curve rejects levels below one");
 RequireThrows(() => startingAccount.WithGains(-1, 0), "account gains reject negative XP");
+RequireThrows(() => AccountProgress.CalculateRunRewards(null!), "run reward calculation rejects a null summary");
+
+// Run summary reward/unlock preview (GDD UI screen "Итог забега": опыт, валюта, разблокировки).
+Require(victorySummary.Rewards is null, "the run summary without an account omits the reward preview");
+var summaryWithRewards = RunSummaryModel.Build(finalReward, startingAccount);
+Require(summaryWithRewards.IsVictory && summaryWithRewards.RoundsCleared == PveRunSchedule.FinalRound, "the account-aware summary keeps the base summary fields");
+var runRewards = summaryWithRewards.Rewards ?? throw new InvalidOperationException("Smoke check failed: run rewards missing");
+Require(runRewards.AccountXpGained == 400 && runRewards.SoftCurrencyGained == 110, "the run summary previews the earned account XP and currency");
+Require(runRewards.AccountLevelsGained == 2 && runRewards.Unlocks.Count == 2, "a cleared run previews the account levels gained as unlocks");
+Require(runRewards.HasUnlocks && runRewards.Unlocks[0] == "Уровень аккаунта 2", "run summary unlock notices name each new account level");
+Require(startingAccount.WithRunRewards(victorySummary).SoftCurrency == startingAccount.SoftCurrency + runRewards.SoftCurrencyGained, "applying run rewards matches the previewed currency");
+var freshRunRewards = RunSummaryModel.Build(RunState.NewRun(), startingAccount).Rewards
+    ?? throw new InvalidOperationException("Smoke check failed: fresh run rewards missing");
+Require(freshRunRewards.AccountXpGained == 50 && freshRunRewards.AccountLevelsGained == 0 && !freshRunRewards.HasUnlocks, "a short run previews a small reward and no unlocks");
+RequireThrows(() => RunSummaryModel.Build(RunState.NewRun(), null!), "the account-aware run summary rejects a null account");
 
 // Main menu view-model (GDD UI screen 1 "Главный экран").
 var freshMenu = MainMenuModel.Build(RunState.NewRun(), AccountProgress.Starting);

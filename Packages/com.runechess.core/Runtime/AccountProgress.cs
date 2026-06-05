@@ -3,6 +3,13 @@ using System;
 namespace RuneChess.Core
 {
     /// <summary>
+    /// The raw account XP and soft currency a finished run earns, before they are
+    /// applied to an account. Pure data so the end-of-run summary can preview the
+    /// reward and the account model can apply it from the same numbers.
+    /// </summary>
+    public sealed record RunRewardGains(int AccountXp, int SoftCurrency);
+
+    /// <summary>
     /// Account-level meta progression shown on the main screen (GDD "Метапрогрессия"
     /// and UI screen 1 "прогресс аккаунта"). It tracks the persistent account level,
     /// experience toward the next level, the soft currency earned across runs, and how
@@ -85,6 +92,17 @@ namespace RuneChess.Core
         /// </summary>
         public AccountProgress WithRunRewards(RunSummaryModel summary)
         {
+            var gains = CalculateRunRewards(summary);
+            return WithGains(gains.AccountXp, gains.SoftCurrency);
+        }
+
+        /// <summary>
+        /// Compute the meta rewards a finished run earns, without applying them. Rewards
+        /// scale with how far the run got, with a bonus for clearing the whole run. The
+        /// end-of-run summary screen uses this to preview "полученный опыт и валюта".
+        /// </summary>
+        public static RunRewardGains CalculateRunRewards(RunSummaryModel summary)
+        {
             if (summary is null)
             {
                 throw new ArgumentNullException(nameof(summary));
@@ -92,7 +110,7 @@ namespace RuneChess.Core
 
             var xpGained = 50 + (summary.RoundsCleared * 25) + (summary.IsVictory ? 100 : 0);
             var currencyGained = 10 + (summary.RoundsCleared * 5) + (summary.IsVictory ? 50 : 0);
-            return WithGains(xpGained, currencyGained);
+            return new RunRewardGains(xpGained, currencyGained);
         }
 
         /// <summary>Add raw XP and currency, levelling up while the XP bar overflows.</summary>

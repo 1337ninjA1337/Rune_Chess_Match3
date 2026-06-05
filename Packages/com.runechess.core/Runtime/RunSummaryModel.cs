@@ -18,10 +18,28 @@ namespace RuneChess.Core
         string Class);
 
     /// <summary>
+    /// Meta rewards earned by the finished run, as shown on the summary screen
+    /// ("Итог забега": полученный опыт и валюта, разблокировки). It carries the account
+    /// XP and soft currency gained, how many account levels that pushed the player
+    /// through, and the resulting unlock notices.
+    /// </summary>
+    public sealed record RunRewardSummary(
+        int AccountXpGained,
+        int SoftCurrencyGained,
+        int AccountLevelsGained,
+        IReadOnlyList<string> Unlocks)
+    {
+        /// <summary>True when the run produced any unlock notice.</summary>
+        public bool HasUnlocks => Unlocks.Count > 0;
+    }
+
+    /// <summary>
     /// View-model for the end-of-run summary screen (GDD UI screens: "Итог забега").
     /// It aggregates how far the run got, whether it was won, the final team roster,
     /// the run's best hero and the accumulated rewards from <see cref="RunState"/>.
-    /// Keeping it in core lets the ranking and counts be smoke-tested without Unity.
+    /// When built with an <see cref="AccountProgress"/> it also previews the meta
+    /// rewards and unlocks the run earns. Keeping it in core lets the ranking and
+    /// counts be smoke-tested without Unity.
     /// </summary>
     public sealed record RunSummaryModel(
         int RoundsCleared,
@@ -31,7 +49,8 @@ namespace RuneChess.Core
         int PlayerLevel,
         int RunHealth,
         IReadOnlyList<RunSummaryHero> Team,
-        RunSummaryHero? BestHero)
+        RunSummaryHero? BestHero,
+        RunRewardSummary? Rewards = null)
     {
         /// <summary>Headline label for the run result.</summary>
         public string ResultLabel => IsVictory ? "ЗАБЕГ ПРОЙДЕН" : "ЗАБЕГ ОКОНЧЕН";
@@ -87,6 +106,49 @@ namespace RuneChess.Core
                 RunHealth: run.RunHealth,
                 Team: team,
                 BestHero: bestHero);
+        }
+
+        /// <summary>
+        /// Build the summary and preview the meta rewards the run earns against the
+        /// player's current <paramref name="account"/>: account XP, soft currency,
+        /// account levels gained and the resulting unlock notices ("разблокировки").
+        /// </summary>
+        public static RunSummaryModel Build(RunState run, AccountProgress account)
+        {
+            if (account is null)
+            {
+                throw new ArgumentNullException(nameof(account));
+            }
+
+            var summary = Build(run);
+            var gains = AccountProgress.CalculateRunRewards(summary);
+            var after = account.WithGains(gains.AccountXp, gains.SoftCurrency);
+
+            var unlocks = new List<string>();
+            for (var level = account.AccountLevel + 1; level <= after.AccountLevel; level += 1)
+            {
+                unlocks.Add($"Уровень аккаунта {level}");
+            }
+
+            var newCommanders = after.UnlockedCommanders - account.UnlockedCommanders;
+            if (newCommanders > 0)
+            {
+                unlocks.Add($"Новых командиров: {newCommanders}");
+            }
+
+            var newHeroes = after.UnlockedHeroes - account.UnlockedHeroes;
+            if (newHeroes > 0)
+            {
+                unlocks.Add($"Новых героев: {newHeroes}");
+            }
+
+            var rewards = new RunRewardSummary(
+                AccountXpGained: gains.AccountXp,
+                SoftCurrencyGained: gains.SoftCurrency,
+                AccountLevelsGained: after.AccountLevel - account.AccountLevel,
+                Unlocks: unlocks);
+
+            return summary with { Rewards = rewards };
         }
     }
 }
