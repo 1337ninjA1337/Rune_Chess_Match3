@@ -20,7 +20,9 @@ namespace RuneChess.Core
         CombatState? Combat,
         string? DefeatReason,
         bool RoundArtifactClaimed = false,
-        bool RoundHeroClaimed = false
+        bool RoundHeroClaimed = false,
+        string PendingFactionBoostId = "",
+        bool RoundEventResolved = false
     )
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
@@ -37,6 +39,12 @@ namespace RuneChess.Core
 
         /// <summary>Combat (auto-battle) modifiers contributed by the artifacts this run currently owns.</summary>
         public ArtifactCombatModifiers CombatModifiers => ArtifactCombatModifiers.From(Artifacts);
+
+        /// <summary>True when a faction is empowered for the next battle by a resolved event.</summary>
+        public bool HasPendingFactionBoost => !string.IsNullOrEmpty(PendingFactionBoostId);
+
+        /// <summary>True when the current round is a roguelite event round (GDD "Экран события").</summary>
+        public bool IsEventRound => CurrentRoundDefinition.Type == PveRoundType.Event;
 
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
         public bool IsRunWon => Phase == RunPhase.Victory;
@@ -351,6 +359,155 @@ namespace RuneChess.Core
         }
 
         /// <summary>
+        /// Enter the roguelite event screen (GDD "Экран события") from preparation when the
+        /// current round is an event round. The offered archetype itself is chosen by
+        /// <see cref="EventScreenModel"/> from the round seed.
+        /// </summary>
+        public RunState EnterEvent()
+        {
+            EnsurePreparationPhase();
+            if (!IsEventRound)
+            {
+                throw new InvalidOperationException("The current round is not an event round.");
+            }
+
+            return this with { Phase = RunPhase.Event, RoundEventResolved = false };
+        }
+
+        /// <summary>Guard shared by every event resolution: the run must be on an unresolved event.</summary>
+        private void EnsureUnresolvedEvent()
+        {
+            if (Phase != RunPhase.Event)
+            {
+                throw new InvalidOperationException("This action is only available on the event screen.");
+            }
+
+            if (RoundEventResolved)
+            {
+                throw new InvalidOperationException("This round's event has already been resolved.");
+            }
+        }
+
+        /// <summary>
+        /// Decline the offered event (GDD "Отказаться"): the encounter resolves with no effect
+        /// and the run can advance to the next round.
+        /// </summary>
+        public RunState DeclineEvent()
+        {
+            EnsureUnresolvedEvent();
+            return this with { RoundEventResolved = true };
+        }
+
+        /// <summary>
+        /// Event "Сделка торговца" (GDD "обмен здоровья на золото"): trade run health for gold.
+        /// The trade may not reduce run health to zero, so it can never be self-defeating.
+        /// </summary>
+        public RunState ResolveTradeHealthForGold()
+        {
+            EnsureUnresolvedEvent();
+            var option = EventCatalog.TradeHealthForGold;
+            if (RunHealth - option.HealthCost < 1)
+            {
+                throw new InvalidOperationException("Not enough run health to take the merchant's trade.");
+            }
+
+            return this with
+            {
+                RunHealth = RunHealth - option.HealthCost,
+                Gold = Gold + option.GoldReward,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>
+        /// Event "Проклятый дар" (GDD "бесплатный герой с проклятием"): add a free hero to the
+        /// bench that carries a curse for the rest of the run. The granted hero id is supplied by
+        /// the screen and must be a known catalog hero; the bench must have room.
+        /// </summary>
+        public RunState ResolveCursedFreeHero(string heroId, EconomyConfig? economy = null)
+        {
+            EnsureUnresolvedEvent();
+            if (!HeroCatalog.TryGet(heroId, out var definition))
+            {
+                throw new ArgumentException($"Unknown hero id '{heroId}'.", nameof(heroId));
+            }
+
+            var config = economy ?? EconomyConfig.Default;
+            if (Bench.Count >= config.StartingBenchSize)
+            {
+                throw new InvalidOperationException("Bench is full.");
+            }
+
+            var bench = Bench.ToList();
+            bench.Add(new HeroInstance(CreateInstanceId(definition.Id), definition.Id, Stars: 1, Cursed: true));
+
+            return this with
+            {
+                Bench = bench,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>
+        /// Event "Благословение фракции" (GDD "усиление фракции на следующий бой"): empower one
+        /// faction for the next battle. The faction must be a known catalog faction; the boost is
+        /// consumed when the next combat starts.
+        /// </summary>
+        public RunState ResolveFactionBoost(string factionId)
+        {
+            EnsureUnresolvedEvent();
+            var faction = FactionCatalog.All.FirstOrDefault(entry =>
+                string.Equals(entry.Id, factionId, StringComparison.OrdinalIgnoreCase));
+            if (faction is null)
+            {
+                throw new ArgumentException($"Unknown faction id '{factionId}'.", nameof(factionId));
+            }
+
+            return this with
+            {
+                PendingFactionBoostId = faction.Id,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>
+        /// Event "Жертва ради реликвии" (GDD "удаление героя ради артефакта"): remove a hero from
+        /// the bench or board in exchange for an artifact. The hero is identified by instance id
+        /// and the artifact by catalog id.
+        /// </summary>
+        public RunState ResolveSacrificeHeroForArtifact(string instanceId, string artifactId)
+        {
+            EnsureUnresolvedEvent();
+            if (string.IsNullOrWhiteSpace(instanceId))
+            {
+                throw new ArgumentException("Hero instance id is required.", nameof(instanceId));
+            }
+
+            var artifact = ArtifactCatalog.Get(artifactId);
+            var artifacts = Artifacts.ToList();
+
+            var bench = Bench.ToList();
+            var benchIndex = bench.FindIndex(hero => hero.InstanceId == instanceId);
+            if (benchIndex >= 0)
+            {
+                bench.RemoveAt(benchIndex);
+                artifacts.Add(artifact.ToArtifactState());
+                return this with { Bench = bench, Artifacts = artifacts, RoundEventResolved = true };
+            }
+
+            var team = Team.ToList();
+            var teamIndex = team.FindIndex(slot => slot.Hero.InstanceId == instanceId);
+            if (teamIndex >= 0)
+            {
+                team.RemoveAt(teamIndex);
+                artifacts.Add(artifact.ToArtifactState());
+                return this with { Team = team, Artifacts = artifacts, RoundEventResolved = true };
+            }
+
+            throw new InvalidOperationException("Hero instance was not found on the bench or board.");
+        }
+
+        /// <summary>
         /// The three artifacts the current reward round offers, drawn deterministically
         /// from the round seed (GDD "Экран награды": выбор одного из трёх артефактов).
         /// Empty when the current round grants no artifact choice.
@@ -486,7 +643,9 @@ namespace RuneChess.Core
                 Combat = CombatState.Start(
                     runeSeed ?? CurrentRoundDefinition.CombatRuneSeed,
                     durationSeconds ?? CombatState.DefaultDurationSeconds
-                )
+                ),
+                // A faction boost from a prior event applies to this one battle, then is spent.
+                PendingFactionBoostId = ""
             };
         }
 
@@ -669,7 +828,8 @@ namespace RuneChess.Core
                 Shop = nextShop ?? ShopState.ForPlayerLevel(PlayerLevel),
                 NextEnemyId = nextEnemyId,
                 Combat = null,
-                DefeatReason = null
+                DefeatReason = null,
+                RoundEventResolved = false
             };
         }
 

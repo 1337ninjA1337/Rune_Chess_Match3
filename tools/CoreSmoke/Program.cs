@@ -2476,6 +2476,54 @@ RequireThrows(() => EventScreenModel.Build((PveRoundDefinition)null!), "the even
 RequireThrows(() => EventScreenModel.Build((RunState)null!), "the event screen rejects a null run");
 RequireThrows(() => EventScreenModel.ForEvent(null!, 4, "Тест", "Цель"), "the event screen rejects a null choice");
 
+// Event resolution on the run (GDD "События": apply the chosen outcome).
+RequireThrows(() => RunState.NewRun().EnterEvent(), "entering an event is rejected on a non-event round");
+var eventRun = (RunState.NewRun() with { Round = 4 }).EnterEvent();
+Require(eventRun.Phase == RunPhase.Event && !eventRun.RoundEventResolved, "entering an event round opens an unresolved event");
+RequireThrows(() => eventRun.EnterEvent(), "entering an event is rejected when not in preparation");
+
+var tradedRun = eventRun.ResolveTradeHealthForGold();
+Require(tradedRun.RunHealth == eventRun.RunHealth - EventCatalog.TradeHealthCost, "the trade event spends run health");
+Require(tradedRun.Gold == eventRun.Gold + EventCatalog.TradeGoldReward, "the trade event grants gold");
+Require(tradedRun.RoundEventResolved, "resolving the trade event marks the event resolved");
+RequireThrows(() => tradedRun.ResolveTradeHealthForGold(), "an event cannot be resolved twice");
+RequireThrows(() => (eventRun with { RunHealth = EventCatalog.TradeHealthCost }).ResolveTradeHealthForGold(), "the trade event cannot reduce run health to zero");
+
+var declinedRun = eventRun.DeclineEvent();
+Require(declinedRun.RoundEventResolved && declinedRun.RunHealth == eventRun.RunHealth && declinedRun.Gold == eventRun.Gold, "declining an event resolves it with no effect");
+
+var cursedRun = eventRun.ResolveCursedFreeHero("iron_guard");
+Require(cursedRun.Bench.Count == eventRun.Bench.Count + 1, "the cursed-gift event adds a hero to the bench");
+Require(cursedRun.Bench[^1].HeroId == "iron_guard" && cursedRun.Bench[^1].Cursed, "the cursed-gift hero is marked cursed");
+Require(cursedRun.RoundEventResolved, "resolving the cursed-gift event marks the event resolved");
+RequireThrows(() => eventRun.ResolveCursedFreeHero("unknown_hero"), "the cursed-gift event rejects an unknown hero");
+var fullBenchEventRun = eventRun with { Bench = Enumerable.Range(0, EconomyConfig.Default.StartingBenchSize).Select(i => new HeroInstance($"bench_{i}", "iron_guard", 1)).ToList() };
+RequireThrows(() => fullBenchEventRun.ResolveCursedFreeHero("iron_guard"), "the cursed-gift event rejects a full bench");
+
+var boostedRun = eventRun.ResolveFactionBoost(FactionCatalog.Empire.Id);
+Require(boostedRun.HasPendingFactionBoost && boostedRun.PendingFactionBoostId == FactionCatalog.Empire.Id, "the blessing event empowers a faction for the next battle");
+Require(boostedRun.RoundEventResolved, "resolving the blessing event marks the event resolved");
+RequireThrows(() => eventRun.ResolveFactionBoost("unknown_faction"), "the blessing event rejects an unknown faction");
+var boostConsumed = (afterPlace with { PendingFactionBoostId = FactionCatalog.Empire.Id }).StartCombat();
+Require(boostConsumed.Phase == RunPhase.Combat && !boostConsumed.HasPendingFactionBoost, "starting the next battle consumes the faction boost");
+
+var benchSacrificeRun = eventRun with { Bench = new[] { new HeroInstance("sac_bench", "iron_guard", 1) } };
+var afterBenchSacrifice = benchSacrificeRun.ResolveSacrificeHeroForArtifact("sac_bench", "blood_chalice");
+Require(afterBenchSacrifice.Bench.Count == 0, "the sacrifice event removes the chosen bench hero");
+Require(afterBenchSacrifice.Artifacts.Any(a => a.Id == "blood_chalice"), "the sacrifice event grants the chosen artifact");
+Require(afterBenchSacrifice.RoundEventResolved, "resolving the sacrifice event marks the event resolved");
+var teamSacrificeRun = (afterPlace with { Round = 4 }).EnterEvent();
+var afterTeamSacrifice = teamSacrificeRun.ResolveSacrificeHeroForArtifact(boughtHeroId, "iron_banner");
+Require(afterTeamSacrifice.Team.Count == 0 && afterTeamSacrifice.Artifacts.Any(a => a.Id == "iron_banner"), "the sacrifice event can remove a placed hero for an artifact");
+RequireThrows(() => eventRun.ResolveSacrificeHeroForArtifact("missing_instance", "blood_chalice"), "the sacrifice event rejects an unknown hero instance");
+RequireThrows(() => benchSacrificeRun.ResolveSacrificeHeroForArtifact("sac_bench", "unknown_artifact"), "the sacrifice event rejects an unknown artifact");
+
+// Resolved event state survives save/load.
+var eventSnapshot = RunProgressSnapshot.Capture(boostedRun).Restore();
+Require(eventSnapshot.PendingFactionBoostId == FactionCatalog.Empire.Id && eventSnapshot.RoundEventResolved, "the run snapshot preserves pending faction boost and event resolution");
+var cursedSnapshot = RunProgressSnapshot.Capture(cursedRun).Restore();
+Require(cursedSnapshot.Bench[^1].Cursed, "the run snapshot preserves a cursed hero");
+
 // Synergy panel view-model (GDD UI screen "Панель синергий").
 var synergyTeam = new List<BoardHero>
 {
