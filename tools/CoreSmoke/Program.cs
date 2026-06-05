@@ -2225,6 +2225,47 @@ RequireThrows(() => RewardScreenModel.Build(heroChoiceRound, true, -1), "the rew
 RequireThrows(() => RewardScreenModel.Build(heroChoiceRound, true, 0, -1), "the reward screen rejects negative bonus gold");
 RequireThrows(() => RewardScreenModel.Build((RunState)null!), "the reward screen rejects a null run");
 
+// Event catalog and event screen view-model (GDD UI screen "Экран события").
+Require(EventCatalog.All.Count == 4, "the event catalog ships the four MVP event archetypes");
+Require(
+    EventCatalog.All.Select(option => option.Kind).Distinct().Count() == 4,
+    "every event archetype is represented exactly once"
+);
+foreach (EventChoiceKind kind in Enum.GetValues(typeof(EventChoiceKind)))
+{
+    var option = EventCatalog.Get(kind);
+    Require(option.Kind == kind, "the event catalog returns the requested archetype");
+    Require(option.Title.Length > 0 && option.Description.Length > 0, "every event option carries player-facing copy");
+    Require(option.AcceptLabel.Length > 0 && option.DeclineLabel.Length > 0, "every event option offers accept and decline labels");
+}
+var tradeEvent = EventCatalog.TradeHealthForGold;
+Require(tradeEvent.CostsHealth && tradeEvent.HealthCost == EventCatalog.TradeHealthCost, "the merchant event trades run health");
+Require(tradeEvent.GrantsGold && tradeEvent.GoldReward == EventCatalog.TradeGoldReward, "the merchant event grants gold");
+Require(EventCatalog.CursedFreeHero.GrantsHero && EventCatalog.CursedFreeHero.AppliesCurse, "the cursed-gift event grants a hero with a curse");
+Require(EventCatalog.FactionBoost.BuffsFaction, "the blessing event buffs a faction next battle");
+Require(EventCatalog.SacrificeHeroForArtifact.RemovesHero && EventCatalog.SacrificeHeroForArtifact.GrantsArtifact, "the sacrifice event swaps a hero for an artifact");
+Require(EventCatalog.TryGet("EVENT_TRADE_HEALTH_FOR_GOLD", out var fetchedEvent) && fetchedEvent.Kind == EventChoiceKind.TradeHealthForGold, "event lookup is case-insensitive");
+Require(!EventCatalog.TryGet("unknown_event", out _), "event lookup rejects unknown ids");
+RequireThrows(() => EventCatalog.Get((EventChoiceKind)999), "event catalog rejects unknown archetypes");
+
+var eventRound = PveRunSchedule.GetRound(4);
+var eventScreen = EventScreenModel.Build(eventRound);
+Require(eventScreen.Round == 4 && eventScreen.RoundType == PveRoundType.Event, "the event screen builds from the GDD event round");
+Require(eventScreen.EventName == eventRound.EnemyName && eventScreen.DesignGoal == eventRound.DesignGoal, "the event screen carries the round context");
+Require(eventScreen.Headline == EventScreenModel.EventHeadline, "the event screen shows the event headline");
+Require(eventScreen.AllowsDecline && eventScreen.ContinueLabel == "Продолжить", "the event screen can be declined and continued");
+Require(EventScreenModel.Build(eventRound).Kind == eventScreen.Kind, "the event screen picks a deterministic archetype for a round");
+foreach (EventChoiceKind kind in Enum.GetValues(typeof(EventChoiceKind)))
+{
+    var screen = EventScreenModel.ForEvent(EventCatalog.Get(kind), round: 4, eventName: "Тест", designGoal: "Цель");
+    Require(screen.Offers(kind) && screen.Choice.Kind == kind, "the event screen renders every supported archetype");
+}
+Require(EventScreenModel.Build(RunState.NewRun() with { Round = 4 }).RoundType == PveRoundType.Event, "the event screen builds from a run on an event round");
+RequireThrows(() => EventScreenModel.Build(PveRunSchedule.GetRound(2)), "the event screen rejects a non-event round");
+RequireThrows(() => EventScreenModel.Build((PveRoundDefinition)null!), "the event screen rejects a null round");
+RequireThrows(() => EventScreenModel.Build((RunState)null!), "the event screen rejects a null run");
+RequireThrows(() => EventScreenModel.ForEvent(null!, 4, "Тест", "Цель"), "the event screen rejects a null choice");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
