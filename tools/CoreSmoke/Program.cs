@@ -2266,6 +2266,40 @@ RequireThrows(() => EventScreenModel.Build((PveRoundDefinition)null!), "the even
 RequireThrows(() => EventScreenModel.Build((RunState)null!), "the event screen rejects a null run");
 RequireThrows(() => EventScreenModel.ForEvent(null!, 4, "Тест", "Цель"), "the event screen rejects a null choice");
 
+// Synergy panel view-model (GDD UI screen "Панель синергий").
+var synergyTeam = new List<BoardHero>
+{
+    new(new HeroInstance("panel_ig", "iron_guard", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("panel_bc", "bulwark_captain", 1), new TacticalPosition(2, 1))
+};
+var synergyPanel = SynergyPanelModel.Build(synergyTeam);
+Require(synergyPanel.HasActiveSynergies, "two same-faction same-class heroes activate synergies on the panel");
+var empireEntry = synergyPanel.ActiveFactions.Single(entry => entry.Id == "empire");
+Require(empireEntry.Kind == SynergyKind.Faction && empireEntry.UnitCount == 2 && empireEntry.IsActive, "the panel reports the active Empire faction with two heroes");
+Require(empireEntry.Strength == SynergyStrength.Active, "an active synergy with a higher tier left is coloured active");
+Require(empireEntry.NextTier is not null && empireEntry.NextTier.RequiredCount == 4 && empireEntry.HeroesToNextTier == 2, "the panel reports the next Empire breakpoint and heroes still needed");
+Require(empireEntry.NextTierHeroes.Contains("Лучница Присяги") && !empireEntry.NextTierHeroes.Contains("Железный Страж"), "the panel lists fielding-eligible heroes that close the next breakpoint");
+var defenderEntry = synergyPanel.ActiveClasses.Single(entry => entry.Id == "defender");
+Require(defenderEntry.Kind == SynergyKind.Class && defenderEntry.UnitCount == 2 && defenderEntry.NextTier is not null && defenderEntry.NextTier.RequiredCount == 4, "the panel reports the active Defender class and its next breakpoint");
+Require(synergyPanel.UpcomingThresholds.Count >= 2 && synergyPanel.UpcomingThresholds.All(entry => entry.HasNextTier), "the panel lists upcoming breakpoints, each with a next tier");
+Require(synergyPanel.UpcomingThresholds.SequenceEqual(synergyPanel.UpcomingThresholds.OrderBy(entry => entry.HeroesToNextTier)), "upcoming breakpoints are ordered by how close they are");
+
+var emptyPanel = SynergyPanelModel.Build(new List<BoardHero>());
+Require(emptyPanel.Entries.Count == 0 && !emptyPanel.HasActiveSynergies, "an empty team has no synergies on the panel");
+
+var soloPanel = SynergyPanelModel.Build(new List<BoardHero>
+{
+    new(new HeroInstance("solo_ig", "iron_guard", 1), new TacticalPosition(2, 0))
+});
+Require(soloPanel.ActiveFactions.Count == 0 && soloPanel.Entries.Count == 2, "a lone hero shows building synergies but activates none");
+var soloEmpire = soloPanel.Entries.Single(entry => entry.Id == "empire");
+Require(soloEmpire.Strength == SynergyStrength.Building && soloEmpire.HeroesToNextTier == 1, "a single faction hero is one short of the first tier and coloured building");
+
+var synergyRunPanel = SynergyPanelModel.Build(RunState.NewRun() with { Team = synergyTeam });
+Require(synergyRunPanel.HasActiveSynergies, "the synergy panel builds from a run's placed team");
+RequireThrows(() => SynergyPanelModel.Build((RunState)null!), "the synergy panel rejects a null run");
+RequireThrows(() => SynergyPanelModel.Build((IReadOnlyList<BoardHero>)null!), "the synergy panel rejects a null team");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
