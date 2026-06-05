@@ -25,7 +25,9 @@ public sealed record BattleState(
     double EnemyRedRuneCharge = 0.0,
     double PlayerDamageDealt = 0.0,
     double PlayerHealingDone = 0.0,
-    double PlayerShieldGranted = 0.0
+    double PlayerShieldGranted = 0.0,
+    ArtifactCombatModifiers PlayerArtifactModifiers = default,
+    bool PlayerPhoenixReviveAvailable = false
 )
 {
     public const double DefaultDurationSeconds = 60.0;
@@ -52,7 +54,8 @@ public sealed record BattleState(
         SynergyModifiers playerSynergyModifiers = default,
         SynergyModifiers enemySynergyModifiers = default,
         CommanderState? playerCommander = null,
-        CommanderState? enemyCommander = null)
+        CommanderState? enemyCommander = null,
+        ArtifactCombatModifiers playerArtifactModifiers = default)
     {
         if (units is null)
         {
@@ -71,6 +74,8 @@ public sealed record BattleState(
         ApplySpiritDodgeChance(battleUnits, TacticalSide.Enemy, enemySynergyModifiers);
         ApplyWarlordFirstDefenderHealth(battleUnits, TacticalSide.Player, playerCommander);
         ApplyWarlordFirstDefenderHealth(battleUnits, TacticalSide.Enemy, enemyCommander);
+        ApplyArtifactFrontlineArmor(battleUnits, TacticalSide.Player, playerArtifactModifiers);
+        ApplyArtifactAttackSpeed(battleUnits, TacticalSide.Player, playerArtifactModifiers);
 
         return new BattleState(
             battleUnits,
@@ -79,7 +84,127 @@ public sealed record BattleState(
             BattleOutcome.Ongoing,
             CommanderEnergy: 0.0,
             PlayerSynergyModifiers: playerSynergyModifiers,
-            EnemySynergyModifiers: enemySynergyModifiers);
+            EnemySynergyModifiers: enemySynergyModifiers,
+            PlayerArtifactModifiers: playerArtifactModifiers,
+            PlayerPhoenixReviveAvailable: playerArtifactModifiers.HasPhoenixRevive);
+    }
+
+    /// <summary>"Железное Знамя": add flat armor to each frontline ally at combat start.</summary>
+    private static void ApplyArtifactFrontlineArmor(
+        List<BattleUnit> units,
+        TacticalSide side,
+        ArtifactCombatModifiers modifiers)
+    {
+        if (modifiers.FrontlineArmorBonus <= 0.0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < units.Count; i += 1)
+        {
+            var unit = units[i];
+            if (unit.Side != side || !unit.Position.IsFrontline)
+            {
+                continue;
+            }
+
+            units[i] = unit with { Armor = unit.Armor + modifiers.FrontlineArmorBonus };
+        }
+    }
+
+    /// <summary>"Сапоги Скорости": multiply ally attack speed at combat start.</summary>
+    private static void ApplyArtifactAttackSpeed(
+        List<BattleUnit> units,
+        TacticalSide side,
+        ArtifactCombatModifiers modifiers)
+    {
+        if (modifiers.AttackSpeedMultiplier <= 1.0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < units.Count; i += 1)
+        {
+            var unit = units[i];
+            if (unit.Side != side)
+            {
+                continue;
+            }
+
+            units[i] = unit with { AttacksPerSecond = unit.AttacksPerSecond * modifiers.AttackSpeedMultiplier };
+        }
+    }
+
+    /// <summary>
+    /// Apply the player's during-combat artifact effects for a single tick, comparing the
+    /// pre-tick snapshot (<see cref="Units"/>) against the freshly resolved <paramref name="units"/>:
+    /// "Жатва Душ" heals every alive ally for each enemy that died this tick, and "Перо Феникса"
+    /// revives the first ally that fell this tick (once per battle). Returns whether the phoenix
+    /// revive is still available afterwards.
+    /// </summary>
+    private bool ApplyArtifactCombatTickEffects(List<BattleUnit> units, bool reviveAvailable)
+    {
+        var modifiers = PlayerArtifactModifiers;
+        if (modifiers.IsEmpty && !reviveAvailable)
+        {
+            return reviveAvailable;
+        }
+
+        var aliveBefore = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var unit in Units)
+        {
+            if (unit.IsAlive)
+            {
+                aliveBefore.Add(unit.UnitId);
+            }
+        }
+
+        if (modifiers.OnKillAllyHeal > 0.0)
+        {
+            var kills = 0;
+            foreach (var unit in units)
+            {
+                if (unit.Side == TacticalSide.Enemy && !unit.IsAlive && aliveBefore.Contains(unit.UnitId))
+                {
+                    kills += 1;
+                }
+            }
+
+            if (kills > 0)
+            {
+                var heal = kills * modifiers.OnKillAllyHeal;
+                for (var i = 0; i < units.Count; i += 1)
+                {
+                    var unit = units[i];
+                    if (unit.Side == TacticalSide.Player && unit.IsAlive)
+                    {
+                        units[i] = unit with
+                        {
+                            CurrentHealth = CombatFormulas.ApplyHealing(unit.CurrentHealth, heal, unit.MaxHealth)
+                        };
+                    }
+                }
+            }
+        }
+
+        if (reviveAvailable)
+        {
+            for (var i = 0; i < units.Count; i += 1)
+            {
+                var unit = units[i];
+                if (unit.Side == TacticalSide.Player && !unit.IsAlive && aliveBefore.Contains(unit.UnitId))
+                {
+                    units[i] = unit with
+                    {
+                        CurrentHealth = Math.Max(1.0, unit.MaxHealth * modifiers.ReviveHealthFraction)
+                    };
+                    reviveAvailable = false;
+                    break;
+                }
+            }
+        }
+
+        return reviveAvailable;
     }
 
     /// <summary>Sum of current health fractions across the units that started on a side (dead units count as 0).</summary>
@@ -274,6 +399,8 @@ public sealed record BattleState(
             TryCastAbility(units, attackerIndex, ModifiersForSide(updatedAttacker.Side), ModifiersForSide(target.Side));
         }
 
+        var phoenixReviveAvailable = ApplyArtifactCombatTickEffects(units, PlayerPhoenixReviveAvailable);
+
         var elapsed = Math.Min(DurationSeconds, ElapsedSeconds + deltaSeconds);
         var (tickDamage, tickHealing, tickShield) = DiffPlayerCombatStats(Units, units);
         return new BattleState(
@@ -288,7 +415,9 @@ public sealed record BattleState(
             EnemyRedRuneCharge + enemyRedRuneChargeGain,
             PlayerDamageDealt + tickDamage,
             PlayerHealingDone + tickHealing,
-            PlayerShieldGranted + tickShield);
+            PlayerShieldGranted + tickShield,
+            PlayerArtifactModifiers,
+            phoenixReviveAvailable);
     }
 
     /// <summary>
@@ -403,7 +532,9 @@ public sealed record BattleState(
             casterSide == TacticalSide.Enemy ? EnemyRedRuneCharge - consumedRedCharge : EnemyRedRuneCharge,
             PlayerDamageDealt + effectDamage,
             PlayerHealingDone + effectHealing,
-            PlayerShieldGranted + effectShield);
+            PlayerShieldGranted + effectShield,
+            PlayerArtifactModifiers,
+            PlayerPhoenixReviveAvailable);
     }
 
     /// <summary>Grants blue-rune mana (matchedBlueRunes * 8) to a side's frontmost living unit.</summary>

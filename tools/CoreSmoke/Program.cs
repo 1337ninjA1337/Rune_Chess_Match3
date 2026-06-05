@@ -1768,6 +1768,73 @@ Require(RunState.NewRun().RuneModifiers.IsEmpty, "a fresh run has no rune artifa
 var runeArtifactRun = RunState.NewRun() with { Artifacts = new[] { new ArtifactState("blood_chalice", "Кровавый Кубок") } };
 Require(Math.Abs(runeArtifactRun.RuneModifiers.GreenHealingBonus - ArtifactRuneModifiers.BloodChaliceGreenHealingBonus) < 1e-9, "a run exposes the rune modifiers of its owned artifacts");
 
+// Artifacts as combat modifiers (GDD P1 "артефакты как модификаторы боя", linked to the auto-battle).
+Require(ArtifactCombatModifiers.None.IsEmpty, "the neutral combat modifier owns no bonuses");
+Require(ArtifactCombatModifiers.From(System.Array.Empty<ArtifactState>()).IsEmpty, "a run with no artifacts has empty combat modifiers");
+Require(ArtifactCombatModifiers.From(new[] { new ArtifactState("merchant_seal", "Печать Торговца") }).IsEmpty, "economy artifacts contribute no combat modifiers");
+RequireThrows(() => ArtifactCombatModifiers.From(null!), "combat modifiers reject a null artifact list");
+
+var ironBanner = ArtifactCombatModifiers.From(new[] { new ArtifactState("iron_banner", "Железное Знамя") });
+Require(Math.Abs(ironBanner.FrontlineArmorBonus - ArtifactCombatModifiers.IronBannerFrontlineArmorBonus) < 1e-9, "iron banner records its frontline armor bonus");
+var ironBattle = BattleState.Create(new[]
+{
+    MakeUnit("ib_front", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 1.0, 100.0),
+    MakeUnit("ib_back", TacticalSide.Player, new TacticalPosition(3, 0), 100, 100, 10, 1.0, 100.0),
+    MakeUnit("ib_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 100.0)
+}, playerArtifactModifiers: ironBanner);
+Require(Math.Abs(ironBattle.Units.First(u => u.UnitId == "ib_front").Armor - ArtifactCombatModifiers.IronBannerFrontlineArmorBonus) < 1e-9, "iron banner armors the allied frontline");
+Require(Math.Abs(ironBattle.Units.First(u => u.UnitId == "ib_back").Armor) < 1e-9, "iron banner leaves the allied backline unarmored");
+Require(Math.Abs(ironBattle.Units.First(u => u.UnitId == "ib_enemy").Armor) < 1e-9, "iron banner does not armor the enemy frontline");
+var twoBanners = ArtifactCombatModifiers.From(new[] { new ArtifactState("iron_banner", "Железное Знамя"), new ArtifactState("iron_banner", "Железное Знамя") });
+Require(Math.Abs(twoBanners.FrontlineArmorBonus - (2.0 * ArtifactCombatModifiers.IronBannerFrontlineArmorBonus)) < 1e-9, "duplicate combat artifacts stack additively");
+
+var swiftBoots = ArtifactCombatModifiers.From(new[] { new ArtifactState("swift_boots", "Сапоги Скорости") });
+var swiftBattle = BattleState.Create(new[]
+{
+    MakeUnit("sb_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 1.0, 100.0),
+    MakeUnit("sb_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 100.0)
+}, playerArtifactModifiers: swiftBoots);
+Require(Math.Abs(swiftBattle.Units.First(u => u.UnitId == "sb_ally").AttacksPerSecond - (1.0 * (1.0 + ArtifactCombatModifiers.SwiftBootsAttackSpeedBonus))) < 1e-9, "swift boots speed up the allied attack rate");
+Require(Math.Abs(swiftBattle.Units.First(u => u.UnitId == "sb_enemy").AttacksPerSecond - 1.0) < 1e-9, "swift boots do not speed up enemies");
+
+// "Жатва Душ": killing an enemy heals every alive ally.
+var soulHarvest = ArtifactCombatModifiers.From(new[] { new ArtifactState("soul_harvest", "Жатва Душ") });
+var soulBattle = BattleState.Create(new[]
+{
+    MakeUnit("sh_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 50, 100, 1.0, 0.0),
+    MakeUnit("sh_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 10, 0, 1.0, 100.0)
+}, playerArtifactModifiers: soulHarvest);
+var afterSoulKill = soulBattle.Tick(0.5);
+Require(!afterSoulKill.Units.First(u => u.UnitId == "sh_enemy").IsAlive, "the ally kills the wounded enemy");
+Require(Math.Abs(afterSoulKill.Units.First(u => u.UnitId == "sh_ally").CurrentHealth - (50.0 + ArtifactCombatModifiers.SoulHarvestOnKillHeal)) < 1e-9, "soul harvest heals the ally when an enemy dies");
+var soulNoArtifact = BattleState.Create(new[]
+{
+    MakeUnit("sh2_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 50, 100, 1.0, 0.0),
+    MakeUnit("sh2_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 10, 0, 1.0, 100.0)
+}).Tick(0.5);
+Require(Math.Abs(soulNoArtifact.Units.First(u => u.UnitId == "sh2_ally").CurrentHealth - 50.0) < 1e-9, "without soul harvest a kill does not heal the ally");
+
+// "Перо Феникса": the first ally to fall is revived once per battle.
+var phoenix = ArtifactCombatModifiers.From(new[] { new ArtifactState("phoenix_feather", "Перо Феникса") });
+Require(phoenix.HasPhoenixRevive, "phoenix feather grants a revive");
+var phoenixBattle = BattleState.Create(new[]
+{
+    MakeUnit("pf_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 5, 0, 1.0, 100.0),
+    MakeUnit("pf_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 100, 10.0, 0.0)
+}, playerArtifactModifiers: phoenix);
+Require(phoenixBattle.PlayerPhoenixReviveAvailable, "a battle with phoenix feather starts with a revive available");
+var afterFirstDeath = phoenixBattle.Tick(0.5);
+Require(afterFirstDeath.Units.First(u => u.UnitId == "pf_ally").IsAlive, "phoenix feather revives the fallen ally");
+Require(Math.Abs(afterFirstDeath.Units.First(u => u.UnitId == "pf_ally").CurrentHealth - (100.0 * ArtifactCombatModifiers.PhoenixReviveHealthFraction)) < 1e-9, "the revived ally returns at the configured health fraction");
+Require(!afterFirstDeath.PlayerPhoenixReviveAvailable, "the phoenix revive is spent after it fires");
+var afterSecondDeath = afterFirstDeath.Tick(0.5);
+Require(!afterSecondDeath.Units.First(u => u.UnitId == "pf_ally").IsAlive, "phoenix feather only revives once per battle");
+
+// The run owns the artifacts and exposes the combat modifiers it feeds into the battle.
+Require(RunState.NewRun().CombatModifiers.IsEmpty, "a fresh run has no combat artifact modifiers");
+var combatArtifactRun = RunState.NewRun() with { Artifacts = new[] { new ArtifactState("iron_banner", "Железное Знамя") } };
+Require(Math.Abs(combatArtifactRun.CombatModifiers.FrontlineArmorBonus - ArtifactCombatModifiers.IronBannerFrontlineArmorBonus) < 1e-9, "a run exposes the combat modifiers of its owned artifacts");
+
 var empireYellowShieldBattle = BattleState.Create(new[]
 {
     MakeUnit("empire_front_a", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),

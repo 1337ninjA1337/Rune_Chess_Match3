@@ -35,6 +35,9 @@ namespace RuneChess.Core
         /// <summary>Rune (match-3) modifiers contributed by the artifacts this run currently owns.</summary>
         public ArtifactRuneModifiers RuneModifiers => ArtifactRuneModifiers.From(Artifacts);
 
+        /// <summary>Combat (auto-battle) modifiers contributed by the artifacts this run currently owns.</summary>
+        public ArtifactCombatModifiers CombatModifiers => ArtifactCombatModifiers.From(Artifacts);
+
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
         public bool IsRunWon => Phase == RunPhase.Victory;
         public bool IsRunLost => Phase == RunPhase.Defeat;
