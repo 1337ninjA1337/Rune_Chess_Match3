@@ -301,7 +301,8 @@ public sealed record BattleState(
     public BattleState ApplyRuneEffects(
         IEnumerable<RuneEffect> effects,
         TacticalSide casterSide = TacticalSide.Player,
-        SynergyModifiers synergyModifiers = default)
+        SynergyModifiers synergyModifiers = default,
+        ArtifactRuneModifiers runeArtifactModifiers = default)
     {
         if (effects is null)
         {
@@ -311,7 +312,7 @@ public sealed record BattleState(
         var state = this;
         foreach (var effect in effects)
         {
-            state = state.ApplyRuneEffect(effect, casterSide, synergyModifiers);
+            state = state.ApplyRuneEffect(effect, casterSide, synergyModifiers, runeArtifactModifiers);
         }
 
         return state;
@@ -320,7 +321,8 @@ public sealed record BattleState(
     public BattleState ApplyRuneEffect(
         RuneEffect effect,
         TacticalSide casterSide = TacticalSide.Player,
-        SynergyModifiers synergyModifiers = default)
+        SynergyModifiers synergyModifiers = default,
+        ArtifactRuneModifiers runeArtifactModifiers = default)
     {
         if (effect is null)
         {
@@ -338,6 +340,11 @@ public sealed record BattleState(
         var casterSynergyModifiers = ResolveSynergyModifiers(casterSide, synergyModifiers);
         var enemySynergyModifiers = ModifiersForSide(enemySide);
         var combatEffect = ApplyAbyssalPurpleRuneBonus(effect, casterSynergyModifiers);
+
+        // Rune artifacts the run owns scale the matching colour's match-3 effect
+        // (GDD P1 "артефакты как модификаторы рун"); the neutral default leaves the
+        // effect untouched so existing call sites keep their behaviour.
+        combatEffect = runeArtifactModifiers.Apply(combatEffect);
 
         // Assassin 6 synergy: spend the red-rune charge built up by assassin crits as
         // bonus power on the caster side's next red physical rune effect.

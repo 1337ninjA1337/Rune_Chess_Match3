@@ -2294,6 +2294,37 @@ Require(tomeRun.BuyXp().Gold == tomeRun.Gold - tomeRun.EffectiveBuyXpCost() && t
 Require(RunState.NewRun().EffectiveBuyXpCost() == EconomyConfig.Default.BuyXpCost, "without artifacts the XP cost is unchanged");
 Require(PreparationScreenModel.Build(tomeRun).BuyXpCost == tomeRun.EffectiveBuyXpCost(), "the preparation screen shows the discounted XP cost");
 
+// Rune artifacts as match-3 modifiers (GDD P1 "артефакты как модификаторы рун").
+Require(ArtifactRuneModifiers.None.IsNeutral, "the empty rune-artifact set is neutral");
+Require(ArtifactRuneModifiers.From(new List<ArtifactState>()).IsNeutral, "a run with no rune artifacts has neutral rune modifiers");
+Require(RunState.NewRun().RuneModifiers.IsNeutral, "a fresh run owns no rune artifacts");
+RequireThrows(() => ArtifactRuneModifiers.From(null!), "the rune modifiers reject a null artifact list");
+RequireThrows(() => ArtifactRuneModifiers.None.Apply(null!), "applying rune modifiers rejects a null effect");
+Require(ArtifactRuneModifiers.From(new List<ArtifactState> { new("phoenix_feather", "x") }).IsNeutral, "a combat artifact contributes no rune modifier");
+var emberModifiers = ArtifactRuneModifiers.From(new List<ArtifactState> { new("ember_core", "Тлеющее Ядро") });
+Require(Math.Abs(emberModifiers.RedPhysicalMultiplier - (1.0 + ArtifactRuneModifiers.EmberCorePhysicalBonus)) < 1e-9 && emberModifiers.GreenHealingMultiplier == 1.0, "the ember core boosts red physical power and nothing else");
+Require(Math.Abs(ArtifactRuneModifiers.From(new List<ArtifactState> { new("ember_core", "x"), new("ember_core", "x") }).RedPhysicalMultiplier - (1.0 + (2 * ArtifactRuneModifiers.EmberCorePhysicalBonus))) < 1e-9, "duplicate rune artifacts stack additively");
+var runeArtifactBattle = BattleState.Create(new[]
+{
+    MakeUnit("ra_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 50, 0, 1.0, 100.0),
+    MakeUnit("ra_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 100.0)
+});
+Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40), runeArtifactModifiers: emberModifiers).Units.First(u => u.UnitId == "ra_enemy").CurrentHealth - 52.0) < 1e-9, "the ember core scales a red rune's physical damage");
+var chaliceModifiers = ArtifactRuneModifiers.From(new List<ArtifactState> { new("blood_chalice", "Кровавый Кубок") });
+Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.Healing, 30, rune: RuneType.Green), runeArtifactModifiers: chaliceModifiers).Units.First(u => u.UnitId == "ra_ally").CurrentHealth - 89.0) < 1e-9, "the blood chalice scales a green rune's healing");
+var totemModifiers = ArtifactRuneModifiers.From(new List<ArtifactState> { new("warding_totem", "Оберегающий Тотем") });
+Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.Yellow), runeArtifactModifiers: totemModifiers).Units.First(u => u.UnitId == "ra_ally").Shield - 26.0) < 1e-9, "the warding totem scales a yellow rune's shield");
+var sparkModifiers = ArtifactRuneModifiers.From(new List<ArtifactState> { new("spark_capacitor", "Искровой Конденсатор") });
+Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.Mana, 24, rune: RuneType.Blue), runeArtifactModifiers: sparkModifiers).Units.First(u => u.UnitId == "ra_ally").CurrentMana - 30.0) < 1e-9, "the spark capacitor scales a blue rune's mana");
+var sigilModifiers = ArtifactRuneModifiers.From(new List<ArtifactState> { new("abyssal_sigil", "Печать Бездны") });
+Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.MagicDamage, 40, rune: RuneType.Purple), runeArtifactModifiers: sigilModifiers).Units.First(u => u.UnitId == "ra_enemy").CurrentHealth - 48.0) < 1e-9, "the abyssal sigil scales a purple rune's magic damage");
+var prismModifiers = ArtifactRuneModifiers.From(new List<ArtifactState> { new("prism_lens", "Призменная Линза") });
+Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.CommanderEnergy, 5, rune: RuneType.White), runeArtifactModifiers: prismModifiers).CommanderEnergy - 6.5) < 1e-9, "the prism lens scales a white rune's commander energy");
+var conduitModifiers = ArtifactRuneModifiers.From(new List<ArtifactState> { new("chain_conduit", "Проводник Цепей") });
+Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40, chainNumber: 2), runeArtifactModifiers: conduitModifiers).Units.First(u => u.UnitId == "ra_enemy").CurrentHealth - 50.0) < 1e-9, "the chain conduit boosts chain-reaction rune power");
+Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40, chainNumber: 1), runeArtifactModifiers: conduitModifiers).Units.First(u => u.UnitId == "ra_enemy").CurrentHealth - 60.0) < 1e-9, "the chain conduit leaves the first non-chain match unchanged");
+Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40)).Units.First(u => u.UnitId == "ra_enemy").CurrentHealth - 60.0) < 1e-9, "the neutral rune-modifier default leaves a rune effect untouched");
+
 // Claiming the hero reward (GDD "награды героем после выбранных раундов").
 var starterRewardRun = RunState.NewRun() with { Round = 1, Phase = RunPhase.Reward };
 var starterHeroOptions = starterRewardRun.RewardHeroOptions();

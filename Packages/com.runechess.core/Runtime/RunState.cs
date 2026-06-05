@@ -32,6 +32,13 @@ namespace RuneChess.Core
         /// <summary>Economy modifiers contributed by the artifacts this run currently owns.</summary>
         public ArtifactModifiers Modifiers => ArtifactModifiers.From(Artifacts);
 
+        /// <summary>
+        /// Rune-effect modifiers contributed by the rune artifacts this run owns. Passed
+        /// into <see cref="BattleState.ApplyRuneEffects"/> so match-3 rune effects honour
+        /// the run's artifacts alongside its synergies.
+        /// </summary>
+        public ArtifactRuneModifiers RuneModifiers => ArtifactRuneModifiers.From(Artifacts);
+
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
         public bool IsRunWon => Phase == RunPhase.Victory;
         public bool IsRunLost => Phase == RunPhase.Defeat;
