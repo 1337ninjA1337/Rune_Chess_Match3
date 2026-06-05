@@ -1979,7 +1979,9 @@ Require(combatScreen.Hud.KeyUnits.Count == 2, "combat screen highlights one key 
 Require(combatScreen.ActiveRuneEffects.Count == 0, "combat screen has no rune effects without a recent match");
 Require(!combatScreen.IsPaused && combatScreen.PauseButtonLabel == "Пауза", "combat screen starts unpaused with a pause button");
 Require(!combatScreen.IsResolved && combatScreen.Outcome == BattleOutcome.Ongoing, "a fresh combat screen reports an ongoing battle");
-Require(!combatScreen.ShowMatchHint, "combat screen hides the idle match hint before the delay");
+var preHintCombat = CombatState.Start(1337, 60).AdvanceTimer(CombatState.MatchHintDelaySeconds - 1);
+var preHintScreen = CombatScreenModel.Build(screenBattle, preHintCombat, screenRound);
+Require(!preHintScreen.ShowMatchHint, "combat screen hides the idle match hint before the delay");
 
 var pausedScreen = CombatScreenModel.Build(screenBattle, screenCombat, screenRound, isPaused: true);
 Require(pausedScreen.IsPaused && pausedScreen.PauseButtonLabel == "Продолжить", "a paused combat screen shows the resume label");
@@ -2242,8 +2244,8 @@ Require(artifactReward.GoldLines.Count == 1, "a reward screen with no bonus show
 var bossReward = RewardScreenModel.Build(PveRunSchedule.GetRound(8), isVictory: true, baseGold: 7);
 Require(bossReward.ArtifactIsRare && bossReward.ArtifactOptions.All(option => option.IsRare), "the boss round offers rare artifacts");
 
-var finalReward = RewardScreenModel.Build(PveRunSchedule.GetRound(10), isVictory: true, baseGold: 0);
-Require(finalReward.IsRunVictory && finalReward.ContinueLabel == "Итог забега", "the final round routes the continue button to the run summary");
+var finalRewardScreen = RewardScreenModel.Build(PveRunSchedule.GetRound(10), isVictory: true, baseGold: 0);
+Require(finalRewardScreen.IsRunVictory && finalRewardScreen.ContinueLabel == "Итог забега", "the final round routes the continue button to the run summary");
 
 var defeatReward = RewardScreenModel.Build(PveRunSchedule.GetRound(2), isVictory: false, baseGold: 0);
 Require(!defeatReward.IsVictory && defeatReward.ResultLabel == "РАУНД ЗАВЕРШЁН", "the reward screen labels an unwon round");
