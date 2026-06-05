@@ -1724,6 +1724,50 @@ Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.MagicDamage, 40,
 Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.MagicDamage, 40, rune: RuneType.Purple), synergyModifiers: abyssalFourModifiers).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - 50.0) < 1e-9, "Abyssal 4 increases purple-rune magic damage");
 Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.MagicDamage, 40, rune: RuneType.White), synergyModifiers: abyssalFourModifiers).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - 60.0) < 1e-9, "Abyssal 4 does not boost non-purple magic damage");
 
+// Artifacts as rune modifiers (GDD P1 "артефакты как модификаторы рун", linked to match-3).
+Require(ArtifactRuneModifiers.None.IsEmpty, "the neutral rune modifier owns no bonuses");
+Require(ArtifactRuneModifiers.From(System.Array.Empty<ArtifactState>()).IsEmpty, "a run with no artifacts has empty rune modifiers");
+Require(ArtifactRuneModifiers.From(new[] { new ArtifactState("merchant_seal", "Печать Торговца") }).IsEmpty, "economy artifacts contribute no rune modifiers");
+var healingEffect = Effect(RuneEffectKind.Healing, 30, rune: RuneType.Green);
+Require(ReferenceEquals(ArtifactRuneModifiers.None.Amplify(healingEffect), healingEffect), "the empty rune modifier leaves an effect untouched");
+RequireThrows(() => ArtifactRuneModifiers.From(null!), "rune modifiers reject a null artifact list");
+RequireThrows(() => ArtifactRuneModifiers.None.Amplify(null!), "rune amplification rejects a null effect");
+
+var chaliceRuneMod = ArtifactRuneModifiers.From(new[] { new ArtifactState("blood_chalice", "Кровавый Кубок") });
+Require(Math.Abs(chaliceRuneMod.GreenHealingBonus - ArtifactRuneModifiers.BloodChaliceGreenHealingBonus) < 1e-9, "blood chalice records its green healing bonus");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(healingEffect, artifactModifiers: chaliceRuneMod).Units.First(u => u.UnitId == "fx_ally").CurrentHealth - (50.0 + (30.0 * (1.0 + ArtifactRuneModifiers.BloodChaliceGreenHealingBonus)))) < 1e-9, "blood chalice amplifies green-rune healing in combat");
+var twoChalices = ArtifactRuneModifiers.From(new[] { new ArtifactState("blood_chalice", "Кровавый Кубок"), new ArtifactState("blood_chalice", "Кровавый Кубок") });
+Require(Math.Abs(twoChalices.GreenHealingBonus - (2.0 * ArtifactRuneModifiers.BloodChaliceGreenHealingBonus)) < 1e-9, "duplicate rune artifacts stack additively");
+
+var sparkCapacitor = ArtifactRuneModifiers.From(new[] { new ArtifactState("spark_capacitor", "Искровой Конденсатор") });
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Mana, 24, rune: RuneType.Blue), artifactModifiers: sparkCapacitor).Units.First(u => u.UnitId == "fx_ally").CurrentMana - (24.0 * (1.0 + ArtifactRuneModifiers.SparkCapacitorBlueManaBonus))) < 1e-9, "spark capacitor amplifies blue-rune mana");
+
+var emberCore = ArtifactRuneModifiers.From(new[] { new ArtifactState("ember_core", "Тлеющее Ядро") });
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40, rune: RuneType.Red), artifactModifiers: emberCore).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - (100.0 - (40.0 + ArtifactRuneModifiers.EmberCoreRedPhysicalFlatBonus))) < 1e-9, "ember core adds flat red-rune physical damage");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40, rune: RuneType.Blue), artifactModifiers: emberCore).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - 60.0) < 1e-9, "ember core only boosts red-rune physical damage");
+
+var wardingTotem = ArtifactRuneModifiers.From(new[] { new ArtifactState("warding_totem", "Оберегающий Тотем") });
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.Yellow), artifactModifiers: wardingTotem).Units.First(u => u.UnitId == "fx_ally").Shield - (20.0 * (1.0 + ArtifactRuneModifiers.WardingTotemYellowShieldBonus))) < 1e-9, "warding totem amplifies yellow-rune shields");
+
+var abyssalSigil = ArtifactRuneModifiers.From(new[] { new ArtifactState("abyssal_sigil", "Печать Бездны") });
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.MagicDamage, 40, rune: RuneType.Purple), artifactModifiers: abyssalSigil).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - (100.0 - (40.0 * (1.0 + ArtifactRuneModifiers.AbyssalSigilPurpleMagicBonus)))) < 1e-9, "abyssal sigil amplifies purple-rune magic damage");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.MagicDamage, 40, rune: RuneType.White), artifactModifiers: abyssalSigil).Units.First(u => u.UnitId == "fx_enemy").CurrentHealth - 60.0) < 1e-9, "abyssal sigil only boosts purple-rune magic damage");
+
+var chainConduit = ArtifactRuneModifiers.From(new[] { new ArtifactState("chain_conduit", "Проводник Цепей") });
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Healing, 30, rune: RuneType.Green, chainNumber: 2), artifactModifiers: chainConduit).Units.First(u => u.UnitId == "fx_ally").CurrentHealth - (50.0 + (30.0 * (1.0 + ArtifactRuneModifiers.ChainConduitChainReactionBonus)))) < 1e-9, "chain conduit amplifies chain-reaction effects");
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.Healing, 30, rune: RuneType.Green, chainNumber: 1), artifactModifiers: chainConduit).Units.First(u => u.UnitId == "fx_ally").CurrentHealth - 80.0) < 1e-9, "chain conduit leaves the initial swap match unchanged");
+
+var prismLens = ArtifactRuneModifiers.From(new[] { new ArtifactState("prism_lens", "Призменная Линза") });
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.CommanderEnergy, 10, rune: RuneType.White), artifactModifiers: prismLens).CommanderEnergy - (10.0 * (1.0 + ArtifactRuneModifiers.PrismLensWhiteEnergyBonus))) < 1e-9, "prism lens feeds extra white-rune commander energy");
+
+// Only the player's owned artifacts apply: an enemy caster ignores the player's rune modifiers.
+Require(Math.Abs(fxBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40, rune: RuneType.Red), casterSide: TacticalSide.Enemy, artifactModifiers: emberCore).Units.First(u => u.UnitId == "fx_ally").CurrentHealth - 10.0) < 1e-9, "enemy-cast rune effects ignore the player's rune artifacts");
+
+// The run owns the artifacts and exposes the rune modifiers it feeds into combat.
+Require(RunState.NewRun().RuneModifiers.IsEmpty, "a fresh run has no rune artifact modifiers");
+var runeArtifactRun = RunState.NewRun() with { Artifacts = new[] { new ArtifactState("blood_chalice", "Кровавый Кубок") } };
+Require(Math.Abs(runeArtifactRun.RuneModifiers.GreenHealingBonus - ArtifactRuneModifiers.BloodChaliceGreenHealingBonus) < 1e-9, "a run exposes the rune modifiers of its owned artifacts");
+
 var empireYellowShieldBattle = BattleState.Create(new[]
 {
     MakeUnit("empire_front_a", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 0, 1.0, 100.0),
