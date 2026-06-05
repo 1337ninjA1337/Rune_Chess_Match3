@@ -2206,6 +2206,21 @@ Require(!ArtifactCatalog.TryGet("unknown_artifact", out _), "artifact lookup rej
 Require(commonOffer[0].ToArtifactState().Id == commonOffer[0].Id, "a chosen artifact converts into a stored artifact state");
 RequireThrows(() => ArtifactCatalog.Get("unknown_artifact"), "artifact get throws on unknown ids");
 
+// Artifact definition model (GDD P1 artifact model: id, name, rarity, effect, trigger, description).
+Require(ArtifactCatalog.All.Count is >= 15 and <= 20, "the artifact catalog designs 15-20 MVP artifacts");
+Require(ArtifactCatalog.All.Select(artifact => artifact.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == ArtifactCatalog.All.Count, "every artifact id is unique");
+Require(ArtifactCatalog.All.All(artifact => artifact.Name.Length > 0 && artifact.Description.Length > 0), "every artifact carries a name and description");
+Require(ArtifactCatalog.All.All(artifact => artifact.IsRare == (artifact.Rarity != ArtifactRarity.Common)), "artifact IsRare follows its rarity");
+Require(ArtifactCatalog.All.Count(artifact => !artifact.IsRare) >= ArtifactCatalog.OfferCount, "the common pool can offer three distinct artifacts");
+Require(ArtifactCatalog.All.Count(artifact => artifact.IsRare) >= ArtifactCatalog.OfferCount, "the rare pool can offer three distinct artifacts");
+Require(ArtifactCatalog.All.Select(artifact => artifact.Effect).Distinct().Count() == 3, "artifacts span combat, economy and rune modifiers");
+var bloodChaliceDef = ArtifactCatalog.Get("blood_chalice");
+Require(bloodChaliceDef.Rarity == ArtifactRarity.Common && bloodChaliceDef.Effect == ArtifactEffectKind.Rune && bloodChaliceDef.Trigger == ArtifactTrigger.OnRuneMatch, "the blood chalice keeps its rarity, effect and trigger");
+var phoenixDef = ArtifactCatalog.Get("phoenix_feather");
+Require(phoenixDef.IsRare && phoenixDef.Rarity == ArtifactRarity.Legendary && phoenixDef.Trigger == ArtifactTrigger.OnAllyDeath, "the phoenix feather is a legendary on-death artifact");
+Require(phoenixDef.ToRewardOption().IsRare && phoenixDef.ToRewardOption().Description == phoenixDef.Description, "an artifact definition projects onto a rare reward card");
+Require(phoenixDef.ToArtifactState().Id == "phoenix_feather", "an artifact definition converts into a stored artifact state");
+
 // Reward screen view-model (GDD UI screen "Экран награды": gold, artifacts, hero, continue).
 var heroChoiceRound = PveRunSchedule.GetRound(3);
 var heroReward = RewardScreenModel.Build(heroChoiceRound, isVictory: true, baseGold: heroChoiceRound.BaseGoldReward, bonusGold: 1);
