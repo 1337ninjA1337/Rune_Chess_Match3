@@ -39,6 +39,13 @@ namespace RuneChess.Core
         /// </summary>
         public ArtifactRuneModifiers RuneModifiers => ArtifactRuneModifiers.From(Artifacts);
 
+        /// <summary>
+        /// Start-of-combat stat modifiers contributed by the combat artifacts this run
+        /// owns. Passed into <see cref="BattleState.Create"/> so the player's units enter
+        /// the autobattle already buffed by their artifacts.
+        /// </summary>
+        public ArtifactCombatModifiers CombatModifiers => ArtifactCombatModifiers.From(Artifacts);
+
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
         public bool IsRunWon => Phase == RunPhase.Victory;
         public bool IsRunLost => Phase == RunPhase.Defeat;

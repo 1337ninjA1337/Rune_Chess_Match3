@@ -52,7 +52,8 @@ public sealed record BattleState(
         SynergyModifiers playerSynergyModifiers = default,
         SynergyModifiers enemySynergyModifiers = default,
         CommanderState? playerCommander = null,
-        CommanderState? enemyCommander = null)
+        CommanderState? enemyCommander = null,
+        ArtifactCombatModifiers playerArtifactCombatModifiers = default)
     {
         if (units is null)
         {
@@ -71,6 +72,9 @@ public sealed record BattleState(
         ApplySpiritDodgeChance(battleUnits, TacticalSide.Enemy, enemySynergyModifiers);
         ApplyWarlordFirstDefenderHealth(battleUnits, TacticalSide.Player, playerCommander);
         ApplyWarlordFirstDefenderHealth(battleUnits, TacticalSide.Enemy, enemyCommander);
+        // Combat artifacts the run owns buff the player side at the start of the fight
+        // (GDD P1 "артефакты как модификаторы боя"); the enemy owns no artifacts.
+        ApplyArtifactCombatModifiers(battleUnits, TacticalSide.Player, playerArtifactCombatModifiers);
 
         return new BattleState(
             battleUnits,
@@ -1208,6 +1212,25 @@ public sealed record BattleState(
     private static int ComparePosition(TacticalPosition a, TacticalPosition b)
     {
         return a.Row != b.Row ? a.Row.CompareTo(b.Row) : a.Column.CompareTo(b.Column);
+    }
+
+    private static void ApplyArtifactCombatModifiers(
+        List<BattleUnit> units,
+        TacticalSide side,
+        ArtifactCombatModifiers modifiers)
+    {
+        if (modifiers.IsNeutral)
+        {
+            return;
+        }
+
+        for (var i = 0; i < units.Count; i += 1)
+        {
+            if (units[i].Side == side && !units[i].IsSummoned)
+            {
+                units[i] = modifiers.Apply(units[i]);
+            }
+        }
     }
 
     private static void ApplyWarlordFirstDefenderHealth(

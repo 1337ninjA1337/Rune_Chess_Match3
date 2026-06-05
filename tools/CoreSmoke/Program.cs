@@ -2325,6 +2325,40 @@ Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.Physic
 Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40, chainNumber: 1), runeArtifactModifiers: conduitModifiers).Units.First(u => u.UnitId == "ra_enemy").CurrentHealth - 60.0) < 1e-9, "the chain conduit leaves the first non-chain match unchanged");
 Require(Math.Abs(runeArtifactBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40)).Units.First(u => u.UnitId == "ra_enemy").CurrentHealth - 60.0) < 1e-9, "the neutral rune-modifier default leaves a rune effect untouched");
 
+// Combat artifacts as start-of-combat stat modifiers (GDD P1 "артефакты как модификаторы боя").
+Require(ArtifactCombatModifiers.None.IsNeutral, "the empty combat-artifact set is neutral");
+Require(ArtifactCombatModifiers.From(new List<ArtifactState>()).IsNeutral, "a run with no combat artifacts has neutral combat modifiers");
+Require(RunState.NewRun().CombatModifiers.IsNeutral, "a fresh run owns no start-of-combat artifacts");
+RequireThrows(() => ArtifactCombatModifiers.From(null!), "the combat modifiers reject a null artifact list");
+RequireThrows(() => ArtifactCombatModifiers.None.Apply(null!), "applying combat modifiers rejects a null unit");
+Require(ArtifactCombatModifiers.From(new List<ArtifactState> { new("merchant_seal", "x") }).IsNeutral, "an economy artifact contributes no start-of-combat modifier");
+var ironModifiers = ArtifactCombatModifiers.From(new List<ArtifactState> { new("iron_banner", "Железное Знамя") });
+Require(Math.Abs(ironModifiers.FrontlineArmorBonus - ArtifactCombatModifiers.IronBannerFrontlineArmorBonus) < 1e-9 && ironModifiers.AttackSpeedMultiplier == 1.0, "the iron banner adds frontline armor and nothing else");
+var swiftModifiers = ArtifactCombatModifiers.From(new List<ArtifactState> { new("swift_boots", "Сапоги Скорости") });
+Require(Math.Abs(swiftModifiers.AttackSpeedMultiplier - (1.0 + ArtifactCombatModifiers.SwiftBootsAttackSpeedBonus)) < 1e-9 && swiftModifiers.FrontlineArmorBonus == 0.0, "the swift boots add attack speed and nothing else");
+Require(Math.Abs(ArtifactCombatModifiers.From(new List<ArtifactState> { new("iron_banner", "x"), new("iron_banner", "x") }).FrontlineArmorBonus - (2 * ArtifactCombatModifiers.IronBannerFrontlineArmorBonus)) < 1e-9, "duplicate combat artifacts stack additively");
+var ironBannerBattle = BattleState.Create(new[]
+{
+    MakeUnit("ca_front", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 1.0, 1.0, 100.0, 5.0),
+    MakeUnit("ca_back", TacticalSide.Player, new TacticalPosition(3, 0), 100, 100, 10, 1.0, 1.0, 100.0, 5.0),
+    MakeUnit("ca_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 1.0)
+}, playerArtifactCombatModifiers: ironModifiers);
+Require(Math.Abs(ironBannerBattle.Units.First(u => u.UnitId == "ca_front").Armor - (5.0 + ArtifactCombatModifiers.IronBannerFrontlineArmorBonus)) < 1e-9, "the iron banner armors the allied frontline at combat start");
+Require(Math.Abs(ironBannerBattle.Units.First(u => u.UnitId == "ca_back").Armor - 5.0) < 1e-9, "the iron banner does not armor the allied backline");
+Require(Math.Abs(ironBannerBattle.Units.First(u => u.UnitId == "ca_enemy").Armor) < 1e-9, "the iron banner does not buff the enemy side");
+var swiftBootsBattle = BattleState.Create(new[]
+{
+    MakeUnit("sb_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 2.0, 1.0),
+    MakeUnit("sb_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 2.0, 1.0)
+}, playerArtifactCombatModifiers: swiftModifiers);
+Require(Math.Abs(swiftBootsBattle.Units.First(u => u.UnitId == "sb_ally").AttacksPerSecond - (2.0 * (1.0 + ArtifactCombatModifiers.SwiftBootsAttackSpeedBonus))) < 1e-9, "the swift boots speed up the allied units at combat start");
+Require(Math.Abs(swiftBootsBattle.Units.First(u => u.UnitId == "sb_enemy").AttacksPerSecond - 2.0) < 1e-9, "the swift boots do not speed up the enemy side");
+Require(Math.Abs(BattleState.Create(new[]
+{
+    MakeUnit("ca_neutral_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 1.0, 1.0, 100.0, 5.0),
+    MakeUnit("ca_neutral_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 1.0)
+}).Units.First(u => u.UnitId == "ca_neutral_ally").Armor - 5.0) < 1e-9, "the neutral combat-modifier default leaves unit stats untouched");
+
 // Claiming the hero reward (GDD "награды героем после выбранных раундов").
 var starterRewardRun = RunState.NewRun() with { Round = 1, Phase = RunPhase.Reward };
 var starterHeroOptions = starterRewardRun.RewardHeroOptions();
