@@ -83,7 +83,9 @@ namespace RuneChess.Core
             double tickSeconds = DefaultTickSeconds,
             ArtifactCombatModifiers playerArtifactCombatModifiers = default,
             CommanderState? playerCommander = null,
-            FactionBoost playerFactionBoost = default)
+            FactionBoost playerFactionBoost = default,
+            IReadOnlyList<RuneEffect>? playerRuneMoves = null,
+            ArtifactRuneModifiers playerRuneArtifactModifiers = default)
         {
             if (team is null)
             {
@@ -126,7 +128,9 @@ namespace RuneChess.Core
                 playerSynergyModifiers,
                 enemySynergyModifiers,
                 playerCommander,
-                playerArtifactCombatModifiers);
+                playerArtifactCombatModifiers,
+                playerRuneMoves,
+                playerRuneArtifactModifiers);
         }
 
         /// <summary>
@@ -204,7 +208,9 @@ namespace RuneChess.Core
             SynergyModifiers playerSynergyModifiers = default,
             SynergyModifiers enemySynergyModifiers = default,
             CommanderState? playerCommander = null,
-            ArtifactCombatModifiers playerArtifactCombatModifiers = default)
+            ArtifactCombatModifiers playerArtifactCombatModifiers = default,
+            IReadOnlyList<RuneEffect>? playerRuneMoves = null,
+            ArtifactRuneModifiers playerRuneArtifactModifiers = default)
         {
             var battle = BattleState.Create(
                 units,
@@ -214,6 +220,22 @@ namespace RuneChess.Core
                 playerCommander: playerCommander,
                 enemyCommander: null,
                 playerArtifactCombatModifiers: playerArtifactCombatModifiers);
+
+            // Replay the run's match-3 moves as the player's opening rune burst before the
+            // autobattle ticks. The run's rune artifacts scale each colour's effect via
+            // playerRuneArtifactModifiers, so owning rune modifiers genuinely changes the
+            // round outcome. This is the deterministic MVP point where match-3 feeds the
+            // round simulation; interleaving moves across the fight is the documented
+            // extension point. A null/empty move list keeps the pure-autobattle behaviour.
+            if (playerRuneMoves is { Count: > 0 })
+            {
+                battle = battle.ApplyRuneEffects(
+                    playerRuneMoves,
+                    TacticalSide.Player,
+                    playerSynergyModifiers,
+                    playerRuneArtifactModifiers);
+            }
+
             var maxTicks = (int)Math.Ceiling(durationSeconds / tickSeconds) + 2;
             for (var tick = 0; tick < maxTicks && !battle.IsResolved; tick += 1)
             {

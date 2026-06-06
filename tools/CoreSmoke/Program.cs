@@ -2110,6 +2110,36 @@ Require(roundArtifactBattle is not null && roundArtifactBattle!.PlayerDamageDeal
 // armored unit itself (base armor 8 + banner bonus) rather than its post-combat frontline row.
 Require(roundArtifactBattle!.Units.Any(u => u.Side == TacticalSide.Player && u.Armor >= 8.0 + ArtifactCombatModifiers.IronBannerFrontlineArmorBonus), "the run's iron banner armors the player frontline in the round autobattle");
 
+// The round autobattle now replays the run's match-3 rune moves as an opening burst, and
+// the run's rune artifacts (RunState.RuneModifiers) scale that burst, so owning rune
+// modifiers genuinely changes the round outcome (GDD P1 "рунные артефакты влияют на итог
+// раунда"). A null/empty move list keeps the pure-autobattle behaviour intact.
+var runeReplayTeam = new List<BoardHero>
+{
+    new(new HeroInstance("rr_solo", "iron_guard", 1), new TacticalPosition(2, 1))
+};
+var runeReplayBaseline = LevelCombatSimulator.ResolveRoundMatch(runeReplayTeam, round2)!;
+var runeReplayEmptyMoves = LevelCombatSimulator.ResolveRoundMatch(runeReplayTeam, round2, playerRuneMoves: new List<RuneEffect>())!;
+Require(runeReplayEmptyMoves.Outcome == runeReplayBaseline.Outcome
+    && Math.Abs(runeReplayEmptyMoves.PlayerDamageDealt - runeReplayBaseline.PlayerDamageDealt) < 1e-9,
+    "an empty match-3 move list leaves the round autobattle unchanged");
+// A modest red-physical burst the weak solo team cannot fully clear: more replayed burst
+// power means more cumulative enemy damage, and the run's ember core scales it further.
+var roundRuneBurst = new List<RuneEffect> { Effect(RuneEffectKind.PhysicalDamage, 12, mass: true) };
+var runeReplayWithMoves = LevelCombatSimulator.ResolveRoundMatch(runeReplayTeam, round2, playerRuneMoves: roundRuneBurst)!;
+var runeReplayEmber = ArtifactRuneModifiers.From(new List<ArtifactState> { new("ember_core", "Тлеющее Ядро") });
+var runeReplayWithEmber = LevelCombatSimulator.ResolveRoundMatch(
+    runeReplayTeam,
+    round2,
+    playerRuneMoves: roundRuneBurst,
+    playerRuneArtifactModifiers: runeReplayEmber)!;
+Require(runeReplayWithMoves.PlayerDamageDealt > runeReplayBaseline.PlayerDamageDealt, "replaying the run's match-3 moves adds to the round's player damage");
+Require(runeReplayWithEmber.PlayerDamageDealt > runeReplayWithMoves.PlayerDamageDealt, "the run's rune artifacts scale the replayed match-3 burst in the round autobattle");
+// A massive opening rune burst clears the enemy roster outright, swinging an otherwise lost round.
+var roundRuneSwing = new List<RuneEffect> { Effect(RuneEffectKind.PhysicalDamage, 9999, mass: true) };
+var runeReplaySwing = LevelCombatSimulator.ResolveRoundMatch(runeReplayTeam, round2, playerRuneMoves: roundRuneSwing)!;
+Require(runeReplaySwing.Outcome == BattleOutcome.PlayerVictory && runeReplaySwing.AliveEnemies.Count() == 0, "a lethal replayed match-3 burst can win the round outright");
+
 var freshBattleStats = BattleState.Create(new[]
 {
     BattleUnit.FromHero(HeroCatalog.Get("iron_guard"), 1, "stat_ally", TacticalSide.Player, new TacticalPosition(2, 0)),
