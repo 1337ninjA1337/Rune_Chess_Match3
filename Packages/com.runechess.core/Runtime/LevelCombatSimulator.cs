@@ -18,9 +18,13 @@ namespace RuneChess.Core
 
         /// <summary>
         /// Build the round's data-driven enemy units from its authored composition. Each
-        /// entry instantiates a hero definition at its star level on the enemy half.
+        /// entry instantiates a hero definition at its star level on the enemy half, scaled
+        /// by the enemy roster's own synergy modifiers (neutral by default so existing
+        /// callers keep their behaviour).
         /// </summary>
-        public static IReadOnlyList<BattleUnit> BuildRoundEnemies(PveRoundDefinition round)
+        public static IReadOnlyList<BattleUnit> BuildRoundEnemies(
+            PveRoundDefinition round,
+            SynergyModifiers enemySynergyModifiers = default)
         {
             if (round is null)
             {
@@ -37,11 +41,33 @@ namespace RuneChess.Core
                     enemy.Stars,
                     $"enemy_{round.Round}_{index}_{enemy.HeroId}",
                     TacticalSide.Enemy,
-                    enemy.Position));
+                    enemy.Position,
+                    enemySynergyModifiers));
                 index += 1;
             }
 
             return enemies;
+        }
+
+        /// <summary>
+        /// Evaluate the synergy modifiers an authored PvE roster grants itself, by mapping
+        /// each <see cref="PveEnemyUnit"/> onto a board hero so the shared synergy calculator
+        /// can score factions and classes the same way it does for the player's team.
+        /// </summary>
+        public static SynergyModifiers BuildRoundEnemySynergies(PveRoundDefinition round)
+        {
+            if (round is null)
+            {
+                throw new ArgumentNullException(nameof(round));
+            }
+
+            var roster = round.EnemyUnits
+                .Select((enemy, index) => new BoardHero(
+                    new HeroInstance($"enemy_synergy_{round.Round}_{index}_{enemy.HeroId}", enemy.HeroId, enemy.Stars),
+                    enemy.Position))
+                .ToList();
+
+            return SynergyModifiers.ForTeam(roster);
         }
 
         /// <summary>
@@ -54,7 +80,9 @@ namespace RuneChess.Core
             IReadOnlyList<BoardHero> team,
             PveRoundDefinition round,
             double durationSeconds = BattleState.DefaultDurationSeconds,
-            double tickSeconds = DefaultTickSeconds)
+            double tickSeconds = DefaultTickSeconds,
+            ArtifactCombatModifiers playerArtifactCombatModifiers = default,
+            CommanderState? playerCommander = null)
         {
             if (team is null)
             {
@@ -76,12 +104,26 @@ namespace RuneChess.Core
                 return null;
             }
 
-            var allies = team
-                .Select(boardHero => BattleUnit.FromBoardHero(boardHero, TacticalSide.Player))
-                .ToList();
-            var units = allies.Concat(BuildRoundEnemies(round)).ToList();
+            // The run's active synergies, artifacts and commander now feed the autobattle:
+            // the player's team scores its own synergies and the authored enemy roster scores
+            // its own, both sides build star- and synergy-scaled units, and the player side
+            // also carries the run's combat artifacts and commander into BattleState.Create.
+            var playerSynergyModifiers = SynergyModifiers.ForTeam(team);
+            var enemySynergyModifiers = BuildRoundEnemySynergies(round);
 
-            return RunToResolution(units, durationSeconds, tickSeconds);
+            var allies = team
+                .Select(boardHero => BattleUnit.FromBoardHero(boardHero, TacticalSide.Player, playerSynergyModifiers))
+                .ToList();
+            var units = allies.Concat(BuildRoundEnemies(round, enemySynergyModifiers)).ToList();
+
+            return RunToResolution(
+                units,
+                durationSeconds,
+                tickSeconds,
+                playerSynergyModifiers,
+                enemySynergyModifiers,
+                playerCommander,
+                playerArtifactCombatModifiers);
         }
 
         /// <summary>
@@ -155,9 +197,20 @@ namespace RuneChess.Core
         private static BattleState RunToResolution(
             IReadOnlyList<BattleUnit> units,
             double durationSeconds,
-            double tickSeconds)
+            double tickSeconds,
+            SynergyModifiers playerSynergyModifiers = default,
+            SynergyModifiers enemySynergyModifiers = default,
+            CommanderState? playerCommander = null,
+            ArtifactCombatModifiers playerArtifactCombatModifiers = default)
         {
-            var battle = BattleState.Create(units, durationSeconds);
+            var battle = BattleState.Create(
+                units,
+                durationSeconds,
+                playerSynergyModifiers: playerSynergyModifiers,
+                enemySynergyModifiers: enemySynergyModifiers,
+                playerCommander: playerCommander,
+                enemyCommander: null,
+                playerArtifactCombatModifiers: playerArtifactCombatModifiers);
             var maxTicks = (int)Math.Ceiling(durationSeconds / tickSeconds) + 2;
             for (var tick = 0; tick < maxTicks && !battle.IsResolved; tick += 1)
             {

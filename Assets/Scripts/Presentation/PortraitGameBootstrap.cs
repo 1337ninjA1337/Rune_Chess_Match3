@@ -1644,7 +1644,14 @@ namespace RuneChess.Presentation
             var outcome = runState.Phase == RunPhase.Defeat
                 ? BattleOutcome.PlayerDefeat
                 : BattleOutcome.PlayerVictory;
-            var battle = LevelCombatSimulator.ResolveRoundMatch(runState.Team, round);
+            // Feed the run's owned combat artifacts and selected commander into the
+            // deterministic autobattle so the summary reflects the real build; the team's
+            // synergies and the round roster's synergies are derived inside the simulator.
+            var battle = LevelCombatSimulator.ResolveRoundMatch(
+                runState.Team,
+                round,
+                playerArtifactCombatModifiers: runState.CombatModifiers,
+                playerCommander: runState.Commander);
             if (battle is null)
             {
                 return LevelCompleteModel.Build(

@@ -2063,6 +2063,29 @@ RequireThrows(() => LevelCombatSimulator.ResolveRoundMatch(null!, round2), "the 
 RequireThrows(() => LevelCombatSimulator.ResolveRoundMatch(levelCompleteTeam, null!), "the round simulator rejects a null round");
 RequireThrows(() => LevelCombatSimulator.BuildRoundEnemies(null!), "BuildRoundEnemies rejects a null round");
 
+// Run modifiers (synergies, combat artifacts, commander) now feed the round autobattle
+// (GDD P1: "забеговый автобой реально использует артефакты и синергии").
+var enemyArmorSynergy = new SynergyModifiers(armorMultiplier: 2.0);
+var neutralRoundEnemies = LevelCombatSimulator.BuildRoundEnemies(round2);
+var buffedRoundEnemies = LevelCombatSimulator.BuildRoundEnemies(round2, enemyArmorSynergy);
+Require(Math.Abs(buffedRoundEnemies.Sum(u => u.Armor) - (2.0 * neutralRoundEnemies.Sum(u => u.Armor))) < 1e-9, "enemy synergy scales the round roster's armor through BuildRoundEnemies");
+Require(LevelCombatSimulator.BuildRoundEnemySynergies(round2).Equals(LevelCombatSimulator.BuildRoundEnemySynergies(round2)), "round enemy synergies are deterministic for a round");
+RequireThrows(() => LevelCombatSimulator.BuildRoundEnemySynergies(null!), "round enemy synergies reject a null round");
+var defenderRoundTeam = new List<BoardHero>
+{
+    new(new HeroInstance("dr_front_a", "iron_guard", 1), new TacticalPosition(2, 1)),
+    new(new HeroInstance("dr_front_b", "bulwark_captain", 1), new TacticalPosition(2, 2))
+};
+var defenderRoundBattle = LevelCombatSimulator.ResolveRoundMatch(defenderRoundTeam, round2);
+Require(defenderRoundBattle is not null && defenderRoundBattle!.PlayerSynergyModifiers.Equals(SynergyModifiers.ForTeam(defenderRoundTeam)), "the round simulator derives and carries the player's team synergies");
+var roundArtifactBattle = LevelCombatSimulator.ResolveRoundMatch(
+    levelCompleteTeam,
+    round2,
+    playerArtifactCombatModifiers: ArtifactCombatModifiers.From(new List<ArtifactState> { new("iron_banner", "Железное Знамя") }),
+    playerCommander: CommanderCatalog.Get("warlord").CreateInitialState());
+Require(roundArtifactBattle is not null && roundArtifactBattle!.PlayerDamageDealt > 0.0, "the round simulator accepts the run's combat artifacts and commander");
+Require(roundArtifactBattle!.Units.Any(u => u.Side == TacticalSide.Player && u.Position.IsFrontline && u.Armor >= 5.0 + ArtifactCombatModifiers.IronBannerFrontlineArmorBonus), "the run's iron banner armors the player frontline in the round autobattle");
+
 var freshBattleStats = BattleState.Create(new[]
 {
     BattleUnit.FromHero(HeroCatalog.Get("iron_guard"), 1, "stat_ally", TacticalSide.Player, new TacticalPosition(2, 0)),
