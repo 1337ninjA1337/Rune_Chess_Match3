@@ -27,3 +27,7 @@ MemoryCaptures/
 sysinfo.txt
 .vs/
 .idea/
+
+# .NET build output for tools (e.g. CoreSmoke)
+tools/**/bin/
+tools/**/obj/

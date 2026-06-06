@@ -25,7 +25,8 @@ public sealed record BattleState(
     double EnemyRedRuneCharge = 0.0,
     double PlayerDamageDealt = 0.0,
     double PlayerHealingDone = 0.0,
-    double PlayerShieldGranted = 0.0
+    double PlayerShieldGranted = 0.0,
+    int PlayerReviveChargesRemaining = 0
 )
 {
     public const double DefaultDurationSeconds = 60.0;
@@ -83,7 +84,11 @@ public sealed record BattleState(
             BattleOutcome.Ongoing,
             CommanderEnergy: 0.0,
             PlayerSynergyModifiers: playerSynergyModifiers,
-            EnemySynergyModifiers: enemySynergyModifiers);
+            EnemySynergyModifiers: enemySynergyModifiers,
+            // The phoenix feather seeds the player's revive charges for this battle; the
+            // revive itself is resolved per tick in Tick when a hero falls. The enemy owns
+            // no artifacts.
+            PlayerReviveChargesRemaining: playerArtifactCombatModifiers.PhoenixRevives);
     }
 
     /// <summary>Sum of current health fractions across the units that started on a side (dead units count as 0).</summary>
@@ -278,6 +283,12 @@ public sealed record BattleState(
             TryCastAbility(units, attackerIndex, ModifiersForSide(updatedAttacker.Side), ModifiersForSide(target.Side));
         }
 
+        // Phoenix feather: an allied hero that fell during this tick comes back once,
+        // spending a revive charge, before the outcome is decided so the revive can save a
+        // losing fight. Resolved here per the GDD on-death trigger; charges persist across
+        // ticks via PlayerReviveChargesRemaining.
+        var reviveChargesRemaining = ReviveFallenAllies(Units, units, PlayerReviveChargesRemaining);
+
         var elapsed = Math.Min(DurationSeconds, ElapsedSeconds + deltaSeconds);
         var (tickDamage, tickHealing, tickShield) = DiffPlayerCombatStats(Units, units);
         return new BattleState(
@@ -292,7 +303,74 @@ public sealed record BattleState(
             EnemyRedRuneCharge + enemyRedRuneChargeGain,
             PlayerDamageDealt + tickDamage,
             PlayerHealingDone + tickHealing,
-            PlayerShieldGranted + tickShield);
+            PlayerShieldGranted + tickShield,
+            reviveChargesRemaining);
+    }
+
+    /// <summary>
+    /// Revives the allied heroes that died during the current tick, one per remaining
+    /// phoenix-feather charge. A hero counts as "newly fallen" when it was alive in
+    /// <paramref name="before"/> (the pre-tick snapshot) but has no health left in
+    /// <paramref name="units"/>. Summoned units (drones, turrets, illusions) are not heroes
+    /// and are never revived. When several heroes fall in the same tick they are revived in
+    /// deterministic position order until the charges run out. Each revival restores a
+    /// fraction of max health, clears mana/shield and resets the attack cooldown.
+    /// Returns the charges still available after the revivals.
+    /// </summary>
+    private static int ReviveFallenAllies(
+        IReadOnlyList<BattleUnit> before,
+        List<BattleUnit> units,
+        int chargesRemaining)
+    {
+        if (chargesRemaining <= 0)
+        {
+            return chargesRemaining;
+        }
+
+        var aliveBefore = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var unit in before)
+        {
+            if (unit.Side == TacticalSide.Player && unit.IsAlive && !unit.IsSummoned)
+            {
+                aliveBefore.Add(unit.UnitId);
+            }
+        }
+
+        var fallen = new List<int>();
+        for (var i = 0; i < units.Count; i += 1)
+        {
+            var unit = units[i];
+            if (unit.Side == TacticalSide.Player
+                && !unit.IsSummoned
+                && !unit.IsAlive
+                && aliveBefore.Contains(unit.UnitId))
+            {
+                fallen.Add(i);
+            }
+        }
+
+        fallen.Sort((a, b) => ComparePosition(units[a].Position, units[b].Position));
+
+        foreach (var index in fallen)
+        {
+            if (chargesRemaining <= 0)
+            {
+                break;
+            }
+
+            var unit = units[index];
+            var revivedHealth = Math.Max(1.0, unit.MaxHealth * ArtifactCombatModifiers.PhoenixReviveHealthFraction);
+            units[index] = unit with
+            {
+                CurrentHealth = revivedHealth,
+                CurrentMana = 0.0,
+                Shield = 0.0,
+                AttackCooldownRemaining = unit.AttackInterval
+            };
+            chargesRemaining -= 1;
+        }
+
+        return chargesRemaining;
     }
 
     /// <summary>
@@ -405,7 +483,8 @@ public sealed record BattleState(
             casterSide == TacticalSide.Enemy ? EnemyRedRuneCharge - consumedRedCharge : EnemyRedRuneCharge,
             PlayerDamageDealt + effectDamage,
             PlayerHealingDone + effectHealing,
-            PlayerShieldGranted + effectShield);
+            PlayerShieldGranted + effectShield,
+            PlayerReviveChargesRemaining);
     }
 
     /// <summary>Grants blue-rune mana (matchedBlueRunes * 8) to a side's frontmost living unit.</summary>

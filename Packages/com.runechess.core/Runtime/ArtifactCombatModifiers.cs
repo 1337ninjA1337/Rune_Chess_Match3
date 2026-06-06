@@ -4,15 +4,17 @@ using System.Collections.Generic;
 namespace RuneChess.Core
 {
     /// <summary>
-    /// Start-of-combat stat modifiers contributed by the combat artifacts a run owns
-    /// (GDD P1 "артефакты как модификаторы боя"). This slice covers the two CombatStart
-    /// stat artifacts whose effect is a one-shot tweak of a unit's stats: extra frontline
-    /// armor (<c>iron_banner</c>) and an ally attack-speed bonus (<c>swift_boots</c>).
-    /// They are applied in <see cref="BattleState.Create"/>, the same place the Warlord
-    /// commander already buffs its first defender. Triggered combat artifacts that need
-    /// cross-tick event logic (revive, on-kill heal, etc.) are tracked as their own tasks.
-    /// Magnitudes live here as named constants per the codex data rule so balance changes
-    /// never touch the battle logic. Duplicates stack additively.
+    /// Combat-artifact contributions a run brings into a fight (GDD P1 "артефакты как
+    /// модификаторы боя"). Two kinds live here: one-shot start-of-combat stat tweaks -
+    /// extra frontline armor (<c>iron_banner</c>) and an ally attack-speed bonus
+    /// (<c>swift_boots</c>) - applied in <see cref="BattleState.Create"/> via
+    /// <see cref="Apply"/>, the same place the Warlord commander buffs its first defender;
+    /// and a triggered cross-tick charge count - the number of allies the phoenix feather
+    /// (<c>phoenix_feather</c>) can revive this battle, seeded into the battle and spent by
+    /// the revive logic in <see cref="BattleState.Tick"/>. Other triggered combat artifacts
+    /// (on-kill heal, etc.) are tracked as their own tasks. Magnitudes live here as named
+    /// constants per the codex data rule so balance changes never touch the battle logic.
+    /// Duplicates stack additively (two phoenix feathers grant two revives).
     /// </summary>
     public readonly struct ArtifactCombatModifiers : IEquatable<ArtifactCombatModifiers>
     {
@@ -22,12 +24,20 @@ namespace RuneChess.Core
         /// <summary>"Сапоги Скорости": ally attack-speed bonus fraction.</summary>
         public const double SwiftBootsAttackSpeedBonus = 0.05;
 
+        /// <summary>"Перо Феникса": allies a single feather can revive over one battle.</summary>
+        public const int PhoenixFeatherRevives = 1;
+
+        /// <summary>Fraction of max health a revived ally returns to (the rest of the revive balance).</summary>
+        public const double PhoenixReviveHealthFraction = 0.5;
+
         private readonly double frontlineArmorBonus;
         private readonly double attackSpeedMultiplier;
+        private readonly int phoenixRevives;
 
         public ArtifactCombatModifiers(
             double frontlineArmorBonus = 0.0,
-            double attackSpeedMultiplier = 1.0)
+            double attackSpeedMultiplier = 1.0,
+            int phoenixRevives = 0)
         {
             if (frontlineArmorBonus < 0.0)
             {
@@ -39,12 +49,24 @@ namespace RuneChess.Core
                 throw new ArgumentOutOfRangeException(nameof(attackSpeedMultiplier), "Attack speed multiplier must be positive.");
             }
 
+            if (phoenixRevives < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(phoenixRevives), "Revive charges cannot be negative.");
+            }
+
             this.frontlineArmorBonus = frontlineArmorBonus;
             this.attackSpeedMultiplier = attackSpeedMultiplier;
+            this.phoenixRevives = phoenixRevives;
         }
 
         public double FrontlineArmorBonus => frontlineArmorBonus < 0.0 ? 0.0 : frontlineArmorBonus;
         public double AttackSpeedMultiplier => attackSpeedMultiplier <= 0.0 ? 1.0 : attackSpeedMultiplier;
+
+        /// <summary>Number of allied heroes the run's phoenix feathers can revive this battle.</summary>
+        public int PhoenixRevives => phoenixRevives < 0 ? 0 : phoenixRevives;
+
+        /// <summary>True when this set carries a start-of-combat stat tweak (armor/attack speed).</summary>
+        private bool HasStatModifiers => FrontlineArmorBonus > 0.0 || Math.Abs(AttackSpeedMultiplier - 1.0) > 1e-9;
 
         /// <summary>The neutral set used when a run owns no start-of-combat artifacts.</summary>
         public static ArtifactCombatModifiers None { get; } = new();
@@ -66,6 +88,7 @@ namespace RuneChess.Core
 
             var frontlineArmorBonus = 0.0;
             var attackSpeedMultiplier = 1.0;
+            var phoenixRevives = 0;
 
             foreach (var artifact in artifacts)
             {
@@ -77,10 +100,13 @@ namespace RuneChess.Core
                     case "swift_boots":
                         attackSpeedMultiplier += SwiftBootsAttackSpeedBonus;
                         break;
+                    case "phoenix_feather":
+                        phoenixRevives += PhoenixFeatherRevives;
+                        break;
                 }
             }
 
-            return new ArtifactCombatModifiers(frontlineArmorBonus, attackSpeedMultiplier);
+            return new ArtifactCombatModifiers(frontlineArmorBonus, attackSpeedMultiplier, phoenixRevives);
         }
 
         /// <summary>
@@ -96,7 +122,7 @@ namespace RuneChess.Core
                 throw new ArgumentNullException(nameof(unit));
             }
 
-            if (IsNeutral)
+            if (!HasStatModifiers)
             {
                 return unit;
             }
@@ -115,7 +141,8 @@ namespace RuneChess.Core
         public bool Equals(ArtifactCombatModifiers other)
         {
             return Math.Abs(FrontlineArmorBonus - other.FrontlineArmorBonus) < 1e-9
-                && Math.Abs(AttackSpeedMultiplier - other.AttackSpeedMultiplier) < 1e-9;
+                && Math.Abs(AttackSpeedMultiplier - other.AttackSpeedMultiplier) < 1e-9
+                && PhoenixRevives == other.PhoenixRevives;
         }
 
         public override bool Equals(object? obj)
@@ -125,7 +152,7 @@ namespace RuneChess.Core
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(FrontlineArmorBonus, AttackSpeedMultiplier);
+            return HashCode.Combine(FrontlineArmorBonus, AttackSpeedMultiplier, PhoenixRevives);
         }
     }
 }
