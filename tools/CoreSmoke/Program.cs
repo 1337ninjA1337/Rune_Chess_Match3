@@ -2084,7 +2084,10 @@ var roundArtifactBattle = LevelCombatSimulator.ResolveRoundMatch(
     playerArtifactCombatModifiers: ArtifactCombatModifiers.From(new List<ArtifactState> { new("iron_banner", "Железное Знамя") }),
     playerCommander: CommanderCatalog.Get("warlord").CreateInitialState());
 Require(roundArtifactBattle is not null && roundArtifactBattle!.PlayerDamageDealt > 0.0, "the round simulator accepts the run's combat artifacts and commander");
-Require(roundArtifactBattle!.Units.Any(u => u.Side == TacticalSide.Player && u.Position.IsFrontline && u.Armor >= 5.0 + ArtifactCombatModifiers.IronBannerFrontlineArmorBonus), "the run's iron banner armors the player frontline in the round autobattle");
+// The iron banner's +armor lands on the unit that started on the player frontline. By the
+// time the autobattle resolves that unit has advanced off its starting row, so assert on the
+// armored unit itself (base armor 8 + banner bonus) rather than its post-combat frontline row.
+Require(roundArtifactBattle!.Units.Any(u => u.Side == TacticalSide.Player && u.Armor >= 8.0 + ArtifactCombatModifiers.IronBannerFrontlineArmorBonus), "the run's iron banner armors the player frontline in the round autobattle");
 
 var freshBattleStats = BattleState.Create(new[]
 {
