@@ -3,6 +3,7 @@ namespace RuneChess.Core
     public sealed record HeroInstance(
         string InstanceId,
         string HeroId,
-        int Stars
+        int Stars,
+        bool Cursed = false
     );
 }

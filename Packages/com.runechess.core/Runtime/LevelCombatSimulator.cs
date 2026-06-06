@@ -82,7 +82,8 @@ namespace RuneChess.Core
             double durationSeconds = BattleState.DefaultDurationSeconds,
             double tickSeconds = DefaultTickSeconds,
             ArtifactCombatModifiers playerArtifactCombatModifiers = default,
-            CommanderState? playerCommander = null)
+            CommanderState? playerCommander = null,
+            FactionBoost playerFactionBoost = default)
         {
             if (team is null)
             {
@@ -112,7 +113,9 @@ namespace RuneChess.Core
             var enemySynergyModifiers = BuildRoundEnemySynergies(round);
 
             var allies = team
-                .Select(boardHero => BattleUnit.FromBoardHero(boardHero, TacticalSide.Player, playerSynergyModifiers))
+                .Select(boardHero => playerFactionBoost.Apply(
+                    BattleUnit.FromBoardHero(boardHero, TacticalSide.Player, playerSynergyModifiers),
+                    HeroCatalog.Get(boardHero.Hero.HeroId).Faction))
                 .ToList();
             var units = allies.Concat(BuildRoundEnemies(round, enemySynergyModifiers)).ToList();
 

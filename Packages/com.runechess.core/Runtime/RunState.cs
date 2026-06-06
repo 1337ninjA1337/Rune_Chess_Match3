@@ -20,12 +20,14 @@ namespace RuneChess.Core
         CombatState? Combat,
         string? DefeatReason,
         bool RoundArtifactClaimed = false,
-        bool RoundHeroClaimed = false
+        bool RoundHeroClaimed = false,
+        bool RoundEventResolved = false,
+        string PendingFactionBoostId = ""
     )
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
         private const int RuneArchonMatch4CombosPerBlueRune = 3;
-        private const int AlchemistChainReactionGoldBonus = 1;
+        internal const int AlchemistChainReactionGoldBonus = 1;
 
         public PveRoundDefinition CurrentRoundDefinition => PveRunSchedule.GetRound(Round);
 
@@ -45,6 +47,16 @@ namespace RuneChess.Core
         /// the autobattle already buffed by their artifacts.
         /// </summary>
         public ArtifactCombatModifiers CombatModifiers => ArtifactCombatModifiers.From(Artifacts);
+
+        /// <summary>
+        /// One-battle faction blessing pending from a <see cref="EventChoiceKind.FactionBoost"/>
+        /// event, or <see cref="FactionBoost.None"/> when none is queued. Passed into the next
+        /// round autobattle so the blessed faction fights stronger, then cleared when that
+        /// battle resolves.
+        /// </summary>
+        public FactionBoost PendingFactionBoost => string.IsNullOrEmpty(PendingFactionBoostId)
+            ? FactionBoost.None
+            : new FactionBoost(PendingFactionBoostId, EventCatalog.FactionBoostStatMultiplier);
 
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
         public bool IsRunWon => Phase == RunPhase.Victory;
@@ -614,7 +626,8 @@ namespace RuneChess.Core
                     Combat = null,
                     DefeatReason = null,
                     RoundArtifactClaimed = false,
-                    RoundHeroClaimed = false
+                    RoundHeroClaimed = false,
+                    PendingFactionBoostId = ""
                 };
             }
 
@@ -622,9 +635,18 @@ namespace RuneChess.Core
             {
                 Phase = RunPhase.Defeat,
                 Combat = null,
-                DefeatReason = defeatReason
+                DefeatReason = defeatReason,
+                PendingFactionBoostId = ""
             };
         }
+
+        /// <summary>
+        /// The aggregate reward (gold breakdown and offered choices) the current round would pay
+        /// if its combat resolved now (GDD "итоговый расчёт наград за раунд"). Reads the live
+        /// combat state for chain bonuses, so call while still in the combat phase.
+        /// </summary>
+        public RoundRewardBreakdown RoundReward(int? goldReward = null) =>
+            RoundRewardBreakdown.ForCombatResolution(this, goldReward);
 
         public RunState ClaimReward(int? goldReward = null)
         {
@@ -633,27 +655,19 @@ namespace RuneChess.Core
                 throw new InvalidOperationException("Rewards can only be claimed after combat resolution.");
             }
 
-            var resolvedGoldReward = goldReward ?? CurrentRoundDefinition.BaseGoldReward;
-            var chainGoldBonus = Combat?.EarnedChainFourGoldBonus == true
-                ? CombatState.ChainFourGoldBonus
-                : 0;
-            var alchemistGoldBonus = Commander.Id == CommanderCatalog.Alchemist.Id && Combat?.HadChainReaction == true
-                ? AlchemistChainReactionGoldBonus
-                : 0;
-            var artifactGoldBonus = Modifiers.RoundEndGoldBonus;
-            if (resolvedGoldReward < 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(goldReward), "Gold reward cannot be negative.");
-            }
+            // The full round payout — base gold plus chain/alchemist/artifact bonuses — is
+            // computed in one place so the gold credited here matches the reward screen exactly.
+            var rewardBreakdown = RoundRewardBreakdown.ForCombatResolution(this, goldReward);
 
             return this with
             {
-                Gold = Gold + resolvedGoldReward + chainGoldBonus + alchemistGoldBonus + artifactGoldBonus,
+                Gold = Gold + rewardBreakdown.TotalGold,
                 Phase = IsFinalRound ? RunPhase.Victory : RunPhase.Reward,
                 Combat = null,
                 DefeatReason = null,
                 RoundArtifactClaimed = false,
-                RoundHeroClaimed = false
+                RoundHeroClaimed = false,
+                PendingFactionBoostId = ""
             };
         }
 
@@ -670,6 +684,11 @@ namespace RuneChess.Core
                 throw new InvalidOperationException("Rounds can only advance from reward or event phases.");
             }
 
+            if (Phase == RunPhase.Event && !RoundEventResolved)
+            {
+                throw new InvalidOperationException("The event must be accepted or declined before advancing.");
+            }
+
             return this with
             {
                 Round = Round + 1,
@@ -677,8 +696,183 @@ namespace RuneChess.Core
                 Shop = nextShop ?? ShopState.ForPlayerLevel(PlayerLevel),
                 NextEnemyId = nextEnemyId,
                 Combat = null,
-                DefeatReason = null
+                DefeatReason = null,
+                RoundEventResolved = false
             };
+        }
+
+        /// <summary>
+        /// Enter the current round's event encounter (GDD "Экран события"). Only no-combat
+        /// event rounds offer an encounter, and only from preparation. Transitions the run
+        /// into the event phase so the player can accept or decline the offered event.
+        /// </summary>
+        public RunState EnterEvent()
+        {
+            EnsurePreparationPhase();
+
+            if (CurrentRoundDefinition.Type != PveRoundType.Event)
+            {
+                throw new InvalidOperationException("Only event rounds offer an event encounter.");
+            }
+
+            return this with { Phase = RunPhase.Event, RoundEventResolved = false };
+        }
+
+        /// <summary>The event archetype offered by the current event round, drawn deterministically from the round seed.</summary>
+        public EventOption OfferedEvent => EventScreenModel.Build(this).Choice;
+
+        /// <summary>
+        /// Decline the offered event (GDD "Отказаться") and leave it resolved so the run can
+        /// advance. Declining applies no outcome; the player simply moves on.
+        /// </summary>
+        public RunState DeclineEvent()
+        {
+            EnsureUnresolvedEvent();
+            return this with { RoundEventResolved = true };
+        }
+
+        /// <summary>
+        /// Accept the relic-merchant trade (GDD "обмен здоровья на золото"): pay run health to
+        /// gain gold using the balance numbers on <see cref="EventCatalog.TradeHealthForGold"/>.
+        /// The trade is only allowed while it keeps the run alive (run health stays at least 1).
+        /// </summary>
+        public RunState AcceptTradeHealthForGold()
+        {
+            EnsureUnresolvedEvent();
+
+            var option = EventCatalog.TradeHealthForGold;
+            if (RunHealth <= option.HealthCost)
+            {
+                throw new InvalidOperationException("Not enough run health to safely make this trade.");
+            }
+
+            return this with
+            {
+                RunHealth = RunHealth - option.HealthCost,
+                Gold = Gold + option.GoldReward,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>
+        /// Accept the cursed gift (GDD "бесплатный герой с проклятием"): a free Common hero,
+        /// picked deterministically from the round seed, joins the bench at one star carrying a
+        /// curse that weakens it in combat for the rest of the run. The bench must have a free slot.
+        /// </summary>
+        public RunState AcceptCursedFreeHero(EconomyConfig? economy = null)
+        {
+            EnsureUnresolvedEvent();
+
+            var config = economy ?? EconomyConfig.Default;
+            if (Bench.Count >= config.StartingBenchSize)
+            {
+                throw new InvalidOperationException("Bench is full.");
+            }
+
+            var gift = HeroCatalog.OfferRewardHeroes(CurrentRoundDefinition.CombatRuneSeed, HeroRarity.Common, count: 1)[0];
+            var bench = Bench.ToList();
+            bench.Add(new HeroInstance(CreateInstanceId(gift.Id), gift.Id, Stars: 1, Cursed: true));
+
+            return this with
+            {
+                Bench = bench,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>
+        /// Accept the faction blessing (GDD "усиление одной фракции на следующий бой"): the
+        /// chosen faction — which must be one the player currently fields — fights the next
+        /// battle stronger. The blessing is recorded on the run and consumed when that battle
+        /// resolves. The faction may be named by its catalog id ("empire") or display name.
+        /// </summary>
+        public RunState AcceptFactionBoost(string factionId)
+        {
+            EnsureUnresolvedEvent();
+
+            if (string.IsNullOrWhiteSpace(factionId))
+            {
+                throw new ArgumentException("Faction id is required.", nameof(factionId));
+            }
+
+            var trimmed = factionId.Trim();
+            var faction = FactionCatalog.All.FirstOrDefault(entry =>
+                string.Equals(entry.Id, trimmed, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entry.Name, trimmed, StringComparison.OrdinalIgnoreCase))
+                ?? throw new ArgumentException($"Unknown faction '{factionId}'.", nameof(factionId));
+
+            var fieldsFaction = Team
+                .Concat(Bench.Select(hero => new BoardHero(hero, default)))
+                .Any(boardHero => string.Equals(
+                    HeroCatalog.Get(boardHero.Hero.HeroId).Faction,
+                    faction.Name,
+                    StringComparison.OrdinalIgnoreCase));
+            if (!fieldsFaction)
+            {
+                throw new InvalidOperationException("The blessing can only empower a faction the player fields.");
+            }
+
+            return this with
+            {
+                PendingFactionBoostId = faction.Name,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>
+        /// Accept the relic sacrifice (GDD "удаление героя ради артефакта"): remove the chosen
+        /// hero — from the bench or the board — and gain an artifact picked deterministically
+        /// from the round seed. The hero is gone from the run; the artifact joins the run's relics.
+        /// </summary>
+        public RunState AcceptSacrificeHeroForArtifact(string instanceId)
+        {
+            EnsureUnresolvedEvent();
+
+            if (string.IsNullOrWhiteSpace(instanceId))
+            {
+                throw new ArgumentException("Hero instance id is required.", nameof(instanceId));
+            }
+
+            var bench = Bench.ToList();
+            var team = Team.ToList();
+            var benchIndex = bench.FindIndex(hero => hero.InstanceId == instanceId);
+            if (benchIndex >= 0)
+            {
+                bench.RemoveAt(benchIndex);
+            }
+            else
+            {
+                var teamIndex = team.FindIndex(slot => slot.Hero.InstanceId == instanceId);
+                if (teamIndex < 0)
+                {
+                    throw new InvalidOperationException("Hero instance was not found on the bench or board.");
+                }
+
+                team.RemoveAt(teamIndex);
+            }
+
+            var relic = ArtifactCatalog.OfferThree(CurrentRoundDefinition.CombatRuneSeed)[0];
+
+            return (this with
+            {
+                Bench = bench,
+                Team = team,
+                RoundEventResolved = true
+            }).AddArtifact(relic.ToArtifactState());
+        }
+
+        /// <summary>Guards an event resolution: the run must be on an unresolved event encounter.</summary>
+        private void EnsureUnresolvedEvent()
+        {
+            if (Phase != RunPhase.Event)
+            {
+                throw new InvalidOperationException("Events can only be resolved during an event encounter.");
+            }
+
+            if (RoundEventResolved)
+            {
+                throw new InvalidOperationException("This event has already been resolved.");
+            }
         }
 
         private void EnsurePreparationPhase()

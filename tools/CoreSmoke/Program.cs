@@ -401,6 +401,27 @@ var nonAlchemistChainReward = (inCombat with
 }).ClaimReward(2);
 Require(nonAlchemistChainReward.Gold == inCombat.Gold + 2, "non-Alchemist commanders do not gain chain-reaction gold");
 
+// Aggregate round-reward calculation (GDD "итоговый расчёт наград за раунд"): one breakdown
+// is the single source of truth, and ClaimReward credits exactly its total.
+var plainReward = afterRuneSwap.RoundReward(2);
+Require(plainReward.BaseGold == 2 && plainReward.BonusGold == 0 && plainReward.TotalGold == 2, "the round-reward breakdown reports the base payout with no bonus");
+var chainBreakdownRun = inCombat with { Combat = combat with { EarnedChainFourGoldBonus = true } };
+var chainBreakdown = chainBreakdownRun.RoundReward(2);
+Require(chainBreakdown.ChainBonusGold == CombatState.ChainFourGoldBonus && chainBreakdown.TotalGold == 2 + CombatState.ChainFourGoldBonus, "the breakdown isolates the chain 4+ bonus");
+Require(chainBreakdownRun.ClaimReward(2).Gold == chainBreakdownRun.Gold + chainBreakdown.TotalGold, "ClaimReward credits exactly the breakdown total");
+var alchemistBreakdown = (RunState.NewRun("alchemist") with
+{
+    Phase = RunPhase.Combat,
+    Combat = combat with { HadChainReaction = true }
+}).RoundReward(2);
+Require(alchemistBreakdown.AlchemistBonusGold == 1 && alchemistBreakdown.ChainBonusGold == 0, "the breakdown isolates the Alchemist chain-reaction bonus");
+var defaultGoldBreakdown = afterRuneSwap.RoundReward();
+Require(defaultGoldBreakdown.BaseGold == afterRuneSwap.CurrentRoundDefinition.BaseGoldReward, "the breakdown defaults to the round's base gold payout");
+var artifactRoundBreakdown = (RunState.NewRun() with { Round = 5, Phase = RunPhase.Combat, Combat = combat }).RoundReward(3);
+Require(artifactRoundBreakdown.OffersArtifactChoice, "the breakdown reports an artifact-reward round offers a choice");
+RequireThrows(() => afterRuneSwap.RoundReward(-1), "the round-reward breakdown rejects negative gold");
+RequireThrows(() => RoundRewardBreakdown.ForCombatResolution(null!), "the round-reward breakdown rejects a null run");
+
 var nextRound = reward.AdvanceRound("round_02_rogue_band");
 Require(nextRound.Round == 2, "advancing reward starts the next round");
 Require(nextRound.Phase == RunPhase.Preparation, "advancing reward returns to preparation");
@@ -2084,7 +2105,10 @@ var roundArtifactBattle = LevelCombatSimulator.ResolveRoundMatch(
     playerArtifactCombatModifiers: ArtifactCombatModifiers.From(new List<ArtifactState> { new("iron_banner", "Железное Знамя") }),
     playerCommander: CommanderCatalog.Get("warlord").CreateInitialState());
 Require(roundArtifactBattle is not null && roundArtifactBattle!.PlayerDamageDealt > 0.0, "the round simulator accepts the run's combat artifacts and commander");
-Require(roundArtifactBattle!.Units.Any(u => u.Side == TacticalSide.Player && u.Position.IsFrontline && u.Armor >= 5.0 + ArtifactCombatModifiers.IronBannerFrontlineArmorBonus), "the run's iron banner armors the player frontline in the round autobattle");
+// The iron banner's +armor lands on the unit that started on the player frontline. By the
+// time the autobattle resolves that unit has advanced off its starting row, so assert on the
+// armored unit itself (base armor 8 + banner bonus) rather than its post-combat frontline row.
+Require(roundArtifactBattle!.Units.Any(u => u.Side == TacticalSide.Player && u.Armor >= 8.0 + ArtifactCombatModifiers.IronBannerFrontlineArmorBonus), "the run's iron banner armors the player frontline in the round autobattle");
 
 var freshBattleStats = BattleState.Create(new[]
 {
@@ -2586,6 +2610,123 @@ RequireThrows(() => EventScreenModel.Build(PveRunSchedule.GetRound(2)), "the eve
 RequireThrows(() => EventScreenModel.Build((PveRoundDefinition)null!), "the event screen rejects a null round");
 RequireThrows(() => EventScreenModel.Build((RunState)null!), "the event screen rejects a null run");
 RequireThrows(() => EventScreenModel.ForEvent(null!, 4, "Тест", "Цель"), "the event screen rejects a null choice");
+
+// Event resolution: entering an event round and applying/declining the offered outcome.
+var eventRunBase = RunState.NewRun() with { Round = 4 };
+RequireThrows(() => (RunState.NewRun() with { Round = 2 }).EnterEvent(), "only event rounds offer an event encounter");
+var enteredEvent = eventRunBase.EnterEvent();
+Require(enteredEvent.Phase == RunPhase.Event && !enteredEvent.RoundEventResolved, "entering an event round opens an unresolved event encounter");
+Require(enteredEvent.OfferedEvent.Kind == EventScreenModel.Build(enteredEvent).Kind, "the run exposes the round's deterministically offered event");
+RequireThrows(() => enteredEvent.AdvanceRound(), "an unresolved event blocks advancing the round");
+
+// Trade run health for gold (GDD "обмен здоровья на золото").
+var beforeTrade = enteredEvent;
+var afterTrade = beforeTrade.AcceptTradeHealthForGold();
+Require(afterTrade.RunHealth == beforeTrade.RunHealth - EventCatalog.TradeHealthCost, "accepting the merchant trade spends run health");
+Require(afterTrade.Gold == beforeTrade.Gold + EventCatalog.TradeGoldReward, "accepting the merchant trade grants gold");
+Require(afterTrade.RoundEventResolved, "accepting the merchant trade resolves the event");
+RequireThrows(() => afterTrade.AcceptTradeHealthForGold(), "a resolved event cannot be accepted again");
+var advancedFromTrade = afterTrade.AdvanceRound();
+Require(advancedFromTrade.Round == 5 && advancedFromTrade.Phase == RunPhase.Preparation && !advancedFromTrade.RoundEventResolved, "a resolved event advances into the next round's preparation");
+
+// Declining leaves the run unchanged but resolved, and unsafe trades are rejected.
+var declined = enteredEvent.DeclineEvent();
+Require(declined.RoundEventResolved && declined.Gold == enteredEvent.Gold && declined.RunHealth == enteredEvent.RunHealth, "declining an event applies no outcome but resolves it");
+RequireThrows(() => declined.DeclineEvent(), "a resolved event cannot be declined again");
+var lowHealthEvent = (RunState.NewRun() with { Round = 4, RunHealth = EventCatalog.TradeHealthCost }).EnterEvent();
+RequireThrows(() => lowHealthEvent.AcceptTradeHealthForGold(), "the merchant trade is refused when it would end the run");
+RequireThrows(() => eventRunBase.AcceptTradeHealthForGold(), "events cannot be resolved before entering the encounter");
+
+// Free hero with a curse (GDD "бесплатный герой с проклятием").
+var cursedAccept = enteredEvent.AcceptCursedFreeHero();
+Require(cursedAccept.Bench.Count == enteredEvent.Bench.Count + 1, "accepting the cursed gift adds a hero to the bench");
+var cursedHero = cursedAccept.Bench[^1];
+Require(cursedHero.Cursed && cursedHero.Stars == 1, "the gifted hero joins cursed at one star");
+Require(cursedAccept.RoundEventResolved, "accepting the cursed gift resolves the event");
+RequireThrows(() => cursedAccept.AcceptCursedFreeHero(), "the cursed gift cannot be taken twice");
+var fullBenchEvent = (RunState.NewRun() with
+{
+    Round = 4,
+    Bench = Enumerable.Range(0, EconomyConfig.Default.StartingBenchSize)
+        .Select(i => new HeroInstance($"fill_{i}", "iron_guard", 1))
+        .ToList()
+}).EnterEvent();
+RequireThrows(() => fullBenchEvent.AcceptCursedFreeHero(), "the cursed gift is refused when the bench is full");
+// The curse weakens the hero's combat stats versus an identical uncursed hero.
+var cursedPos = new TacticalPosition(2, 0);
+var healthyUnit = BattleUnit.FromBoardHero(new BoardHero(new HeroInstance("h", cursedHero.HeroId, 1), cursedPos), TacticalSide.Player);
+var cursedUnit = BattleUnit.FromBoardHero(new BoardHero(new HeroInstance("c", cursedHero.HeroId, 1, Cursed: true), cursedPos), TacticalSide.Player);
+Require(Math.Abs(cursedUnit.MaxHealth - healthyUnit.MaxHealth * EventCatalog.CursedHeroStatMultiplier) < 1e-9, "a cursed hero enters combat with reduced health");
+Require(Math.Abs(cursedUnit.Attack - healthyUnit.Attack * EventCatalog.CursedHeroStatMultiplier) < 1e-9, "a cursed hero enters combat with reduced attack");
+
+// Empower one faction for the next battle (GDD "усиление одной фракции на следующий бой").
+var factionEventRun = (RunState.NewRun() with
+{
+    Round = 4,
+    Team = new List<BoardHero> { new(new HeroInstance("fb_ig", "iron_guard", 1), new TacticalPosition(2, 0)) }
+}).EnterEvent();
+var boosted = factionEventRun.AcceptFactionBoost("empire");
+Require(boosted.PendingFactionBoost.IsActive && boosted.PendingFactionBoost.FactionName == FactionCatalog.Empire.Name, "accepting the blessing queues the chosen faction boost");
+Require(boosted.PendingFactionBoost.FactionName == factionEventRun.AcceptFactionBoost("Империя").PendingFactionBoost.FactionName, "the blessing accepts the faction id or its display name");
+Require(boosted.RoundEventResolved, "accepting the blessing resolves the event");
+RequireThrows(() => factionEventRun.AcceptFactionBoost("spirit"), "the blessing rejects a faction the player does not field");
+RequireThrows(() => factionEventRun.AcceptFactionBoost("unknown_faction"), "the blessing rejects an unknown faction");
+Require(!RunState.NewRun().PendingFactionBoost.IsActive, "a run with no pending blessing carries the neutral boost");
+// The pending boost feeds the next round autobattle and is consumed when it resolves.
+var boostTeam = new List<BoardHero>
+{
+    new(new HeroInstance("bt_front", "iron_guard", 1), new TacticalPosition(2, 1)),
+    new(new HeroInstance("bt_back", "oath_archer", 1), new TacticalPosition(3, 1))
+};
+var neutralRoundBattle = LevelCombatSimulator.ResolveRoundMatch(boostTeam, round2)!;
+var blessedRoundBattle = LevelCombatSimulator.ResolveRoundMatch(boostTeam, round2, playerFactionBoost: new FactionBoost(FactionCatalog.Empire.Name, EventCatalog.FactionBoostStatMultiplier))!;
+Require(blessedRoundBattle.PlayerDamageDealt > neutralRoundBattle.PlayerDamageDealt, "the faction blessing makes the blessed roster hit harder in the round autobattle");
+var roundFiveAfterBoost = (RunState.NewRun() with
+{
+    Round = 5,
+    Phase = RunPhase.Combat,
+    PendingFactionBoostId = FactionCatalog.Empire.Name,
+    Team = boostTeam,
+    Combat = CombatState.Start(round2.CombatRuneSeed)
+}).ClaimReward(7);
+Require(!roundFiveAfterBoost.PendingFactionBoost.IsActive, "resolving the battle consumes the pending faction blessing");
+
+// Sacrifice a hero for an artifact (GDD "удаление героя ради артефакта").
+var sacrificeRun = (RunState.NewRun() with
+{
+    Round = 4,
+    Bench = new List<HeroInstance> { new("sac_bench", "iron_guard", 1) },
+    Team = new List<BoardHero> { new(new HeroInstance("sac_team", "oath_archer", 1), new TacticalPosition(2, 0)) }
+}).EnterEvent();
+var expectedRelic = ArtifactCatalog.OfferThree(sacrificeRun.CurrentRoundDefinition.CombatRuneSeed)[0];
+var afterBenchSacrifice = sacrificeRun.AcceptSacrificeHeroForArtifact("sac_bench");
+Require(afterBenchSacrifice.Bench.All(hero => hero.InstanceId != "sac_bench"), "sacrificing a bench hero removes it from the run");
+Require(afterBenchSacrifice.Artifacts.Any(a => a.Id == expectedRelic.Id), "the sacrifice grants the round's deterministic artifact");
+Require(afterBenchSacrifice.RoundEventResolved, "the sacrifice resolves the event");
+var afterTeamSacrifice = sacrificeRun.AcceptSacrificeHeroForArtifact("sac_team");
+Require(afterTeamSacrifice.Team.All(slot => slot.Hero.InstanceId != "sac_team"), "sacrificing a board hero removes it from the run");
+Require(afterTeamSacrifice.Artifacts.Count == sacrificeRun.Artifacts.Count + 1, "the sacrifice adds exactly one relic");
+RequireThrows(() => sacrificeRun.AcceptSacrificeHeroForArtifact("missing_hero"), "the sacrifice rejects an unknown hero");
+RequireThrows(() => afterBenchSacrifice.AcceptSacrificeHeroForArtifact("sac_team"), "a resolved event cannot be sacrificed into again");
+
+// First-run onboarding script (GDD "Обучение и onboarding"): one mechanic revealed per round.
+Require(OnboardingScript.Steps.Count == 7, "the onboarding script covers tutorial rounds 1-7");
+Require(OnboardingScript.Steps.Select(step => step.Round).SequenceEqual(Enumerable.Range(1, 7)), "onboarding steps fire on consecutive rounds 1-7 in order");
+Require(OnboardingScript.Steps.Select(step => step.Mechanic).Distinct().Count() == 7, "each onboarding round reveals a distinct mechanic");
+Require(OnboardingScript.Steps.All(step => step.DesignGoal == PveRunSchedule.GetRound(step.Round).DesignGoal), "each onboarding step mirrors its round's GDD design goal");
+Require(OnboardingScript.ForRound(1)!.Mechanic == OnboardingMechanic.BuyAndPlaceHero, "round 1 teaches buying and placing a hero");
+Require(OnboardingScript.ForRound(2)!.Mechanic == OnboardingMechanic.RedAndBlueRunes, "round 2 teaches red and blue runes");
+Require(OnboardingScript.ForRound(3)!.Mechanic == OnboardingMechanic.TankAndPositioning, "round 3 teaches the tank and positioning");
+Require(OnboardingScript.ForRound(4)!.Mechanic == OnboardingMechanic.RiskAndReward, "round 4 introduces risk and reward");
+Require(OnboardingScript.ForRound(5)!.Mechanic == OnboardingMechanic.ShieldsAndHealing, "round 5 checks shields and healing");
+Require(OnboardingScript.ForRound(6)!.Mechanic == OnboardingMechanic.BacklineThreat, "round 6 shows the backline threat");
+Require(OnboardingScript.ForRound(7)!.Mechanic == OnboardingMechanic.MagicDamage, "round 7 teaches playing against magic damage");
+Require(OnboardingScript.Steps.All(step => !string.IsNullOrWhiteSpace(step.Title) && !string.IsNullOrWhiteSpace(step.Hint)), "every onboarding step carries an interactive title and hint");
+Require(OnboardingScript.IsTutorialRound(1) && !OnboardingScript.IsTutorialRound(8), "rounds 1-7 are tutorial rounds and round 8 is not");
+Require(OnboardingScript.ForRound(8) is null && !OnboardingScript.TryGetForRound(9, out _), "rounds past the tutorial carry no onboarding step");
+Require(OnboardingScript.RevealedBy(3).SequenceEqual(new[] { OnboardingMechanic.BuyAndPlaceHero, OnboardingMechanic.RedAndBlueRunes, OnboardingMechanic.TankAndPositioning }), "the onboarding reveals mechanics cumulatively in round order");
+Require(OnboardingScript.ForRun(RunState.NewRun() with { Round = 2 })!.Mechanic == OnboardingMechanic.RedAndBlueRunes, "the onboarding step resolves from a run's current round");
+RequireThrows(() => OnboardingScript.ForRun(null!), "the onboarding script rejects a null run");
 
 // Synergy panel view-model (GDD UI screen "Панель синергий").
 var synergyTeam = new List<BoardHero>
