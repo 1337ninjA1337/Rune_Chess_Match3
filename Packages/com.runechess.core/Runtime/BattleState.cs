@@ -26,7 +26,8 @@ public sealed record BattleState(
     double PlayerDamageDealt = 0.0,
     double PlayerHealingDone = 0.0,
     double PlayerShieldGranted = 0.0,
-    int PlayerReviveChargesRemaining = 0
+    int PlayerReviveChargesRemaining = 0,
+    double PlayerSoulHarvestHealPerKill = 0.0
 )
 {
     public const double DefaultDurationSeconds = 60.0;
@@ -86,9 +87,11 @@ public sealed record BattleState(
             PlayerSynergyModifiers: playerSynergyModifiers,
             EnemySynergyModifiers: enemySynergyModifiers,
             // The phoenix feather seeds the player's revive charges for this battle; the
-            // revive itself is resolved per tick in Tick when a hero falls. The enemy owns
+            // revive itself is resolved per tick in Tick when a hero falls. The soul harvest
+            // seeds the per-enemy-kill ally heal resolved when an enemy dies. The enemy owns
             // no artifacts.
-            PlayerReviveChargesRemaining: playerArtifactCombatModifiers.PhoenixRevives);
+            PlayerReviveChargesRemaining: playerArtifactCombatModifiers.PhoenixRevives,
+            PlayerSoulHarvestHealPerKill: playerArtifactCombatModifiers.SoulHarvestHealPerKillTotal);
     }
 
     /// <summary>Sum of current health fractions across the units that started on a side (dead units count as 0).</summary>
@@ -283,6 +286,11 @@ public sealed record BattleState(
             TryCastAbility(units, attackerIndex, ModifiersForSide(updatedAttacker.Side), ModifiersForSide(target.Side));
         }
 
+        // Soul harvest: every enemy slain this tick heals the surviving allies (GDD
+        // "вампиризм/жатва"). Applied before the revive so a freshly-revived hero is not
+        // double-counted as a kill source and before the outcome is decided.
+        ApplySoulHarvestHealing(Units, units);
+
         // Phoenix feather: an allied hero that fell during this tick comes back once,
         // spending a revive charge, before the outcome is decided so the revive can save a
         // losing fight. Resolved here per the GDD on-death trigger; charges persist across
@@ -304,7 +312,60 @@ public sealed record BattleState(
             PlayerDamageDealt + tickDamage,
             PlayerHealingDone + tickHealing,
             PlayerShieldGranted + tickShield,
-            reviveChargesRemaining);
+            reviveChargesRemaining,
+            PlayerSoulHarvestHealPerKill);
+    }
+
+    /// <summary>
+    /// Soul-harvest artifact: heals every living allied unit by
+    /// <see cref="PlayerSoulHarvestHealPerKill"/> for each enemy that died between the
+    /// pre-step snapshot <paramref name="before"/> and the current <paramref name="units"/>.
+    /// A no-op when the run owns no soul harvest. Mutates <paramref name="units"/> in place.
+    /// </summary>
+    private void ApplySoulHarvestHealing(IReadOnlyList<BattleUnit> before, List<BattleUnit> units)
+    {
+        if (PlayerSoulHarvestHealPerKill <= 0.0)
+        {
+            return;
+        }
+
+        var aliveEnemiesBefore = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var unit in before)
+        {
+            if (unit.Side == TacticalSide.Enemy && unit.IsAlive)
+            {
+                aliveEnemiesBefore.Add(unit.UnitId);
+            }
+        }
+
+        var kills = 0;
+        foreach (var unit in units)
+        {
+            if (unit.Side == TacticalSide.Enemy && !unit.IsAlive && aliveEnemiesBefore.Contains(unit.UnitId))
+            {
+                kills += 1;
+            }
+        }
+
+        if (kills == 0)
+        {
+            return;
+        }
+
+        var healing = PlayerSoulHarvestHealPerKill * kills;
+        for (var i = 0; i < units.Count; i += 1)
+        {
+            var unit = units[i];
+            if (unit.Side != TacticalSide.Player || !unit.IsAlive)
+            {
+                continue;
+            }
+
+            units[i] = unit with
+            {
+                CurrentHealth = CombatFormulas.ApplyHealing(unit.CurrentHealth, healing, unit.MaxHealth)
+            };
+        }
     }
 
     /// <summary>
@@ -469,6 +530,10 @@ public sealed record BattleState(
         ApplySpiritWhiteRuneIllusion(units, casterSide, combatEffect, casterSynergyModifiers);
         ApplyMageBlueMatch4BonusCharge(units, casterSide, combatEffect, casterSynergyModifiers, enemySynergyModifiers);
 
+        // Soul harvest also triggers on enemies a rune effect kills, not just melee kills,
+        // so the artifact rewards burst match-3 damage too.
+        ApplySoulHarvestHealing(Units, units);
+
         var outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds);
         var (effectDamage, effectHealing, effectShield) = DiffPlayerCombatStats(Units, units);
         return new BattleState(
@@ -484,7 +549,8 @@ public sealed record BattleState(
             PlayerDamageDealt + effectDamage,
             PlayerHealingDone + effectHealing,
             PlayerShieldGranted + effectShield,
-            PlayerReviveChargesRemaining);
+            PlayerReviveChargesRemaining,
+            PlayerSoulHarvestHealPerKill);
     }
 
     /// <summary>Grants blue-rune mana (matchedBlueRunes * 8) to a side's frontmost living unit.</summary>

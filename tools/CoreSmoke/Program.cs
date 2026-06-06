@@ -2383,6 +2383,36 @@ Require(BattleState.Create(new[]
     MakeUnit("px_neutral_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 50, 1.0, 0.0, 0.0)
 }).Tick(1.0) is { Outcome: BattleOutcome.PlayerDefeat } neutralPhoenix && !neutralPhoenix.Units.First(u => u.UnitId == "px_neutral_ally").IsAlive, "without a phoenix feather a fallen ally is not revived");
 
+// Soul harvest on-kill heal (GDD P1 "Жатва Душ": убийства врагов лечат союзников).
+var soulModifiers = ArtifactCombatModifiers.From(new List<ArtifactState> { new("soul_harvest", "Жатва Душ") });
+Require(Math.Abs(soulModifiers.SoulHarvestHealPerKillTotal - ArtifactCombatModifiers.SoulHarvestHealPerKill) < 1e-9 && soulModifiers.FrontlineArmorBonus == 0.0 && soulModifiers.AttackSpeedMultiplier == 1.0 && soulModifiers.PhoenixRevives == 0, "the soul harvest grants per-kill healing and no other modifier");
+Require(!soulModifiers.IsNeutral, "owning a soul harvest is not a neutral combat-modifier set");
+Require(Math.Abs(ArtifactCombatModifiers.From(new List<ArtifactState> { new("soul_harvest", "x"), new("soul_harvest", "x") }).SoulHarvestHealPerKillTotal - (2 * ArtifactCombatModifiers.SoulHarvestHealPerKill)) < 1e-9, "duplicate soul harvests stack per-kill healing");
+var soulBattle = BattleState.Create(new[]
+{
+    MakeUnit("sh_killer", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 50, 1.0, 0.0, 0.0),
+    MakeUnit("sh_wounded", TacticalSide.Player, new TacticalPosition(3, 0), 100, 50, 0, 1.0, 5.0, 0.0),
+    MakeUnit("sh_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 5, 0, 1.0, 5.0, 0.0)
+}, playerArtifactCombatModifiers: soulModifiers);
+Require(Math.Abs(soulBattle.PlayerSoulHarvestHealPerKill - ArtifactCombatModifiers.SoulHarvestHealPerKill) < 1e-9, "the soul harvest seeds the per-kill heal into the battle");
+var afterSoulTick = soulBattle.Tick(1.0);
+Require(!afterSoulTick.Units.First(u => u.UnitId == "sh_enemy").IsAlive, "the killer slays the low-health enemy");
+Require(Math.Abs(afterSoulTick.Units.First(u => u.UnitId == "sh_wounded").CurrentHealth - (50.0 + ArtifactCombatModifiers.SoulHarvestHealPerKill)) < 1e-9, "an enemy kill heals the wounded ally through the soul harvest");
+var noSoulTick = BattleState.Create(new[]
+{
+    MakeUnit("ns_killer", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 50, 1.0, 0.0, 0.0),
+    MakeUnit("ns_wounded", TacticalSide.Player, new TacticalPosition(3, 0), 100, 50, 0, 1.0, 5.0, 0.0),
+    MakeUnit("ns_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 5, 0, 1.0, 5.0, 0.0)
+}).Tick(1.0);
+Require(Math.Abs(noSoulTick.Units.First(u => u.UnitId == "ns_wounded").CurrentHealth - 50.0) < 1e-9, "without a soul harvest an enemy kill does not heal allies");
+var soulRuneBattle = BattleState.Create(new[]
+{
+    MakeUnit("shr_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 40, 0, 1.0, 5.0, 0.0),
+    MakeUnit("shr_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 10, 0, 1.0, 5.0, 0.0)
+}, playerArtifactCombatModifiers: soulModifiers);
+var afterSoulRune = soulRuneBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40));
+Require(!afterSoulRune.Units.First(u => u.UnitId == "shr_enemy").IsAlive && Math.Abs(afterSoulRune.Units.First(u => u.UnitId == "shr_ally").CurrentHealth - (40.0 + ArtifactCombatModifiers.SoulHarvestHealPerKill)) < 1e-9, "a rune-effect kill also triggers the soul-harvest heal");
+
 // Claiming the hero reward (GDD "награды героем после выбранных раундов").
 var starterRewardRun = RunState.NewRun() with { Round = 1, Phase = RunPhase.Reward };
 var starterHeroOptions = starterRewardRun.RewardHeroOptions();

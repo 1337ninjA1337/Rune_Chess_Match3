@@ -9,12 +9,13 @@ namespace RuneChess.Core
     /// extra frontline armor (<c>iron_banner</c>) and an ally attack-speed bonus
     /// (<c>swift_boots</c>) - applied in <see cref="BattleState.Create"/> via
     /// <see cref="Apply"/>, the same place the Warlord commander buffs its first defender;
-    /// and a triggered cross-tick charge count - the number of allies the phoenix feather
-    /// (<c>phoenix_feather</c>) can revive this battle, seeded into the battle and spent by
-    /// the revive logic in <see cref="BattleState.Tick"/>. Other triggered combat artifacts
-    /// (on-kill heal, etc.) are tracked as their own tasks. Magnitudes live here as named
-    /// constants per the codex data rule so balance changes never touch the battle logic.
-    /// Duplicates stack additively (two phoenix feathers grant two revives).
+    /// and triggered cross-tick amounts - the number of allies the phoenix feather
+    /// (<c>phoenix_feather</c>) can revive this battle, and the health each living ally
+    /// regains per enemy slain from the soul harvest (<c>soul_harvest</c>). Both are seeded
+    /// into the battle and resolved by death/kill detection in <see cref="BattleState.Tick"/>.
+    /// Magnitudes live here as named constants per the codex data rule so balance changes
+    /// never touch the battle logic. Duplicates stack additively (two phoenix feathers grant
+    /// two revives; two soul harvests double the per-kill heal).
     /// </summary>
     public readonly struct ArtifactCombatModifiers : IEquatable<ArtifactCombatModifiers>
     {
@@ -30,14 +31,19 @@ namespace RuneChess.Core
         /// <summary>Fraction of max health a revived ally returns to (the rest of the revive balance).</summary>
         public const double PhoenixReviveHealthFraction = 0.5;
 
+        /// <summary>"Жатва Душ": health restored to each living ally per enemy slain.</summary>
+        public const double SoulHarvestHealPerKill = 6.0;
+
         private readonly double frontlineArmorBonus;
         private readonly double attackSpeedMultiplier;
         private readonly int phoenixRevives;
+        private readonly double soulHarvestHealPerKill;
 
         public ArtifactCombatModifiers(
             double frontlineArmorBonus = 0.0,
             double attackSpeedMultiplier = 1.0,
-            int phoenixRevives = 0)
+            int phoenixRevives = 0,
+            double soulHarvestHealPerKill = 0.0)
         {
             if (frontlineArmorBonus < 0.0)
             {
@@ -54,9 +60,15 @@ namespace RuneChess.Core
                 throw new ArgumentOutOfRangeException(nameof(phoenixRevives), "Revive charges cannot be negative.");
             }
 
+            if (soulHarvestHealPerKill < 0.0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(soulHarvestHealPerKill), "Soul-harvest heal cannot be negative.");
+            }
+
             this.frontlineArmorBonus = frontlineArmorBonus;
             this.attackSpeedMultiplier = attackSpeedMultiplier;
             this.phoenixRevives = phoenixRevives;
+            this.soulHarvestHealPerKill = soulHarvestHealPerKill;
         }
 
         public double FrontlineArmorBonus => frontlineArmorBonus < 0.0 ? 0.0 : frontlineArmorBonus;
@@ -64,6 +76,9 @@ namespace RuneChess.Core
 
         /// <summary>Number of allied heroes the run's phoenix feathers can revive this battle.</summary>
         public int PhoenixRevives => phoenixRevives < 0 ? 0 : phoenixRevives;
+
+        /// <summary>Health each living ally regains for every enemy killed (soul-harvest artifacts, additive).</summary>
+        public double SoulHarvestHealPerKillTotal => soulHarvestHealPerKill < 0.0 ? 0.0 : soulHarvestHealPerKill;
 
         /// <summary>True when this set carries a start-of-combat stat tweak (armor/attack speed).</summary>
         private bool HasStatModifiers => FrontlineArmorBonus > 0.0 || Math.Abs(AttackSpeedMultiplier - 1.0) > 1e-9;
@@ -89,6 +104,7 @@ namespace RuneChess.Core
             var frontlineArmorBonus = 0.0;
             var attackSpeedMultiplier = 1.0;
             var phoenixRevives = 0;
+            var soulHarvestHealPerKill = 0.0;
 
             foreach (var artifact in artifacts)
             {
@@ -103,10 +119,13 @@ namespace RuneChess.Core
                     case "phoenix_feather":
                         phoenixRevives += PhoenixFeatherRevives;
                         break;
+                    case "soul_harvest":
+                        soulHarvestHealPerKill += SoulHarvestHealPerKill;
+                        break;
                 }
             }
 
-            return new ArtifactCombatModifiers(frontlineArmorBonus, attackSpeedMultiplier, phoenixRevives);
+            return new ArtifactCombatModifiers(frontlineArmorBonus, attackSpeedMultiplier, phoenixRevives, soulHarvestHealPerKill);
         }
 
         /// <summary>
@@ -142,7 +161,8 @@ namespace RuneChess.Core
         {
             return Math.Abs(FrontlineArmorBonus - other.FrontlineArmorBonus) < 1e-9
                 && Math.Abs(AttackSpeedMultiplier - other.AttackSpeedMultiplier) < 1e-9
-                && PhoenixRevives == other.PhoenixRevives;
+                && PhoenixRevives == other.PhoenixRevives
+                && Math.Abs(SoulHarvestHealPerKillTotal - other.SoulHarvestHealPerKillTotal) < 1e-9;
         }
 
         public override bool Equals(object? obj)
@@ -152,7 +172,7 @@ namespace RuneChess.Core
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(FrontlineArmorBonus, AttackSpeedMultiplier, PhoenixRevives);
+            return HashCode.Combine(FrontlineArmorBonus, AttackSpeedMultiplier, PhoenixRevives, SoulHarvestHealPerKillTotal);
         }
     }
 }
