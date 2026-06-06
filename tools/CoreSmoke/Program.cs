@@ -2709,6 +2709,25 @@ Require(afterTeamSacrifice.Artifacts.Count == sacrificeRun.Artifacts.Count + 1, 
 RequireThrows(() => sacrificeRun.AcceptSacrificeHeroForArtifact("missing_hero"), "the sacrifice rejects an unknown hero");
 RequireThrows(() => afterBenchSacrifice.AcceptSacrificeHeroForArtifact("sac_team"), "a resolved event cannot be sacrificed into again");
 
+// First-run onboarding script (GDD "Обучение и onboarding"): one mechanic revealed per round.
+Require(OnboardingScript.Steps.Count == 7, "the onboarding script covers tutorial rounds 1-7");
+Require(OnboardingScript.Steps.Select(step => step.Round).SequenceEqual(Enumerable.Range(1, 7)), "onboarding steps fire on consecutive rounds 1-7 in order");
+Require(OnboardingScript.Steps.Select(step => step.Mechanic).Distinct().Count() == 7, "each onboarding round reveals a distinct mechanic");
+Require(OnboardingScript.Steps.All(step => step.DesignGoal == PveRunSchedule.GetRound(step.Round).DesignGoal), "each onboarding step mirrors its round's GDD design goal");
+Require(OnboardingScript.ForRound(1)!.Mechanic == OnboardingMechanic.BuyAndPlaceHero, "round 1 teaches buying and placing a hero");
+Require(OnboardingScript.ForRound(2)!.Mechanic == OnboardingMechanic.RedAndBlueRunes, "round 2 teaches red and blue runes");
+Require(OnboardingScript.ForRound(3)!.Mechanic == OnboardingMechanic.TankAndPositioning, "round 3 teaches the tank and positioning");
+Require(OnboardingScript.ForRound(4)!.Mechanic == OnboardingMechanic.RiskAndReward, "round 4 introduces risk and reward");
+Require(OnboardingScript.ForRound(5)!.Mechanic == OnboardingMechanic.ShieldsAndHealing, "round 5 checks shields and healing");
+Require(OnboardingScript.ForRound(6)!.Mechanic == OnboardingMechanic.BacklineThreat, "round 6 shows the backline threat");
+Require(OnboardingScript.ForRound(7)!.Mechanic == OnboardingMechanic.MagicDamage, "round 7 teaches playing against magic damage");
+Require(OnboardingScript.Steps.All(step => !string.IsNullOrWhiteSpace(step.Title) && !string.IsNullOrWhiteSpace(step.Hint)), "every onboarding step carries an interactive title and hint");
+Require(OnboardingScript.IsTutorialRound(1) && !OnboardingScript.IsTutorialRound(8), "rounds 1-7 are tutorial rounds and round 8 is not");
+Require(OnboardingScript.ForRound(8) is null && !OnboardingScript.TryGetForRound(9, out _), "rounds past the tutorial carry no onboarding step");
+Require(OnboardingScript.RevealedBy(3).SequenceEqual(new[] { OnboardingMechanic.BuyAndPlaceHero, OnboardingMechanic.RedAndBlueRunes, OnboardingMechanic.TankAndPositioning }), "the onboarding reveals mechanics cumulatively in round order");
+Require(OnboardingScript.ForRun(RunState.NewRun() with { Round = 2 })!.Mechanic == OnboardingMechanic.RedAndBlueRunes, "the onboarding step resolves from a run's current round");
+RequireThrows(() => OnboardingScript.ForRun(null!), "the onboarding script rejects a null run");
+
 // Synergy panel view-model (GDD UI screen "Панель синергий").
 var synergyTeam = new List<BoardHero>
 {
