@@ -401,6 +401,27 @@ var nonAlchemistChainReward = (inCombat with
 }).ClaimReward(2);
 Require(nonAlchemistChainReward.Gold == inCombat.Gold + 2, "non-Alchemist commanders do not gain chain-reaction gold");
 
+// Aggregate round-reward calculation (GDD "итоговый расчёт наград за раунд"): one breakdown
+// is the single source of truth, and ClaimReward credits exactly its total.
+var plainReward = afterRuneSwap.RoundReward(2);
+Require(plainReward.BaseGold == 2 && plainReward.BonusGold == 0 && plainReward.TotalGold == 2, "the round-reward breakdown reports the base payout with no bonus");
+var chainBreakdownRun = inCombat with { Combat = combat with { EarnedChainFourGoldBonus = true } };
+var chainBreakdown = chainBreakdownRun.RoundReward(2);
+Require(chainBreakdown.ChainBonusGold == CombatState.ChainFourGoldBonus && chainBreakdown.TotalGold == 2 + CombatState.ChainFourGoldBonus, "the breakdown isolates the chain 4+ bonus");
+Require(chainBreakdownRun.ClaimReward(2).Gold == chainBreakdownRun.Gold + chainBreakdown.TotalGold, "ClaimReward credits exactly the breakdown total");
+var alchemistBreakdown = (RunState.NewRun("alchemist") with
+{
+    Phase = RunPhase.Combat,
+    Combat = combat with { HadChainReaction = true }
+}).RoundReward(2);
+Require(alchemistBreakdown.AlchemistBonusGold == 1 && alchemistBreakdown.ChainBonusGold == 0, "the breakdown isolates the Alchemist chain-reaction bonus");
+var defaultGoldBreakdown = afterRuneSwap.RoundReward();
+Require(defaultGoldBreakdown.BaseGold == afterRuneSwap.CurrentRoundDefinition.BaseGoldReward, "the breakdown defaults to the round's base gold payout");
+var artifactRoundBreakdown = (RunState.NewRun() with { Round = 5, Phase = RunPhase.Combat, Combat = combat }).RoundReward(3);
+Require(artifactRoundBreakdown.OffersArtifactChoice, "the breakdown reports an artifact-reward round offers a choice");
+RequireThrows(() => afterRuneSwap.RoundReward(-1), "the round-reward breakdown rejects negative gold");
+RequireThrows(() => RoundRewardBreakdown.ForCombatResolution(null!), "the round-reward breakdown rejects a null run");
+
 var nextRound = reward.AdvanceRound("round_02_rogue_band");
 Require(nextRound.Round == 2, "advancing reward starts the next round");
 Require(nextRound.Phase == RunPhase.Preparation, "advancing reward returns to preparation");

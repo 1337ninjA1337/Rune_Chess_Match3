@@ -27,7 +27,7 @@ namespace RuneChess.Core
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
         private const int RuneArchonMatch4CombosPerBlueRune = 3;
-        private const int AlchemistChainReactionGoldBonus = 1;
+        internal const int AlchemistChainReactionGoldBonus = 1;
 
         public PveRoundDefinition CurrentRoundDefinition => PveRunSchedule.GetRound(Round);
 
@@ -640,6 +640,14 @@ namespace RuneChess.Core
             };
         }
 
+        /// <summary>
+        /// The aggregate reward (gold breakdown and offered choices) the current round would pay
+        /// if its combat resolved now (GDD "итоговый расчёт наград за раунд"). Reads the live
+        /// combat state for chain bonuses, so call while still in the combat phase.
+        /// </summary>
+        public RoundRewardBreakdown RoundReward(int? goldReward = null) =>
+            RoundRewardBreakdown.ForCombatResolution(this, goldReward);
+
         public RunState ClaimReward(int? goldReward = null)
         {
             if (Phase != RunPhase.Combat)
@@ -647,22 +655,13 @@ namespace RuneChess.Core
                 throw new InvalidOperationException("Rewards can only be claimed after combat resolution.");
             }
 
-            var resolvedGoldReward = goldReward ?? CurrentRoundDefinition.BaseGoldReward;
-            var chainGoldBonus = Combat?.EarnedChainFourGoldBonus == true
-                ? CombatState.ChainFourGoldBonus
-                : 0;
-            var alchemistGoldBonus = Commander.Id == CommanderCatalog.Alchemist.Id && Combat?.HadChainReaction == true
-                ? AlchemistChainReactionGoldBonus
-                : 0;
-            var artifactGoldBonus = Modifiers.RoundEndGoldBonus;
-            if (resolvedGoldReward < 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(goldReward), "Gold reward cannot be negative.");
-            }
+            // The full round payout — base gold plus chain/alchemist/artifact bonuses — is
+            // computed in one place so the gold credited here matches the reward screen exactly.
+            var rewardBreakdown = RoundRewardBreakdown.ForCombatResolution(this, goldReward);
 
             return this with
             {
-                Gold = Gold + resolvedGoldReward + chainGoldBonus + alchemistGoldBonus + artifactGoldBonus,
+                Gold = Gold + rewardBreakdown.TotalGold,
                 Phase = IsFinalRound ? RunPhase.Victory : RunPhase.Reward,
                 Combat = null,
                 DefeatReason = null,
