@@ -2590,6 +2590,32 @@ RequireThrows(() => EventScreenModel.Build((PveRoundDefinition)null!), "the even
 RequireThrows(() => EventScreenModel.Build((RunState)null!), "the event screen rejects a null run");
 RequireThrows(() => EventScreenModel.ForEvent(null!, 4, "Тест", "Цель"), "the event screen rejects a null choice");
 
+// Event resolution: entering an event round and applying/declining the offered outcome.
+var eventRunBase = RunState.NewRun() with { Round = 4 };
+RequireThrows(() => (RunState.NewRun() with { Round = 2 }).EnterEvent(), "only event rounds offer an event encounter");
+var enteredEvent = eventRunBase.EnterEvent();
+Require(enteredEvent.Phase == RunPhase.Event && !enteredEvent.RoundEventResolved, "entering an event round opens an unresolved event encounter");
+Require(enteredEvent.OfferedEvent.Kind == EventScreenModel.Build(enteredEvent).Kind, "the run exposes the round's deterministically offered event");
+RequireThrows(() => enteredEvent.AdvanceRound(), "an unresolved event blocks advancing the round");
+
+// Trade run health for gold (GDD "обмен здоровья на золото").
+var beforeTrade = enteredEvent;
+var afterTrade = beforeTrade.AcceptTradeHealthForGold();
+Require(afterTrade.RunHealth == beforeTrade.RunHealth - EventCatalog.TradeHealthCost, "accepting the merchant trade spends run health");
+Require(afterTrade.Gold == beforeTrade.Gold + EventCatalog.TradeGoldReward, "accepting the merchant trade grants gold");
+Require(afterTrade.RoundEventResolved, "accepting the merchant trade resolves the event");
+RequireThrows(() => afterTrade.AcceptTradeHealthForGold(), "a resolved event cannot be accepted again");
+var advancedFromTrade = afterTrade.AdvanceRound();
+Require(advancedFromTrade.Round == 5 && advancedFromTrade.Phase == RunPhase.Preparation && !advancedFromTrade.RoundEventResolved, "a resolved event advances into the next round's preparation");
+
+// Declining leaves the run unchanged but resolved, and unsafe trades are rejected.
+var declined = enteredEvent.DeclineEvent();
+Require(declined.RoundEventResolved && declined.Gold == enteredEvent.Gold && declined.RunHealth == enteredEvent.RunHealth, "declining an event applies no outcome but resolves it");
+RequireThrows(() => declined.DeclineEvent(), "a resolved event cannot be declined again");
+var lowHealthEvent = (RunState.NewRun() with { Round = 4, RunHealth = EventCatalog.TradeHealthCost }).EnterEvent();
+RequireThrows(() => lowHealthEvent.AcceptTradeHealthForGold(), "the merchant trade is refused when it would end the run");
+RequireThrows(() => eventRunBase.AcceptTradeHealthForGold(), "events cannot be resolved before entering the encounter");
+
 // Synergy panel view-model (GDD UI screen "Панель синергий").
 var synergyTeam = new List<BoardHero>
 {

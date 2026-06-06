@@ -20,7 +20,8 @@ namespace RuneChess.Core
         CombatState? Combat,
         string? DefeatReason,
         bool RoundArtifactClaimed = false,
-        bool RoundHeroClaimed = false
+        bool RoundHeroClaimed = false,
+        bool RoundEventResolved = false
     )
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
@@ -670,6 +671,11 @@ namespace RuneChess.Core
                 throw new InvalidOperationException("Rounds can only advance from reward or event phases.");
             }
 
+            if (Phase == RunPhase.Event && !RoundEventResolved)
+            {
+                throw new InvalidOperationException("The event must be accepted or declined before advancing.");
+            }
+
             return this with
             {
                 Round = Round + 1,
@@ -677,8 +683,76 @@ namespace RuneChess.Core
                 Shop = nextShop ?? ShopState.ForPlayerLevel(PlayerLevel),
                 NextEnemyId = nextEnemyId,
                 Combat = null,
-                DefeatReason = null
+                DefeatReason = null,
+                RoundEventResolved = false
             };
+        }
+
+        /// <summary>
+        /// Enter the current round's event encounter (GDD "Экран события"). Only no-combat
+        /// event rounds offer an encounter, and only from preparation. Transitions the run
+        /// into the event phase so the player can accept or decline the offered event.
+        /// </summary>
+        public RunState EnterEvent()
+        {
+            EnsurePreparationPhase();
+
+            if (CurrentRoundDefinition.Type != PveRoundType.Event)
+            {
+                throw new InvalidOperationException("Only event rounds offer an event encounter.");
+            }
+
+            return this with { Phase = RunPhase.Event, RoundEventResolved = false };
+        }
+
+        /// <summary>The event archetype offered by the current event round, drawn deterministically from the round seed.</summary>
+        public EventOption OfferedEvent => EventScreenModel.Build(this).Choice;
+
+        /// <summary>
+        /// Decline the offered event (GDD "Отказаться") and leave it resolved so the run can
+        /// advance. Declining applies no outcome; the player simply moves on.
+        /// </summary>
+        public RunState DeclineEvent()
+        {
+            EnsureUnresolvedEvent();
+            return this with { RoundEventResolved = true };
+        }
+
+        /// <summary>
+        /// Accept the relic-merchant trade (GDD "обмен здоровья на золото"): pay run health to
+        /// gain gold using the balance numbers on <see cref="EventCatalog.TradeHealthForGold"/>.
+        /// The trade is only allowed while it keeps the run alive (run health stays at least 1).
+        /// </summary>
+        public RunState AcceptTradeHealthForGold()
+        {
+            EnsureUnresolvedEvent();
+
+            var option = EventCatalog.TradeHealthForGold;
+            if (RunHealth <= option.HealthCost)
+            {
+                throw new InvalidOperationException("Not enough run health to safely make this trade.");
+            }
+
+            return this with
+            {
+                RunHealth = RunHealth - option.HealthCost,
+                Gold = Gold + option.GoldReward,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>Guards an event resolution: the run must be on an unresolved event encounter.</summary>
+        private void EnsureUnresolvedEvent()
+        {
+            if (Phase != RunPhase.Event)
+            {
+                throw new InvalidOperationException("Events can only be resolved during an event encounter.");
+            }
+
+            if (RoundEventResolved)
+            {
+                throw new InvalidOperationException("This event has already been resolved.");
+            }
         }
 
         private void EnsurePreparationPhase()
