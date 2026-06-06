@@ -106,13 +106,28 @@ public sealed record BattleUnit(
         }
 
         var definition = HeroCatalog.Get(boardHero.Hero.HeroId);
-        return FromHero(
+        var unit = FromHero(
             definition,
             boardHero.Hero.Stars,
             boardHero.Hero.InstanceId,
             side,
             boardHero.Position,
             synergyModifiers);
+
+        // A cursed hero (taken from the GDD "бесплатный герой с проклятием" event) enters
+        // combat with reduced health and attack for the rest of the run.
+        if (boardHero.Hero.Cursed)
+        {
+            var penalty = EventCatalog.CursedHeroStatMultiplier;
+            unit = unit with
+            {
+                MaxHealth = unit.MaxHealth * penalty,
+                CurrentHealth = unit.CurrentHealth * penalty,
+                Attack = unit.Attack * penalty
+            };
+        }
+
+        return unit;
     }
 }
 }

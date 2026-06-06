@@ -17,6 +17,10 @@ namespace RuneChess.Core
         public const int TradeHealthCost = 2;
         public const int TradeGoldReward = 6;
 
+        // Cursed-free-hero balance: the gifted hero fights at this fraction of its stats for
+        // the rest of the run (GDD "бесплатный герой с проклятием").
+        public const double CursedHeroStatMultiplier = 0.8;
+
         /// <summary>Trade run health for gold (GDD "обмен здоровья на золото").</summary>
         public static EventOption TradeHealthForGold { get; } = new(
             Kind: EventChoiceKind.TradeHealthForGold,

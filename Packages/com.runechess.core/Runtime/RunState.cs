@@ -741,6 +741,32 @@ namespace RuneChess.Core
             };
         }
 
+        /// <summary>
+        /// Accept the cursed gift (GDD "бесплатный герой с проклятием"): a free Common hero,
+        /// picked deterministically from the round seed, joins the bench at one star carrying a
+        /// curse that weakens it in combat for the rest of the run. The bench must have a free slot.
+        /// </summary>
+        public RunState AcceptCursedFreeHero(EconomyConfig? economy = null)
+        {
+            EnsureUnresolvedEvent();
+
+            var config = economy ?? EconomyConfig.Default;
+            if (Bench.Count >= config.StartingBenchSize)
+            {
+                throw new InvalidOperationException("Bench is full.");
+            }
+
+            var gift = HeroCatalog.OfferRewardHeroes(CurrentRoundDefinition.CombatRuneSeed, HeroRarity.Common, count: 1)[0];
+            var bench = Bench.ToList();
+            bench.Add(new HeroInstance(CreateInstanceId(gift.Id), gift.Id, Stars: 1, Cursed: true));
+
+            return this with
+            {
+                Bench = bench,
+                RoundEventResolved = true
+            };
+        }
+
         /// <summary>Guards an event resolution: the run must be on an unresolved event encounter.</summary>
         private void EnsureUnresolvedEvent()
         {

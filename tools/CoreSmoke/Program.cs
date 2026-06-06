@@ -2616,6 +2616,28 @@ var lowHealthEvent = (RunState.NewRun() with { Round = 4, RunHealth = EventCatal
 RequireThrows(() => lowHealthEvent.AcceptTradeHealthForGold(), "the merchant trade is refused when it would end the run");
 RequireThrows(() => eventRunBase.AcceptTradeHealthForGold(), "events cannot be resolved before entering the encounter");
 
+// Free hero with a curse (GDD "бесплатный герой с проклятием").
+var cursedAccept = enteredEvent.AcceptCursedFreeHero();
+Require(cursedAccept.Bench.Count == enteredEvent.Bench.Count + 1, "accepting the cursed gift adds a hero to the bench");
+var cursedHero = cursedAccept.Bench[^1];
+Require(cursedHero.Cursed && cursedHero.Stars == 1, "the gifted hero joins cursed at one star");
+Require(cursedAccept.RoundEventResolved, "accepting the cursed gift resolves the event");
+RequireThrows(() => cursedAccept.AcceptCursedFreeHero(), "the cursed gift cannot be taken twice");
+var fullBenchEvent = (RunState.NewRun() with
+{
+    Round = 4,
+    Bench = Enumerable.Range(0, EconomyConfig.Default.StartingBenchSize)
+        .Select(i => new HeroInstance($"fill_{i}", "iron_guard", 1))
+        .ToList()
+}).EnterEvent();
+RequireThrows(() => fullBenchEvent.AcceptCursedFreeHero(), "the cursed gift is refused when the bench is full");
+// The curse weakens the hero's combat stats versus an identical uncursed hero.
+var cursedPos = new TacticalPosition(2, 0);
+var healthyUnit = BattleUnit.FromBoardHero(new BoardHero(new HeroInstance("h", cursedHero.HeroId, 1), cursedPos), TacticalSide.Player);
+var cursedUnit = BattleUnit.FromBoardHero(new BoardHero(new HeroInstance("c", cursedHero.HeroId, 1, Cursed: true), cursedPos), TacticalSide.Player);
+Require(Math.Abs(cursedUnit.MaxHealth - healthyUnit.MaxHealth * EventCatalog.CursedHeroStatMultiplier) < 1e-9, "a cursed hero enters combat with reduced health");
+Require(Math.Abs(cursedUnit.Attack - healthyUnit.Attack * EventCatalog.CursedHeroStatMultiplier) < 1e-9, "a cursed hero enters combat with reduced attack");
+
 // Synergy panel view-model (GDD UI screen "Панель синергий").
 var synergyTeam = new List<BoardHero>
 {
