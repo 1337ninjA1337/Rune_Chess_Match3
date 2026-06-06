@@ -27,7 +27,11 @@ public sealed record BattleState(
     double PlayerHealingDone = 0.0,
     double PlayerShieldGranted = 0.0,
     int PlayerReviveChargesRemaining = 0,
-    double PlayerSoulHarvestHealPerKill = 0.0
+    double PlayerSoulHarvestHealPerKill = 0.0,
+    double PlayerRangedBacklineDamageMultiplier = 1.0,
+    double PlayerSummonDurationMultiplier = 1.0,
+    double PlayerCommanderEnergyMultiplier = 1.0,
+    double PlayerShieldStrengthMultiplier = 1.0
 )
 {
     public const double DefaultDurationSeconds = 60.0;
@@ -88,10 +92,18 @@ public sealed record BattleState(
             EnemySynergyModifiers: enemySynergyModifiers,
             // The phoenix feather seeds the player's revive charges for this battle; the
             // revive itself is resolved per tick in Tick when a hero falls. The soul harvest
-            // seeds the per-enemy-kill ally heal resolved when an enemy dies. The enemy owns
-            // no artifacts.
+            // seeds the per-enemy-kill ally heal resolved when an enemy dies. The remaining
+            // four are persistent battle multipliers the player side reads back whenever the
+            // matching event fires: hunter's mark scales ranged backline auto-attacks, the
+            // clockwork heart extends timed summons, the crown of command scales rune-driven
+            // commander energy, and the guardian aegis scales granted shields. The enemy owns
+            // no artifacts, so every multiplier stays neutral on its side.
             PlayerReviveChargesRemaining: playerArtifactCombatModifiers.PhoenixRevives,
-            PlayerSoulHarvestHealPerKill: playerArtifactCombatModifiers.SoulHarvestHealPerKillTotal);
+            PlayerSoulHarvestHealPerKill: playerArtifactCombatModifiers.SoulHarvestHealPerKillTotal,
+            PlayerRangedBacklineDamageMultiplier: playerArtifactCombatModifiers.RangedBacklineDamageMultiplier,
+            PlayerSummonDurationMultiplier: playerArtifactCombatModifiers.SummonDurationMultiplier,
+            PlayerCommanderEnergyMultiplier: playerArtifactCombatModifiers.CommanderEnergyMultiplier,
+            PlayerShieldStrengthMultiplier: playerArtifactCombatModifiers.ShieldStrengthMultiplier);
     }
 
     /// <summary>Sum of current health fractions across the units that started on a side (dead units count as 0).</summary>
@@ -249,6 +261,16 @@ public sealed record BattleState(
                 }
             }
 
+            // Hunter's mark: the player's ranged auto-attacks hit the enemy backline harder
+            // (GDD P1 "Метка Охотника"). Only the player owns artifacts, so the multiplier is
+            // neutral (1.0) on the enemy side and a no-op when the run holds no hunter's mark.
+            if (attacker.Side == TacticalSide.Player
+                && attacker.IsRanged
+                && target.Position.IsBackline)
+            {
+                rawDamage *= PlayerRangedBacklineDamageMultiplier;
+            }
+
             var absorbed = CombatFormulas.DamageAfterShield(rawDamage, target.Shield);
             var remainingShield = CombatFormulas.ShieldAfterDamage(target.Shield, rawDamage);
             var newHealth = Math.Max(0.0, target.CurrentHealth - absorbed);
@@ -313,7 +335,11 @@ public sealed record BattleState(
             PlayerHealingDone + tickHealing,
             PlayerShieldGranted + tickShield,
             reviveChargesRemaining,
-            PlayerSoulHarvestHealPerKill);
+            PlayerSoulHarvestHealPerKill,
+            PlayerRangedBacklineDamageMultiplier,
+            PlayerSummonDurationMultiplier,
+            PlayerCommanderEnergyMultiplier,
+            PlayerShieldStrengthMultiplier);
     }
 
     /// <summary>
@@ -513,7 +539,9 @@ public sealed record BattleState(
                 ApplyRuneHealing(units, casterSide, combatEffect);
                 break;
             case RuneEffectKind.Shield:
-                ApplyRuneShield(units, casterSide, combatEffect, casterSynergyModifiers);
+                // Guardian aegis scales the shield the player's runes grant (GDD P1 "Эгида
+                // Стража"); the enemy side keeps the neutral 1.0 multiplier.
+                ApplyRuneShield(units, casterSide, combatEffect, casterSynergyModifiers, ShieldStrengthMultiplierForSide(casterSide));
                 break;
             case RuneEffectKind.Mana:
                 ApplyRuneMana(units, casterSide, combatEffect.Power, combatEffect.IsMassEffect, casterSynergyModifiers, enemySynergyModifiers);
@@ -525,14 +553,24 @@ public sealed record BattleState(
                 throw new ArgumentOutOfRangeException(nameof(effect), combatEffect.Kind, "Unknown rune effect kind.");
         }
 
+        // Clockwork heart extends the lifetime of the player's timed summons (GDD P1
+        // "Заводное Сердце"); the enemy side keeps the neutral 1.0 multiplier.
+        var summonDurationMultiplier = casterSide == TacticalSide.Player ? PlayerSummonDurationMultiplier : 1.0;
         ApplyWildChainLifesteal(units, casterSide, combatEffect, casterSynergyModifiers);
-        ApplyMechanistMatch4Turret(units, casterSide, combatEffect, casterSynergyModifiers);
-        ApplySpiritWhiteRuneIllusion(units, casterSide, combatEffect, casterSynergyModifiers);
+        ApplyMechanistMatch4Turret(units, casterSide, combatEffect, casterSynergyModifiers, summonDurationMultiplier);
+        ApplySpiritWhiteRuneIllusion(units, casterSide, combatEffect, casterSynergyModifiers, summonDurationMultiplier);
         ApplyMageBlueMatch4BonusCharge(units, casterSide, combatEffect, casterSynergyModifiers, enemySynergyModifiers);
 
         // Soul harvest also triggers on enemies a rune effect kills, not just melee kills,
         // so the artifact rewards burst match-3 damage too.
         ApplySoulHarvestHealing(Units, units);
+
+        // Crown of command: the player's rune-driven commander energy gains are amplified
+        // (GDD P1 "Венец Командования"); the enemy side keeps the neutral 1.0 multiplier.
+        if (casterSide == TacticalSide.Player)
+        {
+            commanderGain *= PlayerCommanderEnergyMultiplier;
+        }
 
         var outcome = ResolveOutcome(units, ElapsedSeconds, DurationSeconds);
         var (effectDamage, effectHealing, effectShield) = DiffPlayerCombatStats(Units, units);
@@ -550,7 +588,17 @@ public sealed record BattleState(
             PlayerHealingDone + effectHealing,
             PlayerShieldGranted + effectShield,
             PlayerReviveChargesRemaining,
-            PlayerSoulHarvestHealPerKill);
+            PlayerSoulHarvestHealPerKill,
+            PlayerRangedBacklineDamageMultiplier,
+            PlayerSummonDurationMultiplier,
+            PlayerCommanderEnergyMultiplier,
+            PlayerShieldStrengthMultiplier);
+    }
+
+    /// <summary>Shield-strength multiplier the given side's granted shields use (player-only artifacts).</summary>
+    private double ShieldStrengthMultiplierForSide(TacticalSide side)
+    {
+        return side == TacticalSide.Player ? PlayerShieldStrengthMultiplier : 1.0;
     }
 
     /// <summary>Grants blue-rune mana (matchedBlueRunes * 8) to a side's frontmost living unit.</summary>
@@ -748,7 +796,8 @@ public sealed record BattleState(
         List<BattleUnit> units,
         TacticalSide side,
         RuneEffect effect,
-        SynergyModifiers synergyModifiers)
+        SynergyModifiers synergyModifiers,
+        double summonDurationMultiplier = 1.0)
     {
         if (!synergyModifiers.MechanistMatch4Turret || effect.Tier != RuneMatchTier.Match4)
         {
@@ -778,7 +827,7 @@ public sealed record BattleState(
             AttackType: BattleAttackType.Ranged,
             AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
             AbilitiesCast: 0,
-            SummonMillisecondsRemaining: MechanistTurretDurationMilliseconds,
+            SummonMillisecondsRemaining: ScaleSummonDuration(MechanistTurretDurationMilliseconds, summonDurationMultiplier),
             DodgeChance: synergyModifiers.DodgeChance,
             IsSummoned: true));
     }
@@ -787,7 +836,8 @@ public sealed record BattleState(
         List<BattleUnit> units,
         TacticalSide side,
         RuneEffect effect,
-        SynergyModifiers synergyModifiers)
+        SynergyModifiers synergyModifiers,
+        double summonDurationMultiplier = 1.0)
     {
         if (!synergyModifiers.SpiritWhiteRuneIllusion
             || effect.Rune != RuneType.White
@@ -813,13 +863,14 @@ public sealed record BattleState(
 
         var sourceIndex = ((effect.MatchedRunesCount * 31) + effect.ChainNumber) % candidates.Count;
         var source = candidates[sourceIndex];
-        units.Add(CreateSpiritIllusion(units, source, position.Value));
+        units.Add(CreateSpiritIllusion(units, source, position.Value, summonDurationMultiplier));
     }
 
     private static BattleUnit CreateSpiritIllusion(
         List<BattleUnit> units,
         BattleUnit source,
-        TacticalPosition position)
+        TacticalPosition position,
+        double summonDurationMultiplier = 1.0)
     {
         var attacksPerSecond = CombatFormulas.CalculateAttacksPerSecond(source.AttacksPerSecond);
         var maxHealth = Math.Max(1.0, source.MaxHealth * SpiritIllusionStatMultiplier);
@@ -839,10 +890,25 @@ public sealed record BattleState(
             AttackType: source.AttackType,
             AttackCooldownRemaining: CombatFormulas.CalculateAttackInterval(attacksPerSecond),
             AbilitiesCast: 0,
-            SummonMillisecondsRemaining: SpiritIllusionDurationMilliseconds,
+            SummonMillisecondsRemaining: ScaleSummonDuration(SpiritIllusionDurationMilliseconds, summonDurationMultiplier),
             DodgeChance: source.DodgeChance,
             IsSummoned: true,
             HeroClass: source.HeroClass);
+    }
+
+    /// <summary>
+    /// Scale a timed summon's lifetime by the clockwork-heart multiplier, rounding to the
+    /// nearest whole millisecond and never dropping below one tick so a scaled summon still
+    /// exists. The neutral 1.0 default returns the base duration unchanged.
+    /// </summary>
+    private static int ScaleSummonDuration(int baseDurationMilliseconds, double multiplier)
+    {
+        if (multiplier <= 0.0 || Math.Abs(multiplier - 1.0) < 1e-9)
+        {
+            return baseDurationMilliseconds;
+        }
+
+        return Math.Max(1, (int)Math.Round(baseDurationMilliseconds * multiplier, MidpointRounding.AwayFromZero));
     }
 
     private static void ApplyMageBlueMatch4BonusCharge(
@@ -1130,7 +1196,8 @@ public sealed record BattleState(
         List<BattleUnit> units,
         TacticalSide side,
         RuneEffect effect,
-        SynergyModifiers synergyModifiers)
+        SynergyModifiers synergyModifiers,
+        double shieldStrengthMultiplier = 1.0)
     {
         var targets = ShouldShieldFrontline(effect, synergyModifiers)
             ? FrontlineIndices(units, side)
@@ -1138,12 +1205,15 @@ public sealed record BattleState(
             ? AliveIndices(units, side)
             : SingleBy(units, side, unit => side == TacticalSide.Player ? unit.Position.Row : -unit.Position.Row);
 
+        // Guardian aegis scales the granted shield before the maxHealth*0.6 cap (GDD P1
+        // "Эгида Стража"); the neutral 1.0 default leaves every other shield source untouched.
+        var shieldAmount = effect.Power * shieldStrengthMultiplier;
         foreach (var index in targets)
         {
             var unit = units[index];
             units[index] = unit with
             {
-                Shield = CombatFormulas.CapShield(unit.Shield + effect.Power, unit.MaxHealth),
+                Shield = CombatFormulas.CapShield(unit.Shield + shieldAmount, unit.MaxHealth),
                 Armor = ShouldApplyDefenderYellowArmor(effect, synergyModifiers)
                     ? unit.Armor + SynergyModifiers.DefenderYellowRuneArmorBonus
                     : unit.Armor

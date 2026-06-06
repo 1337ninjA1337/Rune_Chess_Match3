@@ -2413,6 +2413,88 @@ var soulRuneBattle = BattleState.Create(new[]
 var afterSoulRune = soulRuneBattle.ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 40));
 Require(!afterSoulRune.Units.First(u => u.UnitId == "shr_enemy").IsAlive && Math.Abs(afterSoulRune.Units.First(u => u.UnitId == "shr_ally").CurrentHealth - (40.0 + ArtifactCombatModifiers.SoulHarvestHealPerKill)) < 1e-9, "a rune-effect kill also triggers the soul-harvest heal");
 
+// Hunter's mark: player ranged auto-attacks hit the enemy backline harder (GDD P1 "Метка Охотника").
+var huntersModifiers = ArtifactCombatModifiers.From(new List<ArtifactState> { new("hunters_mark", "Метка Охотника") });
+Require(Math.Abs(huntersModifiers.RangedBacklineDamageMultiplier - (1.0 + ArtifactCombatModifiers.HuntersMarkRangedBacklineBonus)) < 1e-9 && huntersModifiers.SummonDurationMultiplier == 1.0 && huntersModifiers.CommanderEnergyMultiplier == 1.0 && huntersModifiers.ShieldStrengthMultiplier == 1.0, "the hunter's mark boosts only ranged backline damage");
+Require(!huntersModifiers.IsNeutral, "owning a hunter's mark is not a neutral combat-modifier set");
+Require(Math.Abs(ArtifactCombatModifiers.From(new List<ArtifactState> { new("hunters_mark", "x"), new("hunters_mark", "x") }).RangedBacklineDamageMultiplier - (1.0 + (2 * ArtifactCombatModifiers.HuntersMarkRangedBacklineBonus))) < 1e-9, "duplicate hunter's marks stack the backline bonus");
+var huntersBacklineHit = BattleState.Create(new[]
+{
+    MakeUnit("hm_archer", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 20, 1.0, 0.0, 0.0, 0.0, BattleAttackType.Ranged),
+    MakeUnit("hm_back", TacticalSide.Enemy, new TacticalPosition(0, 0), 100, 100, 0, 1.0, 5.0, 0.0)
+}, playerArtifactCombatModifiers: huntersModifiers).Tick(1.0);
+Require(Math.Abs(huntersBacklineHit.Units.First(u => u.UnitId == "hm_back").CurrentHealth - (100.0 - (20.0 * (1.0 + ArtifactCombatModifiers.HuntersMarkRangedBacklineBonus)))) < 1e-9, "a ranged hit on the enemy backline is boosted by the hunter's mark");
+var huntersFrontlineHit = BattleState.Create(new[]
+{
+    MakeUnit("hmf_archer", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 20, 1.0, 0.0, 0.0, 0.0, BattleAttackType.Ranged),
+    MakeUnit("hmf_front", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 0, 1.0, 5.0, 0.0)
+}, playerArtifactCombatModifiers: huntersModifiers).Tick(1.0);
+Require(Math.Abs(huntersFrontlineHit.Units.First(u => u.UnitId == "hmf_front").CurrentHealth - 80.0) < 1e-9, "the hunter's mark leaves ranged damage to the enemy frontline unchanged");
+var huntersMeleeHit = BattleState.Create(new[]
+{
+    MakeUnit("hmm_melee", TacticalSide.Player, new TacticalPosition(1, 0), 100, 100, 20, 1.0, 0.0, 0.0, 0.0, BattleAttackType.Melee),
+    MakeUnit("hmm_back", TacticalSide.Enemy, new TacticalPosition(0, 0), 100, 100, 0, 1.0, 5.0, 0.0)
+}, playerArtifactCombatModifiers: huntersModifiers).Tick(1.0);
+Require(Math.Abs(huntersMeleeHit.Units.First(u => u.UnitId == "hmm_back").CurrentHealth - 80.0) < 1e-9, "the hunter's mark does not boost melee attacks on the backline");
+
+// Clockwork heart: player timed summons live longer (GDD P1 "Заводное Сердце").
+var clockworkModifiers = ArtifactCombatModifiers.From(new List<ArtifactState> { new("clockwork_heart", "Заводное Сердце") });
+Require(Math.Abs(clockworkModifiers.SummonDurationMultiplier - (1.0 + ArtifactCombatModifiers.ClockworkHeartSummonDurationBonus)) < 1e-9 && clockworkModifiers.RangedBacklineDamageMultiplier == 1.0 && clockworkModifiers.CommanderEnergyMultiplier == 1.0 && clockworkModifiers.ShieldStrengthMultiplier == 1.0, "the clockwork heart extends only summon duration");
+Require(!clockworkModifiers.IsNeutral, "owning a clockwork heart is not a neutral combat-modifier set");
+Require(Math.Abs(ArtifactCombatModifiers.From(new List<ArtifactState> { new("clockwork_heart", "x"), new("clockwork_heart", "x") }).SummonDurationMultiplier - (1.0 + (2 * ArtifactCombatModifiers.ClockworkHeartSummonDurationBonus))) < 1e-9, "duplicate clockwork hearts stack summon duration");
+var clockworkTurret = BattleState.Create(new[]
+{
+    MakeUnit("ch_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 1.0, 1.0, 0.0),
+    MakeUnit("ch_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 1.0, 0.0)
+}, playerSynergyModifiers: mechanistFourModifiers, playerArtifactCombatModifiers: clockworkModifiers)
+    .ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 1, tier: RuneMatchTier.Match4), TacticalSide.Player, mechanistFourModifiers)
+    .Units.First(u => u.UnitId.Contains("mechanist_turret"));
+Require(clockworkTurret.SummonMillisecondsRemaining == (int)Math.Round(BattleState.MechanistTurretDurationMilliseconds * (1.0 + ArtifactCombatModifiers.ClockworkHeartSummonDurationBonus), MidpointRounding.AwayFromZero), "the clockwork heart extends the player's match-4 turret lifetime");
+var neutralTurret = BattleState.Create(new[]
+{
+    MakeUnit("nch_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 1.0, 1.0, 0.0),
+    MakeUnit("nch_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 1.0, 0.0)
+}, playerSynergyModifiers: mechanistFourModifiers)
+    .ApplyRuneEffect(Effect(RuneEffectKind.PhysicalDamage, 1, tier: RuneMatchTier.Match4), TacticalSide.Player, mechanistFourModifiers)
+    .Units.First(u => u.UnitId.Contains("mechanist_turret"));
+Require(neutralTurret.SummonMillisecondsRemaining == BattleState.MechanistTurretDurationMilliseconds, "without a clockwork heart the turret keeps its base lifetime");
+
+// Crown of command: player rune-driven commander energy is amplified (GDD P1 "Венец Командования").
+var crownModifiers = ArtifactCombatModifiers.From(new List<ArtifactState> { new("crown_of_command", "Венец Командования") });
+Require(Math.Abs(crownModifiers.CommanderEnergyMultiplier - (1.0 + ArtifactCombatModifiers.CrownOfCommandEnergyBonus)) < 1e-9 && crownModifiers.RangedBacklineDamageMultiplier == 1.0 && crownModifiers.SummonDurationMultiplier == 1.0 && crownModifiers.ShieldStrengthMultiplier == 1.0, "the crown of command boosts only commander energy");
+Require(!crownModifiers.IsNeutral, "owning a crown of command is not a neutral combat-modifier set");
+Require(Math.Abs(ArtifactCombatModifiers.From(new List<ArtifactState> { new("crown_of_command", "x"), new("crown_of_command", "x") }).CommanderEnergyMultiplier - (1.0 + (2 * ArtifactCombatModifiers.CrownOfCommandEnergyBonus))) < 1e-9, "duplicate crowns stack commander energy");
+var crownBattle = BattleState.Create(new[]
+{
+    MakeUnit("cc_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 1.0, 1.0, 0.0),
+    MakeUnit("cc_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 1.0, 0.0)
+}, playerArtifactCombatModifiers: crownModifiers);
+Require(Math.Abs(crownBattle.ApplyRuneEffect(Effect(RuneEffectKind.CommanderEnergy, 10)).CommanderEnergy - (10.0 * (1.0 + ArtifactCombatModifiers.CrownOfCommandEnergyBonus))) < 1e-9, "the crown of command amplifies player rune commander energy");
+Require(Math.Abs(crownBattle.ApplyRuneEffect(Effect(RuneEffectKind.CommanderEnergy, 10), TacticalSide.Enemy).CommanderEnergy - 10.0) < 1e-9, "the crown of command does not amplify enemy commander energy");
+Require(Math.Abs(BattleState.Create(new[]
+{
+    MakeUnit("ncc_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 1.0, 1.0, 0.0),
+    MakeUnit("ncc_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 1.0, 0.0)
+}).ApplyRuneEffect(Effect(RuneEffectKind.CommanderEnergy, 10)).CommanderEnergy - 10.0) < 1e-9, "without a crown the commander energy gain is unscaled");
+
+// Guardian aegis: player shields are granted stronger, still capped at 60% max health (GDD P1 "Эгида Стража").
+var aegisModifiers = ArtifactCombatModifiers.From(new List<ArtifactState> { new("guardian_aegis", "Эгида Стража") });
+Require(Math.Abs(aegisModifiers.ShieldStrengthMultiplier - (1.0 + ArtifactCombatModifiers.GuardianAegisShieldBonus)) < 1e-9 && aegisModifiers.RangedBacklineDamageMultiplier == 1.0 && aegisModifiers.SummonDurationMultiplier == 1.0 && aegisModifiers.CommanderEnergyMultiplier == 1.0, "the guardian aegis boosts only shield strength");
+Require(!aegisModifiers.IsNeutral, "owning a guardian aegis is not a neutral combat-modifier set");
+Require(Math.Abs(ArtifactCombatModifiers.From(new List<ArtifactState> { new("guardian_aegis", "x"), new("guardian_aegis", "x") }).ShieldStrengthMultiplier - (1.0 + (2 * ArtifactCombatModifiers.GuardianAegisShieldBonus))) < 1e-9, "duplicate guardian aegises stack shield strength");
+var aegisBattle = BattleState.Create(new[]
+{
+    MakeUnit("ga_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 1.0, 1.0, 0.0),
+    MakeUnit("ga_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 1.0, 0.0)
+}, playerArtifactCombatModifiers: aegisModifiers);
+Require(Math.Abs(aegisBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.Yellow)).Units.First(u => u.UnitId == "ga_ally").Shield - (20.0 * (1.0 + ArtifactCombatModifiers.GuardianAegisShieldBonus))) < 1e-9, "the guardian aegis strengthens player shields");
+Require(Math.Abs(aegisBattle.ApplyRuneEffect(Effect(RuneEffectKind.Shield, 50, rune: RuneType.Yellow)).Units.First(u => u.UnitId == "ga_ally").Shield - 60.0) < 1e-9, "the guardian aegis shield is still capped at 60 percent of max health");
+Require(Math.Abs(BattleState.Create(new[]
+{
+    MakeUnit("nga_ally", TacticalSide.Player, new TacticalPosition(2, 0), 100, 100, 10, 1.0, 1.0, 0.0),
+    MakeUnit("nga_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 100, 100, 10, 1.0, 1.0, 0.0)
+}).ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.Yellow)).Units.First(u => u.UnitId == "nga_ally").Shield - 20.0) < 1e-9, "without a guardian aegis the shield keeps its base strength");
+
 // Claiming the hero reward (GDD "награды героем после выбранных раундов").
 var starterRewardRun = RunState.NewRun() with { Round = 1, Phase = RunPhase.Reward };
 var starterHeroOptions = starterRewardRun.RewardHeroOptions();
