@@ -21,7 +21,8 @@ namespace RuneChess.Core
         string? DefeatReason,
         bool RoundArtifactClaimed = false,
         bool RoundHeroClaimed = false,
-        bool RoundEventResolved = false
+        bool RoundEventResolved = false,
+        string PendingFactionBoostId = ""
     )
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
@@ -46,6 +47,16 @@ namespace RuneChess.Core
         /// the autobattle already buffed by their artifacts.
         /// </summary>
         public ArtifactCombatModifiers CombatModifiers => ArtifactCombatModifiers.From(Artifacts);
+
+        /// <summary>
+        /// One-battle faction blessing pending from a <see cref="EventChoiceKind.FactionBoost"/>
+        /// event, or <see cref="FactionBoost.None"/> when none is queued. Passed into the next
+        /// round autobattle so the blessed faction fights stronger, then cleared when that
+        /// battle resolves.
+        /// </summary>
+        public FactionBoost PendingFactionBoost => string.IsNullOrEmpty(PendingFactionBoostId)
+            ? FactionBoost.None
+            : new FactionBoost(PendingFactionBoostId, EventCatalog.FactionBoostStatMultiplier);
 
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
         public bool IsRunWon => Phase == RunPhase.Victory;
@@ -615,7 +626,8 @@ namespace RuneChess.Core
                     Combat = null,
                     DefeatReason = null,
                     RoundArtifactClaimed = false,
-                    RoundHeroClaimed = false
+                    RoundHeroClaimed = false,
+                    PendingFactionBoostId = ""
                 };
             }
 
@@ -623,7 +635,8 @@ namespace RuneChess.Core
             {
                 Phase = RunPhase.Defeat,
                 Combat = null,
-                DefeatReason = defeatReason
+                DefeatReason = defeatReason,
+                PendingFactionBoostId = ""
             };
         }
 
@@ -654,7 +667,8 @@ namespace RuneChess.Core
                 Combat = null,
                 DefeatReason = null,
                 RoundArtifactClaimed = false,
-                RoundHeroClaimed = false
+                RoundHeroClaimed = false,
+                PendingFactionBoostId = ""
             };
         }
 
@@ -763,6 +777,45 @@ namespace RuneChess.Core
             return this with
             {
                 Bench = bench,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>
+        /// Accept the faction blessing (GDD "усиление одной фракции на следующий бой"): the
+        /// chosen faction — which must be one the player currently fields — fights the next
+        /// battle stronger. The blessing is recorded on the run and consumed when that battle
+        /// resolves. The faction may be named by its catalog id ("empire") or display name.
+        /// </summary>
+        public RunState AcceptFactionBoost(string factionId)
+        {
+            EnsureUnresolvedEvent();
+
+            if (string.IsNullOrWhiteSpace(factionId))
+            {
+                throw new ArgumentException("Faction id is required.", nameof(factionId));
+            }
+
+            var trimmed = factionId.Trim();
+            var faction = FactionCatalog.All.FirstOrDefault(entry =>
+                string.Equals(entry.Id, trimmed, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entry.Name, trimmed, StringComparison.OrdinalIgnoreCase))
+                ?? throw new ArgumentException($"Unknown faction '{factionId}'.", nameof(factionId));
+
+            var fieldsFaction = Team
+                .Concat(Bench.Select(hero => new BoardHero(hero, default)))
+                .Any(boardHero => string.Equals(
+                    HeroCatalog.Get(boardHero.Hero.HeroId).Faction,
+                    faction.Name,
+                    StringComparison.OrdinalIgnoreCase));
+            if (!fieldsFaction)
+            {
+                throw new InvalidOperationException("The blessing can only empower a faction the player fields.");
+            }
+
+            return this with
+            {
+                PendingFactionBoostId = faction.Name,
                 RoundEventResolved = true
             };
         }

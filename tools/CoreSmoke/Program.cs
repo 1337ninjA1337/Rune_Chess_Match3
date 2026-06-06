@@ -2638,6 +2638,38 @@ var cursedUnit = BattleUnit.FromBoardHero(new BoardHero(new HeroInstance("c", cu
 Require(Math.Abs(cursedUnit.MaxHealth - healthyUnit.MaxHealth * EventCatalog.CursedHeroStatMultiplier) < 1e-9, "a cursed hero enters combat with reduced health");
 Require(Math.Abs(cursedUnit.Attack - healthyUnit.Attack * EventCatalog.CursedHeroStatMultiplier) < 1e-9, "a cursed hero enters combat with reduced attack");
 
+// Empower one faction for the next battle (GDD "усиление одной фракции на следующий бой").
+var factionEventRun = (RunState.NewRun() with
+{
+    Round = 4,
+    Team = new List<BoardHero> { new(new HeroInstance("fb_ig", "iron_guard", 1), new TacticalPosition(2, 0)) }
+}).EnterEvent();
+var boosted = factionEventRun.AcceptFactionBoost("empire");
+Require(boosted.PendingFactionBoost.IsActive && boosted.PendingFactionBoost.FactionName == FactionCatalog.Empire.Name, "accepting the blessing queues the chosen faction boost");
+Require(boosted.PendingFactionBoost.FactionName == factionEventRun.AcceptFactionBoost("Империя").PendingFactionBoost.FactionName, "the blessing accepts the faction id or its display name");
+Require(boosted.RoundEventResolved, "accepting the blessing resolves the event");
+RequireThrows(() => factionEventRun.AcceptFactionBoost("spirit"), "the blessing rejects a faction the player does not field");
+RequireThrows(() => factionEventRun.AcceptFactionBoost("unknown_faction"), "the blessing rejects an unknown faction");
+Require(!RunState.NewRun().PendingFactionBoost.IsActive, "a run with no pending blessing carries the neutral boost");
+// The pending boost feeds the next round autobattle and is consumed when it resolves.
+var boostTeam = new List<BoardHero>
+{
+    new(new HeroInstance("bt_front", "iron_guard", 1), new TacticalPosition(2, 1)),
+    new(new HeroInstance("bt_back", "oath_archer", 1), new TacticalPosition(3, 1))
+};
+var neutralRoundBattle = LevelCombatSimulator.ResolveRoundMatch(boostTeam, round2)!;
+var blessedRoundBattle = LevelCombatSimulator.ResolveRoundMatch(boostTeam, round2, playerFactionBoost: new FactionBoost(FactionCatalog.Empire.Name, EventCatalog.FactionBoostStatMultiplier))!;
+Require(blessedRoundBattle.PlayerDamageDealt > neutralRoundBattle.PlayerDamageDealt, "the faction blessing makes the blessed roster hit harder in the round autobattle");
+var roundFiveAfterBoost = (RunState.NewRun() with
+{
+    Round = 5,
+    Phase = RunPhase.Combat,
+    PendingFactionBoostId = FactionCatalog.Empire.Name,
+    Team = boostTeam,
+    Combat = CombatState.Start(round2.CombatRuneSeed)
+}).ClaimReward(7);
+Require(!roundFiveAfterBoost.PendingFactionBoost.IsActive, "resolving the battle consumes the pending faction blessing");
+
 // Synergy panel view-model (GDD UI screen "Панель синергий").
 var synergyTeam = new List<BoardHero>
 {
