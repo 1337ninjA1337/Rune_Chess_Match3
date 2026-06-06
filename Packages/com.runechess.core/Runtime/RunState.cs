@@ -820,6 +820,48 @@ namespace RuneChess.Core
             };
         }
 
+        /// <summary>
+        /// Accept the relic sacrifice (GDD "удаление героя ради артефакта"): remove the chosen
+        /// hero — from the bench or the board — and gain an artifact picked deterministically
+        /// from the round seed. The hero is gone from the run; the artifact joins the run's relics.
+        /// </summary>
+        public RunState AcceptSacrificeHeroForArtifact(string instanceId)
+        {
+            EnsureUnresolvedEvent();
+
+            if (string.IsNullOrWhiteSpace(instanceId))
+            {
+                throw new ArgumentException("Hero instance id is required.", nameof(instanceId));
+            }
+
+            var bench = Bench.ToList();
+            var team = Team.ToList();
+            var benchIndex = bench.FindIndex(hero => hero.InstanceId == instanceId);
+            if (benchIndex >= 0)
+            {
+                bench.RemoveAt(benchIndex);
+            }
+            else
+            {
+                var teamIndex = team.FindIndex(slot => slot.Hero.InstanceId == instanceId);
+                if (teamIndex < 0)
+                {
+                    throw new InvalidOperationException("Hero instance was not found on the bench or board.");
+                }
+
+                team.RemoveAt(teamIndex);
+            }
+
+            var relic = ArtifactCatalog.OfferThree(CurrentRoundDefinition.CombatRuneSeed)[0];
+
+            return (this with
+            {
+                Bench = bench,
+                Team = team,
+                RoundEventResolved = true
+            }).AddArtifact(relic.ToArtifactState());
+        }
+
         /// <summary>Guards an event resolution: the run must be on an unresolved event encounter.</summary>
         private void EnsureUnresolvedEvent()
         {

@@ -2670,6 +2670,24 @@ var roundFiveAfterBoost = (RunState.NewRun() with
 }).ClaimReward(7);
 Require(!roundFiveAfterBoost.PendingFactionBoost.IsActive, "resolving the battle consumes the pending faction blessing");
 
+// Sacrifice a hero for an artifact (GDD "удаление героя ради артефакта").
+var sacrificeRun = (RunState.NewRun() with
+{
+    Round = 4,
+    Bench = new List<HeroInstance> { new("sac_bench", "iron_guard", 1) },
+    Team = new List<BoardHero> { new(new HeroInstance("sac_team", "oath_archer", 1), new TacticalPosition(2, 0)) }
+}).EnterEvent();
+var expectedRelic = ArtifactCatalog.OfferThree(sacrificeRun.CurrentRoundDefinition.CombatRuneSeed)[0];
+var afterBenchSacrifice = sacrificeRun.AcceptSacrificeHeroForArtifact("sac_bench");
+Require(afterBenchSacrifice.Bench.All(hero => hero.InstanceId != "sac_bench"), "sacrificing a bench hero removes it from the run");
+Require(afterBenchSacrifice.Artifacts.Any(a => a.Id == expectedRelic.Id), "the sacrifice grants the round's deterministic artifact");
+Require(afterBenchSacrifice.RoundEventResolved, "the sacrifice resolves the event");
+var afterTeamSacrifice = sacrificeRun.AcceptSacrificeHeroForArtifact("sac_team");
+Require(afterTeamSacrifice.Team.All(slot => slot.Hero.InstanceId != "sac_team"), "sacrificing a board hero removes it from the run");
+Require(afterTeamSacrifice.Artifacts.Count == sacrificeRun.Artifacts.Count + 1, "the sacrifice adds exactly one relic");
+RequireThrows(() => sacrificeRun.AcceptSacrificeHeroForArtifact("missing_hero"), "the sacrifice rejects an unknown hero");
+RequireThrows(() => afterBenchSacrifice.AcceptSacrificeHeroForArtifact("sac_team"), "a resolved event cannot be sacrificed into again");
+
 // Synergy panel view-model (GDD UI screen "Панель синергий").
 var synergyTeam = new List<BoardHero>
 {
