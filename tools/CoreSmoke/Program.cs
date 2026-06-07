@@ -2160,8 +2160,13 @@ RequireThrows(() => RunSummaryModel.Build(null!), "run summary rejects a null ru
 // Account progress meta model (GDD "Метапрогрессия" / main screen "прогресс аккаунта").
 var startingAccount = AccountProgress.Starting;
 Require(startingAccount.AccountLevel == 1 && startingAccount.AccountXp == 0 && startingAccount.SoftCurrency == 0, "a fresh account starts at level one with no XP or currency");
-Require(startingAccount.UnlockedCommanders == CommanderCatalog.All.Count && startingAccount.UnlockedHeroes == HeroCatalog.All.Count, "a fresh account unlocks the full MVP rosters");
-Require(startingAccount.CommanderUnlockLabel == $"{CommanderCatalog.All.Count} / {CommanderCatalog.All.Count}", "account commander unlock label formats unlocked/total");
+Require(startingAccount.UnlockedHeroes == HeroCatalog.All.Count, "a fresh account unlocks the full hero roster");
+Require(startingAccount.UnlockedCommanders == CommanderUnlockSchedule.UnlockedCountForLevel(1) && startingAccount.UnlockedCommanders == 1, "a fresh account only unlocks the level-one commanders (the catalog default)");
+Require(startingAccount.TotalCommanders == CommanderCatalog.All.Count, "a fresh account counts the whole commander roster as the unlock total");
+Require(startingAccount.CommanderUnlockLabel == $"1 / {CommanderCatalog.All.Count}", "account commander unlock label formats unlocked/total");
+Require(startingAccount.IsCommanderUnlocked(CommanderCatalog.Default.Id) && !startingAccount.IsCommanderUnlocked("warlord"), "a fresh account has the default commander unlocked but not the level-gated ones");
+Require(startingAccount.UnlockedCommanderIds.Count == 1 && startingAccount.UnlockedCommanderIds[0] == CommanderCatalog.Default.Id, "a fresh account lists only the default commander as unlocked");
+Require(startingAccount.NextCommanderUnlock is not null && startingAccount.NextCommanderUnlock!.RequiredAccountLevel == 2, "a fresh account's next commander unlock is at account level two");
 Require(startingAccount.HeroUnlockLabel == $"{HeroCatalog.All.Count} / {HeroCatalog.All.Count}", "account hero unlock label formats unlocked/total");
 Require(AccountProgress.XpForNextLevel(1) == 100 && AccountProgress.XpForNextLevel(2) == 200, "account XP curve scales with level");
 Require(startingAccount.XpToNextLevel == 100 && Math.Abs(startingAccount.LevelProgressRatio) < 1e-9, "a fresh account needs a full bar to reach level two");
@@ -2205,8 +2210,10 @@ var summaryWithRewards = RunSummaryModel.Build(finalReward, startingAccount);
 Require(summaryWithRewards.IsVictory && summaryWithRewards.RoundsCleared == PveRunSchedule.FinalRound, "the account-aware summary keeps the base summary fields");
 var runRewards = summaryWithRewards.Rewards ?? throw new InvalidOperationException("Smoke check failed: run rewards missing");
 Require(runRewards.AccountXpGained == 400 && runRewards.SoftCurrencyGained == 110, "the run summary previews the earned account XP and currency");
-Require(runRewards.AccountLevelsGained == 2 && runRewards.Unlocks.Count == 2, "a cleared run previews the account levels gained as unlocks");
+Require(runRewards.AccountLevelsGained == 2, "a cleared run previews the account levels gained");
+Require(runRewards.Unlocks.Count == 3, "a cleared run from a fresh account previews two account levels and the commander unlocks they grant");
 Require(runRewards.HasUnlocks && runRewards.Unlocks[0] == "Уровень аккаунта 2", "run summary unlock notices name each new account level");
+Require(runRewards.Unlocks.Any(notice => notice == "Новых командиров: 2"), "levelling an account past commander thresholds previews the newly unlocked commanders");
 Require(startingAccount.WithRunRewards(victorySummary).SoftCurrency == startingAccount.SoftCurrency + runRewards.SoftCurrencyGained, "applying run rewards matches the previewed currency");
 var freshRunRewards = RunSummaryModel.Build(RunState.NewRun(), startingAccount).Rewards
     ?? throw new InvalidOperationException("Smoke check failed: fresh run rewards missing");
@@ -2233,6 +2240,31 @@ Require(commanderSelect.Commanders.Count(card => card.IsSelected) == 1, "exactly
 Require(commanderSelect.Selected.RecommendedStylesLabel.Contains("/"), "commander select joins recommended styles for display");
 Require(commanderSelect.WithSelection("alchemist").SelectedId == "alchemist", "commander select can switch the chosen commander");
 RequireThrows(() => CommanderSelectModel.Build("unknown_commander"), "commander select rejects an unknown commander id");
+
+// Commander unlock schedule (GDD "Метапрогрессия": разблокировка новых командиров).
+Require(CommanderUnlockSchedule.Entries.Count == CommanderCatalog.All.Count, "every commander has exactly one unlock entry");
+Require(CommanderCatalog.All.All(commander => CommanderUnlockSchedule.RequiredLevel(commander.Id) >= 1), "every commander declares a valid unlock level");
+Require(CommanderUnlockSchedule.RequiredLevel(CommanderCatalog.Default.Id) == 1, "the catalog default commander unlocks at account level one");
+Require(CommanderUnlockSchedule.UnlockedCountForLevel(1) == 1, "account level one unlocks a single commander");
+Require(CommanderUnlockSchedule.UnlockedCountForLevel(2) == 2, "account level two unlocks a second commander");
+Require(CommanderUnlockSchedule.UnlockedCountForLevel(99) == CommanderCatalog.All.Count, "a high account level unlocks the whole commander roster");
+Require(CommanderUnlockSchedule.UnlockedIdsForLevel(1).SequenceEqual(new[] { CommanderCatalog.Default.Id }), "level one unlocks only the default commander, in catalog order");
+Require(!CommanderUnlockSchedule.IsUnlocked("warlord", 1) && CommanderUnlockSchedule.IsUnlocked("warlord", 2), "the warlord commander unlocks at account level two");
+Require(CommanderUnlockSchedule.NextUnlock(1)!.CommanderId == "warlord" && CommanderUnlockSchedule.NextUnlock(CommanderCatalog.All.Count) is null, "next unlock walks up the schedule and ends when all commanders are unlocked");
+RequireThrows(() => CommanderUnlockSchedule.RequiredLevel("unknown_commander"), "the unlock schedule rejects an unknown commander id");
+RequireThrows(() => CommanderUnlockSchedule.IsUnlocked("warlord", 0), "the unlock schedule rejects account levels below one");
+
+// Account-aware commander selection gates locked commanders (GDD UI screen 2 + метапрогрессия).
+var gatedSelect = CommanderSelectModel.Build(CommanderCatalog.Default.Id, AccountProgress.Starting);
+Require(gatedSelect.Commanders.Count == CommanderCatalog.All.Count, "the account-aware commander select still lists every commander");
+var defaultCard = gatedSelect.Commanders.Single(card => card.Id == CommanderCatalog.Default.Id);
+Require(defaultCard.IsUnlocked && defaultCard.UnlockHint is null, "a fresh account can select the default commander");
+var lockedCard = gatedSelect.Commanders.Single(card => card.Id == "warlord");
+Require(!lockedCard.IsUnlocked && lockedCard.RequiredAccountLevel == 2 && lockedCard.UnlockHint == "Откроется на уровне аккаунта 2", "a fresh account sees the level-gated commander as locked with its unlock hint");
+var leveledSelect = CommanderSelectModel.Build(CommanderCatalog.Default.Id, AccountProgress.Starting.WithGains(AccountProgress.XpForNextLevel(1), 0));
+Require(leveledSelect.Commanders.Single(card => card.Id == "warlord").IsUnlocked, "reaching account level two unlocks the warlord on the selection screen");
+Require(CommanderSelectModel.Build(CommanderCatalog.Default.Id).Commanders.All(card => card.IsUnlocked), "the account-free commander select treats every commander as unlocked");
+RequireThrows(() => CommanderSelectModel.Build(CommanderCatalog.Default.Id, (AccountProgress)null!), "the account-aware commander select rejects a null account");
 
 // Hero collection / details view-model (GDD UI screens 1 and 7).
 var collection = HeroCollectionModel.Build();

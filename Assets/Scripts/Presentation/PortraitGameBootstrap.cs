@@ -325,6 +325,7 @@ namespace RuneChess.Presentation
 
             CreateStatusPill(stats.transform, "XP", $"{account.AccountXp}/{AccountProgress.XpForNextLevel(account.AccountLevel)}", GameColors.Mana);
             CreateStatusPill(stats.transform, "МОНЕТЫ", account.SoftCurrency.ToString(), GameColors.Gold);
+            CreateStatusPill(stats.transform, "КОМАНДИРЫ", account.CommanderUnlockLabel, GameColors.Commander);
             CreateStatusPill(stats.transform, "ГЕРОИ", account.HeroUnlockLabel, GameColors.Heal);
         }
 
@@ -594,7 +595,7 @@ namespace RuneChess.Presentation
 
         private void AddCommanderSelectScreen(Transform parent)
         {
-            var model = CommanderSelectModel.Build(commanderSelectId ?? runState.Commander.Id);
+            var model = CommanderSelectModel.Build(commanderSelectId ?? runState.Commander.Id, accountProgress);
 
             var screen = CreatePanel("Commander Select Screen", parent, GameColors.PanelDeep);
             AddLayoutElement(screen, 824);
@@ -646,7 +647,9 @@ namespace RuneChess.Presentation
 
         private void CreateCommanderSelectCard(Transform parent, CommanderCard card)
         {
-            var accent = card.IsSelected ? GameColors.Commander : GameColors.Border;
+            var accent = !card.IsUnlocked
+                ? GameColors.Muted
+                : (card.IsSelected ? GameColors.Commander : GameColors.Border);
             var cardObject = CreatePanel($"Commander {card.Id}", parent, card.IsSelected ? GameColors.PanelRaised : GameColors.Panel);
             AddLayoutElement(cardObject, 198);
             AddOutline(cardObject, GameColors.WithAlpha(accent, card.IsSelected ? 0.85f : 0.45f));
@@ -655,7 +658,11 @@ namespace RuneChess.Presentation
             image.raycastTarget = true;
             var button = cardObject.AddComponent<Button>();
             button.targetGraphic = image;
-            button.onClick.AddListener(() => SelectCommanderCard(card.Id));
+            button.interactable = card.IsUnlocked;
+            if (card.IsUnlocked)
+            {
+                button.onClick.AddListener(() => SelectCommanderCard(card.Id));
+            }
 
             var stack = cardObject.AddComponent<VerticalLayoutGroup>();
             stack.padding = new RectOffset(10, 10, 7, 7);
@@ -665,14 +672,27 @@ namespace RuneChess.Presentation
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
-            AddPanelHeader(cardObject.transform, card.Name.ToUpperInvariant(), card.IsSelected ? "ВЫБРАН" : "ВЫБРАТЬ");
-            CreateText(card.Passive, cardObject.transform, 11, GameColors.Text, TextAnchor.UpperLeft);
+            var actionLabel = !card.IsUnlocked
+                ? "ЗАКРЫТО"
+                : (card.IsSelected ? "ВЫБРАН" : "ВЫБРАТЬ");
+            AddPanelHeader(cardObject.transform, card.Name.ToUpperInvariant(), actionLabel);
+            CreateText(card.Passive, cardObject.transform, 11, card.IsUnlocked ? GameColors.Text : GameColors.Muted, TextAnchor.UpperLeft);
             CreateText($"Старт: {card.StartingBonusDescription}", cardObject.transform, 10, GameColors.Gold, TextAnchor.UpperLeft);
             CreateText($"Стиль: {card.RecommendedStylesLabel}", cardObject.transform, 10, GameColors.Muted, TextAnchor.UpperLeft);
+            if (!card.IsUnlocked)
+            {
+                CreateText(card.UnlockHint ?? string.Empty, cardObject.transform, 10, GameColors.Commander, TextAnchor.UpperLeft);
+            }
         }
 
         private void SelectCommanderCard(string commanderId)
         {
+            // Guard: never select a commander the account has not unlocked yet.
+            if (!accountProgress.IsCommanderUnlocked(commanderId))
+            {
+                return;
+            }
+
             commanderSelectId = commanderId;
             ShowCommanderSelectScreen();
         }
@@ -680,6 +700,12 @@ namespace RuneChess.Presentation
         private void ConfirmCommanderSelection()
         {
             var chosen = commanderSelectId ?? runState.Commander.Id;
+            if (!accountProgress.IsCommanderUnlocked(chosen))
+            {
+                // Fall back to the catalog default, which is always unlocked at level one.
+                chosen = CommanderCatalog.Default.Id;
+            }
+
             runState = RunState.NewRun(chosen);
             commanderSelectId = chosen;
             pendingRunSummary = null;

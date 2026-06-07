@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace RuneChess.Core
 {
@@ -16,9 +17,12 @@ namespace RuneChess.Core
     /// much of the commander and hero rosters the account has unlocked.
     ///
     /// This is pure data so the meta-progression maths can be smoke-tested without
-    /// Unity. The MVP starts every account with the full commander and hero rosters
-    /// unlocked; locking content behind account level is a later monetisation-free
-    /// progression task tracked in tasks/.tasks.md.
+    /// Unity. Commanders unlock by account level through <see cref="CommanderUnlockSchedule"/>
+    /// (GDD "Метапрогрессия": новых командиров): a fresh account has only the catalog
+    /// default available and earns the rest by levelling up across runs. Heroes are in-run
+    /// shop content rather than a metaprogression reward, so the whole hero roster stays
+    /// unlocked. The unlock gating is non-pay-to-win: it is earned by playing and grants
+    /// access only, never combat power.
     /// </summary>
     public sealed record AccountProgress(
         int AccountLevel,
@@ -72,14 +76,33 @@ namespace RuneChess.Core
         public string HeroUnlockLabel => $"{UnlockedHeroes} / {TotalHeroes}";
 
         /// <summary>
-        /// A fresh account: level one, no XP or currency, and the full MVP rosters
-        /// available so the player can use every commander and hero from the start.
+        /// The commander ids the account has unlocked at its current level, in catalog order
+        /// (GDD "Метапрогрессия": новых командиров).
+        /// </summary>
+        public IReadOnlyList<string> UnlockedCommanderIds =>
+            CommanderUnlockSchedule.UnlockedIdsForLevel(AccountLevel);
+
+        /// <summary>True when the account has unlocked the given commander at its current level.</summary>
+        public bool IsCommanderUnlocked(string commanderId) =>
+            CommanderUnlockSchedule.IsUnlocked(commanderId, AccountLevel);
+
+        /// <summary>
+        /// The next commander unlock above the current account level, or <c>null</c> when
+        /// every commander is already unlocked.
+        /// </summary>
+        public CommanderUnlock? NextCommanderUnlock => CommanderUnlockSchedule.NextUnlock(AccountLevel);
+
+        /// <summary>
+        /// A fresh account: level one, no XP or currency, the full hero roster available, and
+        /// only the commanders unlocked at account level one (the catalog default) per
+        /// <see cref="CommanderUnlockSchedule"/>. The rest of the commander roster unlocks as
+        /// the account levels up across runs.
         /// </summary>
         public static AccountProgress Starting { get; } = new(
             AccountLevel: 1,
             AccountXp: 0,
             SoftCurrency: 0,
-            UnlockedCommanders: CommanderCatalog.All.Count,
+            UnlockedCommanders: CommanderUnlockSchedule.UnlockedCountForLevel(1),
             TotalCommanders: CommanderCatalog.All.Count,
             UnlockedHeroes: HeroCatalog.All.Count,
             TotalHeroes: HeroCatalog.All.Count);
@@ -138,7 +161,8 @@ namespace RuneChess.Core
             {
                 AccountLevel = level,
                 AccountXp = xp,
-                SoftCurrency = SoftCurrency + currencyGained
+                SoftCurrency = SoftCurrency + currencyGained,
+                UnlockedCommanders = CommanderUnlockSchedule.UnlockedCountForLevel(level)
             };
         }
     }
