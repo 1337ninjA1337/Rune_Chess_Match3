@@ -35,6 +35,13 @@ namespace RuneChess.Core
             var index = 0;
             foreach (var enemy in round.EnemyUnits)
             {
+                if (!TacticalField.Mvp.IsEnemySide(enemy.Position))
+                {
+                    throw new ArgumentException(
+                        $"PvE enemy '{enemy.HeroId}' for round {round.Round} must be placed on the enemy half of the field.",
+                        nameof(round));
+                }
+
                 var definition = HeroCatalog.Get(enemy.HeroId);
                 enemies.Add(BattleUnit.FromHero(
                     definition,

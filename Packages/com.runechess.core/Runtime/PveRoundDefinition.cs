@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -24,7 +25,7 @@ namespace RuneChess.Core
         IReadOnlyList<PveEnemyUnit>? EnemyComposition = null
     )
     {
-        private static readonly IReadOnlyList<PveEnemyUnit> NoEnemies = new List<PveEnemyUnit>();
+        private static readonly IReadOnlyList<PveEnemyUnit> NoEnemies = Array.Empty<PveEnemyUnit>();
 
         /// <summary>Non-gold reward for the round; never null for callers.</summary>
         public PveRoundReward RoundReward => Reward ?? PveRoundReward.GoldOnly;
@@ -37,6 +38,12 @@ namespace RuneChess.Core
 
         /// <summary>Total enemy stars on the board, useful for run-health damage scaling.</summary>
         public int EnemyStarTotal => EnemyUnits.Sum(unit => unit.Stars);
+
+        /// <summary>Compatibility alias for callers/tests that still use roster wording.</summary>
+        public IReadOnlyList<PveEnemyUnit> Roster => EnemyUnits;
+
+        /// <summary>Compatibility alias for callers/tests that still use roster wording.</summary>
+        public bool HasEnemyRoster => HasEnemyComposition;
 
         /// <summary>
         /// Difficulty pacing tier from the GDD "Темп сложности" section.
