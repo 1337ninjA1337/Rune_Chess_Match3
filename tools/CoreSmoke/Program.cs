@@ -472,10 +472,10 @@ for (var expectedRound = 1; expectedRound < PveRunSchedule.FinalRound; expectedR
     Require(scheduledRun.Round == expectedRound, "scheduled run is on the expected round");
     Require(scheduledRun.NextEnemyId == definition.EnemyId, "scheduled run exposes the current enemy preview");
 
-    var combatRound = scheduledRun.StartCombat();
-    Require(combatRound.Combat is not null, "scheduled round starts combat");
+    var scheduledCombatRound = scheduledRun.StartCombat();
+    Require(scheduledCombatRound.Combat is not null, "scheduled round starts combat");
 
-    var rewardedRound = combatRound.ClaimReward();
+    var rewardedRound = scheduledCombatRound.ClaimReward();
     Require(rewardedRound.Phase == RunPhase.Reward, "non-final scheduled rounds enter reward phase");
     Require(rewardedRound.Gold == scheduledRun.Gold + definition.BaseGoldReward, "scheduled reward grants round gold");
 
@@ -2150,6 +2150,36 @@ Require(roundArtifactBattle is not null && roundArtifactBattle!.PlayerDamageDeal
 // armored unit itself (base armor 8 + banner bonus) rather than its post-combat frontline row.
 Require(roundArtifactBattle!.Units.Any(u => u.Side == TacticalSide.Player && u.Armor >= 8.0 + ArtifactCombatModifiers.IronBannerFrontlineArmorBonus), "the run's iron banner armors the player frontline in the round autobattle");
 
+// The round autobattle now replays the run's match-3 rune moves as an opening burst, and
+// the run's rune artifacts (RunState.RuneModifiers) scale that burst, so owning rune
+// modifiers genuinely changes the round outcome (GDD P1 "рунные артефакты влияют на итог
+// раунда"). A null/empty move list keeps the pure-autobattle behaviour intact.
+var runeReplayTeam = new List<BoardHero>
+{
+    new(new HeroInstance("rr_solo", "iron_guard", 1), new TacticalPosition(2, 1))
+};
+var runeReplayBaseline = LevelCombatSimulator.ResolveRoundMatch(runeReplayTeam, round2)!;
+var runeReplayEmptyMoves = LevelCombatSimulator.ResolveRoundMatch(runeReplayTeam, round2, playerRuneMoves: new List<RuneEffect>())!;
+Require(runeReplayEmptyMoves.Outcome == runeReplayBaseline.Outcome
+    && Math.Abs(runeReplayEmptyMoves.PlayerDamageDealt - runeReplayBaseline.PlayerDamageDealt) < 1e-9,
+    "an empty match-3 move list leaves the round autobattle unchanged");
+// A modest red-physical burst the weak solo team cannot fully clear: more replayed burst
+// power means more cumulative enemy damage, and the run's ember core scales it further.
+var roundRuneBurst = new List<RuneEffect> { Effect(RuneEffectKind.PhysicalDamage, 12, mass: true) };
+var runeReplayWithMoves = LevelCombatSimulator.ResolveRoundMatch(runeReplayTeam, round2, playerRuneMoves: roundRuneBurst)!;
+var runeReplayEmber = ArtifactRuneModifiers.From(new List<ArtifactState> { new("ember_core", "Тлеющее Ядро") });
+var runeReplayWithEmber = LevelCombatSimulator.ResolveRoundMatch(
+    runeReplayTeam,
+    round2,
+    playerRuneMoves: roundRuneBurst,
+    playerRuneArtifactModifiers: runeReplayEmber)!;
+Require(runeReplayWithMoves.PlayerDamageDealt > runeReplayBaseline.PlayerDamageDealt, "replaying the run's match-3 moves adds to the round's player damage");
+Require(runeReplayWithEmber.PlayerDamageDealt > runeReplayWithMoves.PlayerDamageDealt, "the run's rune artifacts scale the replayed match-3 burst in the round autobattle");
+// A massive opening rune burst clears the enemy roster outright, swinging an otherwise lost round.
+var roundRuneSwing = new List<RuneEffect> { Effect(RuneEffectKind.PhysicalDamage, 9999, mass: true) };
+var runeReplaySwing = LevelCombatSimulator.ResolveRoundMatch(runeReplayTeam, round2, playerRuneMoves: roundRuneSwing)!;
+Require(runeReplaySwing.Outcome == BattleOutcome.PlayerVictory && runeReplaySwing.AliveEnemies.Count() == 0, "a lethal replayed match-3 burst can win the round outright");
+
 var freshBattleStats = BattleState.Create(new[]
 {
     BattleUnit.FromHero(HeroCatalog.Get("iron_guard"), 1, "stat_ally", TacticalSide.Player, new TacticalPosition(2, 0)),
@@ -2698,19 +2728,19 @@ Require(Math.Abs(BattleState.Create(new[]
 }).ApplyRuneEffect(Effect(RuneEffectKind.Shield, 20, rune: RuneType.Yellow)).Units.First(u => u.UnitId == "nga_ally").Shield - 20.0) < 1e-9, "without a guardian aegis the shield keeps its base strength");
 
 // Claiming the hero reward (GDD "награды героем после выбранных раундов").
-var starterRewardRun = RunState.NewRun() with { Round = 1, Phase = RunPhase.Reward };
-var starterHeroOptions = starterRewardRun.RewardHeroOptions();
+var heroClaimRewardRun = RunState.NewRun() with { Round = 1, Phase = RunPhase.Reward };
+var starterHeroOptions = heroClaimRewardRun.RewardHeroOptions();
 Require(starterHeroOptions.Count == HeroCatalog.RewardOfferCount, "the starter-hero round offers three heroes to claim");
 Require(starterHeroOptions.All(option => option.Rarity == HeroRarity.Common && option.Cost == 1), "the starter-hero round offers 1-cost common heroes");
 Require(starterHeroOptions.Select(option => option.Id).Distinct().Count() == HeroCatalog.RewardOfferCount, "the offered reward heroes are distinct");
-Require(starterRewardRun.RewardHeroOptions().SequenceEqual(starterHeroOptions), "the reward hero offer is deterministic for a round");
-var afterHeroPick = starterRewardRun.ClaimRewardHero(starterHeroOptions[2].Id);
+Require(heroClaimRewardRun.RewardHeroOptions().SequenceEqual(starterHeroOptions), "the reward hero offer is deterministic for a round");
+var afterHeroPick = heroClaimRewardRun.ClaimRewardHero(starterHeroOptions[2].Id);
 Require(afterHeroPick.Bench.Count == 1 && afterHeroPick.Bench[0].HeroId == starterHeroOptions[2].Id && afterHeroPick.Bench[0].Stars == 1, "claiming a hero reward adds the chosen 1-star hero to the bench");
 Require(afterHeroPick.RoundHeroClaimed, "claiming a hero reward marks the round's hero choice as taken");
-Require(starterRewardRun.ClaimRewardHero(starterHeroOptions[0].Id.ToUpperInvariant()).Bench.Count == 1, "the hero claim accepts an offered id case-insensitively");
+Require(heroClaimRewardRun.ClaimRewardHero(starterHeroOptions[0].Id.ToUpperInvariant()).Bench.Count == 1, "the hero claim accepts an offered id case-insensitively");
 RequireThrows(() => afterHeroPick.ClaimRewardHero(starterHeroOptions[0].Id), "only one hero reward may be claimed per round");
-RequireThrows(() => starterRewardRun.ClaimRewardHero("astral_regent"), "claiming rejects a hero that was not offered");
-RequireThrows(() => starterRewardRun.ClaimRewardHero(" "), "the hero claim rejects a blank id");
+RequireThrows(() => heroClaimRewardRun.ClaimRewardHero("astral_regent"), "claiming rejects a hero that was not offered");
+RequireThrows(() => heroClaimRewardRun.ClaimRewardHero(" "), "the hero claim rejects a blank id");
 var heroChoiceRewardRun = RunState.NewRun() with { Round = 3, Phase = RunPhase.Reward };
 Require(heroChoiceRewardRun.RewardHeroOptions().Count == HeroCatalog.RewardOfferCount && heroChoiceRewardRun.RewardHeroOptions().All(option => option.Rarity <= HeroRarity.Rare), "the hero-choice round offers common and rare heroes");
 var noHeroRewardRun = RunState.NewRun() with { Round = 2, Phase = RunPhase.Reward };
@@ -2748,13 +2778,13 @@ Require(EventCatalog.TryGet("EVENT_TRADE_HEALTH_FOR_GOLD", out var fetchedEvent)
 Require(!EventCatalog.TryGet("unknown_event", out _), "event lookup rejects unknown ids");
 RequireThrows(() => EventCatalog.Get((EventChoiceKind)999), "event catalog rejects unknown archetypes");
 
-var eventRound = PveRunSchedule.GetRound(4);
-var eventScreen = EventScreenModel.Build(eventRound);
+var eventScreenRound = PveRunSchedule.GetRound(4);
+var eventScreen = EventScreenModel.Build(eventScreenRound);
 Require(eventScreen.Round == 4 && eventScreen.RoundType == PveRoundType.Event, "the event screen builds from the GDD event round");
-Require(eventScreen.EventName == eventRound.EnemyName && eventScreen.DesignGoal == eventRound.DesignGoal, "the event screen carries the round context");
+Require(eventScreen.EventName == eventScreenRound.EnemyName && eventScreen.DesignGoal == eventScreenRound.DesignGoal, "the event screen carries the round context");
 Require(eventScreen.Headline == EventScreenModel.EventHeadline, "the event screen shows the event headline");
 Require(eventScreen.AllowsDecline && eventScreen.ContinueLabel == "Продолжить", "the event screen can be declined and continued");
-Require(EventScreenModel.Build(eventRound).Kind == eventScreen.Kind, "the event screen picks a deterministic archetype for a round");
+Require(EventScreenModel.Build(eventScreenRound).Kind == eventScreen.Kind, "the event screen picks a deterministic archetype for a round");
 foreach (EventChoiceKind kind in Enum.GetValues(typeof(EventChoiceKind)))
 {
     var screen = EventScreenModel.ForEvent(EventCatalog.Get(kind), round: 4, eventName: "Тест", designGoal: "Цель");

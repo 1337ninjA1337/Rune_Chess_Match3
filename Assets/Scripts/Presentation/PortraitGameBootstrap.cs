@@ -44,6 +44,9 @@ namespace RuneChess.Presentation
         private int runeSeed = 1337;
         private int runeMovesUsed;
         private int runeScore;
+        // Rune effects the player produced with match-3 this round, replayed by the round
+        // autobattle so the run's rune artifacts (RunState.RuneModifiers) influence its outcome.
+        private readonly List<RuneEffect> roundRuneMoves = new List<RuneEffect>();
         private string runeStatus = "READY";
         private AppNavigationState navigationState = AppNavigationState.AtMainMenu;
         private Text mainMenuStatusText;
@@ -136,6 +139,7 @@ namespace RuneChess.Presentation
             currentHint = runeBoard.FindFirstLegalMoveHint();
             runeMovesUsed = 0;
             runeScore = 0;
+            roundRuneMoves.Clear();
             runeStatus = "READY";
         }
 
@@ -1712,7 +1716,9 @@ namespace RuneChess.Presentation
                 runState.Team,
                 round,
                 playerArtifactCombatModifiers: runState.CombatModifiers,
-                playerCommander: runState.Commander);
+                playerCommander: runState.Commander,
+                playerRuneMoves: roundRuneMoves,
+                playerRuneArtifactModifiers: runState.RuneModifiers);
             if (battle is null)
             {
                 return LevelCompleteModel.Build(
@@ -2108,6 +2114,12 @@ namespace RuneChess.Presentation
 
             runeMovesUsed += 1;
             runeScore += resolution.TotalMatchPower;
+            // Record this move's resolved rune effects so the round autobattle can replay the
+            // player's match-3 contribution (scaled by the run's rune artifacts).
+            foreach (var step in resolution.Steps)
+            {
+                roundRuneMoves.AddRange(step.Effects);
+            }
             runeStatus = $"+{resolution.TotalMatchPower}  {resolution.TotalMatchedRunesCount} RUNES";
 
             EnsureBoardStillPlayable();
