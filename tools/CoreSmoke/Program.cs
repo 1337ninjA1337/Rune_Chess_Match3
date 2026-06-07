@@ -2225,10 +2225,11 @@ Require(summaryWithRewards.IsVictory && summaryWithRewards.RoundsCleared == PveR
 var runRewards = summaryWithRewards.Rewards ?? throw new InvalidOperationException("Smoke check failed: run rewards missing");
 Require(runRewards.AccountXpGained == 400 && runRewards.SoftCurrencyGained == 110, "the run summary previews the earned account XP and currency");
 Require(runRewards.AccountLevelsGained == 2, "a cleared run previews the account levels gained");
-Require(runRewards.Unlocks.Count == 4, "a cleared run from a fresh account previews two account levels plus the commander and starting-artifact unlocks they grant");
+Require(runRewards.Unlocks.Count == 5, "a cleared run from a fresh account previews two account levels plus the commander, starting-artifact and cosmetic unlocks they grant");
 Require(runRewards.HasUnlocks && runRewards.Unlocks[0] == "Уровень аккаунта 2", "run summary unlock notices name each new account level");
 Require(runRewards.Unlocks.Any(notice => notice == "Новых командиров: 2"), "levelling an account past commander thresholds previews the newly unlocked commanders");
 Require(runRewards.Unlocks.Any(notice => notice == "Новых стартовых артефактов: 2"), "levelling an account past starting-artifact thresholds previews the newly unlocked starting artifacts");
+Require(runRewards.Unlocks.Any(notice => notice == "Новой косметики: 2"), "levelling an account past cosmetic thresholds previews the newly unlocked cosmetics");
 Require(startingAccount.WithRunRewards(victorySummary).SoftCurrency == startingAccount.SoftCurrency + runRewards.SoftCurrencyGained, "applying run rewards matches the previewed currency");
 var freshRunRewards = RunSummaryModel.Build(RunState.NewRun(), startingAccount).Rewards
     ?? throw new InvalidOperationException("Smoke check failed: fresh run rewards missing");
@@ -2291,6 +2292,42 @@ Require(startingAccount.StartingArtifactUnlockLabel == $"1 / {StartingArtifactUn
 Require(startingAccount.UnlockedStartingArtifactIds.Count == 1 && startingAccount.IsStartingArtifactUnlocked(StartingArtifactUnlockSchedule.Entries[0].ArtifactId) && !startingAccount.IsStartingArtifactUnlocked(StartingArtifactUnlockSchedule.Entries[1].ArtifactId), "a fresh account has only the first starting artifact unlocked");
 Require(startingAccount.NextStartingArtifactUnlock is not null && startingAccount.NextStartingArtifactUnlock!.RequiredAccountLevel == 2, "a fresh account's next starting-artifact unlock is at account level two");
 Require(startingAccount.WithGains(AccountProgress.XpForNextLevel(1), 0).UnlockedStartingArtifacts == 2, "reaching account level two unlocks a second starting artifact on the account");
+
+// Cosmetic catalog and unlock schedule (GDD "Метапрогрессия": косметику, визуальные эффекты рун).
+Require(CosmeticCatalog.All.Count >= 3 && CosmeticCatalog.All.Select(cosmetic => cosmetic.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == CosmeticCatalog.All.Count, "the cosmetic catalog has distinct ids");
+Require(CosmeticCatalog.RuneEffects.Count >= 1 && CosmeticCatalog.RuneEffects.All(cosmetic => cosmetic.Kind == CosmeticKind.RuneEffect), "the catalog exposes rune visual-effect cosmetics (GDD визуальные эффекты рун)");
+Require(CosmeticCatalog.TryGet("RUNE_GLOW", out var runeGlow) && runeGlow.IsRuneEffect, "cosmetic lookup is case-insensitive and flags rune effects");
+RequireThrows(() => CosmeticCatalog.Get("unknown_cosmetic"), "cosmetic get throws on unknown ids");
+RequireThrows(() => new CosmeticDefinition("", "Name", CosmeticKind.BoardSkin, "desc"), "a cosmetic rejects a blank id");
+Require(CosmeticUnlockSchedule.Entries.Count == CosmeticCatalog.All.Count, "every catalog cosmetic has exactly one unlock entry");
+Require(CosmeticUnlockSchedule.Entries.All(entry => CosmeticCatalog.TryGet(entry.CosmeticId, out _)), "every cosmetic unlock resolves to a catalog cosmetic");
+Require(CosmeticUnlockSchedule.Entries[0].RequiredAccountLevel == 1, "the first cosmetic unlocks at account level one so a fresh account always has one");
+Require(CosmeticUnlockSchedule.UnlockedCountForLevel(1) == 1 && CosmeticUnlockSchedule.UnlockedCountForLevel(2) == 2, "cosmetics unlock one per account level");
+Require(CosmeticUnlockSchedule.UnlockedCountForLevel(99) == CosmeticUnlockSchedule.TotalCount, "a high account level unlocks the whole cosmetic pool");
+Require(CosmeticUnlockSchedule.UnlockedIdsForLevel(1).SequenceEqual(new[] { CosmeticUnlockSchedule.Entries[0].CosmeticId }), "level one unlocks only the first cosmetic, in schedule order");
+Require(CosmeticUnlockSchedule.NextUnlock(1)!.CosmeticId == CosmeticUnlockSchedule.Entries[1].CosmeticId && CosmeticUnlockSchedule.NextUnlock(CosmeticUnlockSchedule.TotalCount) is null, "next cosmetic unlock walks the schedule and ends when all are unlocked");
+RequireThrows(() => CosmeticUnlockSchedule.RequiredLevel("unknown_cosmetic"), "the cosmetic schedule rejects an unknown id");
+RequireThrows(() => CosmeticUnlockSchedule.IsUnlocked(CosmeticUnlockSchedule.Entries[0].CosmeticId, 0), "the cosmetic schedule rejects account levels below one");
+
+// Account surfaces cosmetic unlocks (GDD "Метапрогрессия": косметику, визуальные эффекты рун).
+Require(startingAccount.UnlockedCosmetics == 1 && startingAccount.TotalCosmetics == CosmeticUnlockSchedule.TotalCount, "a fresh account only unlocks the level-one cosmetic");
+Require(startingAccount.CosmeticUnlockLabel == $"1 / {CosmeticUnlockSchedule.TotalCount}", "account cosmetic label formats unlocked/total");
+Require(startingAccount.UnlockedCosmeticIds.Count == 1 && startingAccount.IsCosmeticUnlocked(CosmeticUnlockSchedule.Entries[0].CosmeticId) && !startingAccount.IsCosmeticUnlocked(CosmeticUnlockSchedule.Entries[1].CosmeticId), "a fresh account has only the first cosmetic unlocked");
+Require(startingAccount.NextCosmeticUnlock is not null && startingAccount.NextCosmeticUnlock!.RequiredAccountLevel == 2, "a fresh account's next cosmetic unlock is at account level two");
+Require(startingAccount.WithGains(AccountProgress.XpForNextLevel(1), 0).UnlockedCosmetics == 2, "reaching account level two unlocks a second cosmetic on the account");
+
+// Metaprogression is not pay-to-win (GDD "Метапрогрессия": баланс должен избегать pay-to-win).
+// Cosmetics are purely visual (the record carries no stat/gold/combat field), and every meta
+// unlock is gated by account level (earned by playing), never by soft currency: spending
+// currency on WithGains does not change any unlock count.
+Require(typeof(CosmeticDefinition).GetProperties().All(property => property.PropertyType == typeof(string) || property.PropertyType == typeof(CosmeticKind) || property.PropertyType == typeof(bool)), "a cosmetic exposes no numeric power field, so cosmetics cannot be pay-to-win");
+var currencyOnly = startingAccount.WithGains(0, 100000);
+Require(currencyOnly.AccountLevel == startingAccount.AccountLevel
+    && currencyOnly.UnlockedCommanders == startingAccount.UnlockedCommanders
+    && currencyOnly.UnlockedStartingArtifacts == startingAccount.UnlockedStartingArtifacts
+    && currencyOnly.UnlockedCosmetics == startingAccount.UnlockedCosmetics, "soft currency alone unlocks nothing — unlocks are gated by account level, not purchase");
+var xpOnly = startingAccount.WithGains(AccountProgress.XpForNextLevel(1) + AccountProgress.XpForNextLevel(2), 0);
+Require(xpOnly.AccountLevel == 3 && xpOnly.UnlockedCommanders > startingAccount.UnlockedCommanders, "playing (account XP) is the only thing that advances unlocks");
 
 // Account-aware commander selection gates locked commanders (GDD UI screen 2 + метапрогрессия).
 var gatedSelect = CommanderSelectModel.Build(CommanderCatalog.Default.Id, AccountProgress.Starting);

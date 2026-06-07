@@ -125,6 +125,36 @@ namespace RuneChess.Core
             StartingArtifactUnlockSchedule.NextUnlock(AccountLevel);
 
         /// <summary>
+        /// How many cosmetics the account has unlocked at its current level (GDD
+        /// "Метапрогрессия": косметику, визуальные эффекты рун). Derived from the account
+        /// level via <see cref="CosmeticUnlockSchedule"/> so it never needs to be persisted.
+        /// </summary>
+        public int UnlockedCosmetics => CosmeticUnlockSchedule.UnlockedCountForLevel(AccountLevel);
+
+        /// <summary>The whole cosmetic pool size, for the "unlocked / total" label.</summary>
+        public int TotalCosmetics => CosmeticUnlockSchedule.TotalCount;
+
+        /// <summary>"unlocked / total" label for the cosmetic roster.</summary>
+        public string CosmeticUnlockLabel => $"{UnlockedCosmetics} / {TotalCosmetics}";
+
+        /// <summary>
+        /// The cosmetic ids the account has unlocked at its current level, in unlock order
+        /// (GDD "Метапрогрессия": косметику, визуальные эффекты рун).
+        /// </summary>
+        public IReadOnlyList<string> UnlockedCosmeticIds =>
+            CosmeticUnlockSchedule.UnlockedIdsForLevel(AccountLevel);
+
+        /// <summary>True when the account has unlocked the given cosmetic at its current level.</summary>
+        public bool IsCosmeticUnlocked(string cosmeticId) =>
+            CosmeticUnlockSchedule.IsUnlocked(cosmeticId, AccountLevel);
+
+        /// <summary>
+        /// The next cosmetic unlock above the current account level, or <c>null</c> when every
+        /// cosmetic is already unlocked.
+        /// </summary>
+        public CosmeticUnlock? NextCosmeticUnlock => CosmeticUnlockSchedule.NextUnlock(AccountLevel);
+
+        /// <summary>
         /// A fresh account: level one, no XP or currency, the full hero roster available, and
         /// only the commanders unlocked at account level one (the catalog default) per
         /// <see cref="CommanderUnlockSchedule"/>. The rest of the commander roster unlocks as

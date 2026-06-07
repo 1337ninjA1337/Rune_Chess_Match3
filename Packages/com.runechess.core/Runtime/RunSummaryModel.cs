@@ -142,6 +142,12 @@ namespace RuneChess.Core
                 unlocks.Add($"Новых стартовых артефактов: {newStartingArtifacts}");
             }
 
+            var newCosmetics = after.UnlockedCosmetics - account.UnlockedCosmetics;
+            if (newCosmetics > 0)
+            {
+                unlocks.Add($"Новой косметики: {newCosmetics}");
+            }
+
             var newHeroes = after.UnlockedHeroes - account.UnlockedHeroes;
             if (newHeroes > 0)
             {
