@@ -17,6 +17,17 @@ namespace RuneChess.Core
         HeroStats BaseStats
     )
     {
+        /// <summary>
+        /// How readable the hero's ability is for a new player (GDD onboarding: "стартовые
+        /// герои должны иметь простые способности"). Defaults to <see cref="AbilityComplexity.Simple"/>;
+        /// heroes whose ability adds positioning, control, debuffs or board-wide tricks set this
+        /// to <see cref="AbilityComplexity.Advanced"/> in <see cref="HeroCatalog"/>.
+        /// </summary>
+        public AbilityComplexity AbilityComplexity { get; init; } = AbilityComplexity.Simple;
+
+        /// <summary>True when the hero's ability is beginner-friendly (a single, obvious effect).</summary>
+        public bool HasSimpleAbility => AbilityComplexity == AbilityComplexity.Simple;
+
         /// <summary>Match-3 effect category linked to the hero's preferred rune color.</summary>
         public RuneEffectKind PreferredEffectKind => RuneEffects.GetEffectKind(RuneAffinity);
 

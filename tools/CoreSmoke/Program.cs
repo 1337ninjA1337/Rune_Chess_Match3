@@ -1094,6 +1094,20 @@ var catalogAstralRegent = HeroCatalog.Get("astral_regent");
 Require(catalogAstralRegent.Rarity == HeroRarity.Legendary && catalogAstralRegent.Cost == 5, "astral regent is a five-cost legendary hero");
 Require(catalogAstralRegent.Faction == "Духи" && catalogAstralRegent.RuneAffinity == RuneType.White, "astral regent is a white-rune Spirit legend");
 
+// Onboarding ability complexity (GDD "Слишком сложный onboarding": "стартовые герои должны
+// иметь простые способности"). Every Common starter hero must be simple, and the round-1
+// starter reward draws only from the Common pool, so a new player never meets a complex ability.
+Require(HeroCatalog.All.All(hero => hero.Rarity != HeroRarity.Common || hero.HasSimpleAbility), "every Common starter hero has a simple ability");
+Require(catalogIronGuard.HasSimpleAbility && catalogOathArcher.HasSimpleAbility && catalogFieldMedic.HasSimpleAbility && catalogWildClaw.HasSimpleAbility && catalogThornShaman.HasSimpleAbility, "the five Common starter heroes all read as simple");
+Require(catalogRuneApprentice.HasSimpleAbility && catalogGearSquire.HasSimpleAbility && catalogClockworkSaint.HasSimpleAbility && catalogDroneMarshal.HasSimpleAbility, "direct-effect heroes keep their simple ability classification");
+Require(catalogMistCutthroat.AbilityComplexity == AbilityComplexity.Advanced && catalogAstralRegent.AbilityComplexity == AbilityComplexity.Advanced, "positioning and board-wide abilities are flagged advanced");
+Require(!catalogPhaseAssassin.HasSimpleAbility && !catalogCurseWeaver.HasSimpleAbility && !catalogSpiritDuelist.HasSimpleAbility && !catalogVoidOracle.HasSimpleAbility, "control, illusion and conditional abilities are flagged advanced");
+Require(HeroCatalog.SimpleAbilityHeroes.All(hero => hero.HasSimpleAbility) && HeroCatalog.SimpleAbilityHeroes.Count == HeroCatalog.All.Count(hero => hero.HasSimpleAbility), "the simple-ability hero set matches the heroes flagged simple");
+Require(HeroCatalog.All.Where(hero => hero.Rarity == HeroRarity.Common).All(hero => HeroCatalog.SimpleAbilityHeroes.Contains(hero)), "the simple-ability set contains every Common starter hero");
+var starterRewardRun = RunState.NewRun() with { Phase = RunPhase.Reward };
+Require(starterRewardRun.RewardHeroOptions().Count > 0, "the round-1 starter reward offers heroes");
+Require(starterRewardRun.RewardHeroOptions().All(option => HeroCatalog.Get(option.Id).HasSimpleAbility), "the round-1 starter reward only offers simple-ability heroes");
+
 Require(HeroCatalog.All.Count(hero => hero.Faction == "Империя") == 5, "MVP roster has five Empire heroes");
 Require(HeroCatalog.All.Count(hero => hero.Faction == "Дикие") == 4, "MVP roster has four Wild heroes");
 Require(HeroCatalog.All.Count(hero => hero.Faction == "Бездонные") == 3, "MVP roster has three Abyssal heroes");
@@ -2800,8 +2814,14 @@ Require(defenderEntry.Kind == SynergyKind.Class && defenderEntry.UnitCount == 2 
 Require(synergyPanel.UpcomingThresholds.Count >= 2 && synergyPanel.UpcomingThresholds.All(entry => entry.HasNextTier), "the panel lists upcoming breakpoints, each with a next tier");
 Require(synergyPanel.UpcomingThresholds.SequenceEqual(synergyPanel.UpcomingThresholds.OrderBy(entry => entry.HeroesToNextTier)), "upcoming breakpoints are ordered by how close they are");
 
+// Beginner highlight (GDD "Слишком сложный onboarding": "первые синергии должны быть очевидными").
+Require(synergyPanel.BeginnerHighlight is not null && synergyPanel.BeginnerHighlight.IsActive, "the panel spotlights a started synergy for the player to pursue first");
+Require(synergyPanel.BeginnerHint is not null && synergyPanel.BeginnerHint.Contains(synergyPanel.BeginnerHighlight!.Name), "the beginner hint names the highlighted synergy");
+Require(synergyPanel.BeginnerHighlight!.UnitCount > 0, "the beginner highlight is always a synergy the team has already started");
+
 var emptyPanel = SynergyPanelModel.Build(new List<BoardHero>());
 Require(emptyPanel.Entries.Count == 0 && !emptyPanel.HasActiveSynergies, "an empty team has no synergies on the panel");
+Require(emptyPanel.BeginnerHighlight is null && emptyPanel.BeginnerHint is null, "an empty team has no beginner synergy highlight");
 
 var soloPanel = SynergyPanelModel.Build(new List<BoardHero>
 {
@@ -2810,6 +2830,7 @@ var soloPanel = SynergyPanelModel.Build(new List<BoardHero>
 Require(soloPanel.ActiveFactions.Count == 0 && soloPanel.Entries.Count == 2, "a lone hero shows building synergies but activates none");
 var soloEmpire = soloPanel.Entries.Single(entry => entry.Id == "empire");
 Require(soloEmpire.Strength == SynergyStrength.Building && soloEmpire.HeroesToNextTier == 1, "a single faction hero is one short of the first tier and coloured building");
+Require(soloPanel.BeginnerHighlight is not null && soloPanel.BeginnerHighlight.HeroesToNextTier == 1, "even one placed hero gives the player an obvious first synergy to chase");
 
 var synergyRunPanel = SynergyPanelModel.Build(RunState.NewRun() with { Team = synergyTeam });
 Require(synergyRunPanel.HasActiveSynergies, "the synergy panel builds from a run's placed team");

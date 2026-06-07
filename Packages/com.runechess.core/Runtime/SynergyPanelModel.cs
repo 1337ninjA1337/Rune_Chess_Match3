@@ -47,6 +47,50 @@ namespace RuneChess.Core
         /// <summary>True when any faction or class synergy currently has an active tier.</summary>
         public bool HasActiveSynergies => ActiveFactions.Count > 0 || ActiveClasses.Count > 0;
 
+        /// <summary>
+        /// The single synergy a new player should aim for first (GDD "Слишком сложный onboarding":
+        /// "первые синергии должны быть очевидными"). It is the started synergy (at least one hero
+        /// placed) that is closest to its next breakpoint, preferring the one needing the fewest
+        /// heroes, then the most heroes already placed, then name. When no started synergy still has
+        /// a breakpoint left, it falls back to the largest active synergy. Null when the team has not
+        /// started any synergy yet. The UI can spotlight this so the first synergy is obvious.
+        /// </summary>
+        public SynergyPanelEntry? BeginnerHighlight =>
+            Entries
+                .Where(entry => entry.UnitCount > 0 && entry.HasNextTier)
+                .OrderBy(entry => entry.HeroesToNextTier)
+                .ThenByDescending(entry => entry.UnitCount)
+                .ThenBy(entry => entry.Name, StringComparer.Ordinal)
+                .FirstOrDefault()
+            ?? Entries
+                .Where(entry => entry.UnitCount > 0 && entry.IsActive)
+                .OrderByDescending(entry => entry.UnitCount)
+                .ThenBy(entry => entry.Name, StringComparer.Ordinal)
+                .FirstOrDefault();
+
+        /// <summary>
+        /// A short, player-facing hint for <see cref="BeginnerHighlight"/> so onboarding can make the
+        /// first synergy obvious without re-deriving the maths. Null when no synergy has been started.
+        /// </summary>
+        public string? BeginnerHint
+        {
+            get
+            {
+                var highlight = BeginnerHighlight;
+                if (highlight is null)
+                {
+                    return null;
+                }
+
+                if (highlight.HasNextTier)
+                {
+                    return $"Соберите ещё {highlight.HeroesToNextTier} для синергии «{highlight.Name}» ({highlight.NextTier!.RequiredCount}).";
+                }
+
+                return $"Синергия «{highlight.Name}» активна.";
+            }
+        }
+
         /// <summary>Build the synergy panel from the placed heroes of a run.</summary>
         public static SynergyPanelModel Build(RunState run)
         {

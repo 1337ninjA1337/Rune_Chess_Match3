@@ -149,7 +149,10 @@ namespace RuneChess.Core
                 MagicResist: 3,
                 BaseAttackSpeed: 1.0,
                 ManaMax: 70)
-        );
+        )
+        {
+            AbilityComplexity = AbilityComplexity.Advanced
+        };
 
         public static HeroDefinition RuneApprentice { get; } = new(
             Id: "rune_apprentice",
@@ -241,7 +244,10 @@ namespace RuneChess.Core
                 MagicResist: 6,
                 BaseAttackSpeed: 0.72,
                 ManaMax: 90)
-        );
+        )
+        {
+            AbilityComplexity = AbilityComplexity.Advanced
+        };
 
         public static HeroDefinition SpiritDuelist { get; } = new(
             Id: "spirit_duelist",
@@ -264,7 +270,10 @@ namespace RuneChess.Core
                 MagicResist: 4,
                 BaseAttackSpeed: 0.92,
                 ManaMax: 70)
-        );
+        )
+        {
+            AbilityComplexity = AbilityComplexity.Advanced
+        };
 
         public static HeroDefinition DuskRanger { get; } = new(
             Id: "dusk_ranger",
@@ -287,7 +296,10 @@ namespace RuneChess.Core
                 MagicResist: 3,
                 BaseAttackSpeed: 1.1,
                 ManaMax: 70)
-        );
+        )
+        {
+            AbilityComplexity = AbilityComplexity.Advanced
+        };
 
         public static HeroDefinition BulwarkCaptain { get; } = new(
             Id: "bulwark_captain",
@@ -333,7 +345,10 @@ namespace RuneChess.Core
                 MagicResist: 7,
                 BaseAttackSpeed: 0.8,
                 ManaMax: 90)
-        );
+        )
+        {
+            AbilityComplexity = AbilityComplexity.Advanced
+        };
 
         public static HeroDefinition DroneMarshal { get; } = new(
             Id: "drone_marshal",
@@ -379,7 +394,10 @@ namespace RuneChess.Core
                 MagicResist: 4,
                 BaseAttackSpeed: 1.05,
                 ManaMax: 75)
-        );
+        )
+        {
+            AbilityComplexity = AbilityComplexity.Advanced
+        };
 
         public static HeroDefinition MagmaBrute { get; } = new(
             Id: "magma_brute",
@@ -402,7 +420,10 @@ namespace RuneChess.Core
                 MagicResist: 5,
                 BaseAttackSpeed: 0.85,
                 ManaMax: 75)
-        );
+        )
+        {
+            AbilityComplexity = AbilityComplexity.Advanced
+        };
 
         public static HeroDefinition CurseWeaver { get; } = new(
             Id: "curse_weaver",
@@ -425,7 +446,10 @@ namespace RuneChess.Core
                 MagicResist: 8,
                 BaseAttackSpeed: 0.7,
                 ManaMax: 100)
-        );
+        )
+        {
+            AbilityComplexity = AbilityComplexity.Advanced
+        };
 
         public static HeroDefinition ClockworkSaint { get; } = new(
             Id: "clockwork_saint",
@@ -471,7 +495,10 @@ namespace RuneChess.Core
                 MagicResist: 10,
                 BaseAttackSpeed: 0.75,
                 ManaMax: 120)
-        );
+        )
+        {
+            AbilityComplexity = AbilityComplexity.Advanced
+        };
 
         public static IReadOnlyList<HeroDefinition> All { get; } = Array.AsReadOnly(new[]
         {
@@ -496,6 +523,15 @@ namespace RuneChess.Core
             ClockworkSaint,
             AstralRegent
         });
+
+        /// <summary>
+        /// Heroes whose ability is beginner-friendly — a single, obvious effect (GDD
+        /// "Слишком сложный onboarding": "стартовые герои должны иметь простые способности").
+        /// Every Common starter hero is in this set, so the early game (the Common-weighted
+        /// shop and the round-1 Common reward) only ever surfaces simple abilities.
+        /// </summary>
+        public static IReadOnlyList<HeroDefinition> SimpleAbilityHeroes { get; } =
+            All.Where(hero => hero.HasSimpleAbility).ToList();
 
         private static IReadOnlyDictionary<string, HeroDefinition> ById { get; } = All.ToDictionary(
             hero => hero.Id,
