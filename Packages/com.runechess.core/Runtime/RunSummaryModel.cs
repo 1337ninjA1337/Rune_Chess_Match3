@@ -136,6 +136,12 @@ namespace RuneChess.Core
                 unlocks.Add($"Новых командиров: {newCommanders}");
             }
 
+            var newStartingArtifacts = after.UnlockedStartingArtifacts - account.UnlockedStartingArtifacts;
+            if (newStartingArtifacts > 0)
+            {
+                unlocks.Add($"Новых стартовых артефактов: {newStartingArtifacts}");
+            }
+
             var newHeroes = after.UnlockedHeroes - account.UnlockedHeroes;
             if (newHeroes > 0)
             {

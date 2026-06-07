@@ -2225,9 +2225,10 @@ Require(summaryWithRewards.IsVictory && summaryWithRewards.RoundsCleared == PveR
 var runRewards = summaryWithRewards.Rewards ?? throw new InvalidOperationException("Smoke check failed: run rewards missing");
 Require(runRewards.AccountXpGained == 400 && runRewards.SoftCurrencyGained == 110, "the run summary previews the earned account XP and currency");
 Require(runRewards.AccountLevelsGained == 2, "a cleared run previews the account levels gained");
-Require(runRewards.Unlocks.Count == 3, "a cleared run from a fresh account previews two account levels and the commander unlocks they grant");
+Require(runRewards.Unlocks.Count == 4, "a cleared run from a fresh account previews two account levels plus the commander and starting-artifact unlocks they grant");
 Require(runRewards.HasUnlocks && runRewards.Unlocks[0] == "Уровень аккаунта 2", "run summary unlock notices name each new account level");
 Require(runRewards.Unlocks.Any(notice => notice == "Новых командиров: 2"), "levelling an account past commander thresholds previews the newly unlocked commanders");
+Require(runRewards.Unlocks.Any(notice => notice == "Новых стартовых артефактов: 2"), "levelling an account past starting-artifact thresholds previews the newly unlocked starting artifacts");
 Require(startingAccount.WithRunRewards(victorySummary).SoftCurrency == startingAccount.SoftCurrency + runRewards.SoftCurrencyGained, "applying run rewards matches the previewed currency");
 var freshRunRewards = RunSummaryModel.Build(RunState.NewRun(), startingAccount).Rewards
     ?? throw new InvalidOperationException("Smoke check failed: fresh run rewards missing");
@@ -2267,6 +2268,29 @@ Require(!CommanderUnlockSchedule.IsUnlocked("warlord", 1) && CommanderUnlockSche
 Require(CommanderUnlockSchedule.NextUnlock(1)!.CommanderId == "warlord" && CommanderUnlockSchedule.NextUnlock(CommanderCatalog.All.Count) is null, "next unlock walks up the schedule and ends when all commanders are unlocked");
 RequireThrows(() => CommanderUnlockSchedule.RequiredLevel("unknown_commander"), "the unlock schedule rejects an unknown commander id");
 RequireThrows(() => CommanderUnlockSchedule.IsUnlocked("warlord", 0), "the unlock schedule rejects account levels below one");
+
+// Starting-artifact unlock schedule (GDD "Метапрогрессия": разблокировка новых стартовых артефактов).
+Require(StartingArtifactUnlockSchedule.Entries.Count >= 3 && StartingArtifactUnlockSchedule.TotalCount == StartingArtifactUnlockSchedule.Entries.Count, "the starting-artifact schedule exposes its pool size");
+Require(StartingArtifactUnlockSchedule.Entries.All(entry => ArtifactCatalog.TryGet(entry.ArtifactId, out _)), "every starting-artifact unlock resolves to a catalog artifact");
+Require(StartingArtifactUnlockSchedule.Entries.All(entry => ArtifactCatalog.Get(entry.ArtifactId).Rarity == ArtifactRarity.Common), "starting artifacts stay mild Common-rarity options (non-pay-to-win)");
+Require(StartingArtifactUnlockSchedule.Entries[0].RequiredAccountLevel == 1, "the first starting artifact unlocks at account level one so a fresh account can always pick one");
+Require(StartingArtifactUnlockSchedule.UnlockedCountForLevel(1) == 1, "account level one unlocks a single starting artifact");
+Require(StartingArtifactUnlockSchedule.UnlockedCountForLevel(2) == 2, "account level two unlocks a second starting artifact");
+Require(StartingArtifactUnlockSchedule.UnlockedCountForLevel(99) == StartingArtifactUnlockSchedule.TotalCount, "a high account level unlocks the whole starting-artifact pool");
+Require(StartingArtifactUnlockSchedule.UnlockedIdsForLevel(1).SequenceEqual(new[] { StartingArtifactUnlockSchedule.Entries[0].ArtifactId }), "level one unlocks only the first starting artifact, in schedule order");
+Require(!StartingArtifactUnlockSchedule.IsUnlocked(StartingArtifactUnlockSchedule.Entries[1].ArtifactId, 1) && StartingArtifactUnlockSchedule.IsUnlocked(StartingArtifactUnlockSchedule.Entries[1].ArtifactId, 2), "the second starting artifact unlocks at account level two");
+Require(StartingArtifactUnlockSchedule.RequiredLevel("MERCHANT_SEAL") == 1, "the starting-artifact unlock lookup is case-insensitive");
+Require(StartingArtifactUnlockSchedule.NextUnlock(1)!.ArtifactId == StartingArtifactUnlockSchedule.Entries[1].ArtifactId && StartingArtifactUnlockSchedule.NextUnlock(StartingArtifactUnlockSchedule.TotalCount) is null, "next starting-artifact unlock walks the schedule and ends when all are unlocked");
+RequireThrows(() => StartingArtifactUnlockSchedule.RequiredLevel("unknown_artifact"), "the starting-artifact schedule rejects an unknown artifact id");
+RequireThrows(() => StartingArtifactUnlockSchedule.IsUnlocked(StartingArtifactUnlockSchedule.Entries[0].ArtifactId, 0), "the starting-artifact schedule rejects account levels below one");
+
+// Account progress surfaces the starting-artifact unlocks (GDD "Метапрогрессия": новые стартовые артефакты).
+Require(startingAccount.UnlockedStartingArtifacts == StartingArtifactUnlockSchedule.UnlockedCountForLevel(1) && startingAccount.UnlockedStartingArtifacts == 1, "a fresh account only unlocks the level-one starting artifact");
+Require(startingAccount.TotalStartingArtifacts == StartingArtifactUnlockSchedule.TotalCount, "a fresh account counts the whole starting-artifact pool as the unlock total");
+Require(startingAccount.StartingArtifactUnlockLabel == $"1 / {StartingArtifactUnlockSchedule.TotalCount}", "account starting-artifact label formats unlocked/total");
+Require(startingAccount.UnlockedStartingArtifactIds.Count == 1 && startingAccount.IsStartingArtifactUnlocked(StartingArtifactUnlockSchedule.Entries[0].ArtifactId) && !startingAccount.IsStartingArtifactUnlocked(StartingArtifactUnlockSchedule.Entries[1].ArtifactId), "a fresh account has only the first starting artifact unlocked");
+Require(startingAccount.NextStartingArtifactUnlock is not null && startingAccount.NextStartingArtifactUnlock!.RequiredAccountLevel == 2, "a fresh account's next starting-artifact unlock is at account level two");
+Require(startingAccount.WithGains(AccountProgress.XpForNextLevel(1), 0).UnlockedStartingArtifacts == 2, "reaching account level two unlocks a second starting artifact on the account");
 
 // Account-aware commander selection gates locked commanders (GDD UI screen 2 + метапрогрессия).
 var gatedSelect = CommanderSelectModel.Build(CommanderCatalog.Default.Id, AccountProgress.Starting);

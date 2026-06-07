@@ -93,6 +93,38 @@ namespace RuneChess.Core
         public CommanderUnlock? NextCommanderUnlock => CommanderUnlockSchedule.NextUnlock(AccountLevel);
 
         /// <summary>
+        /// How many starting artifacts the account has unlocked at its current level (GDD
+        /// "Метапрогрессия": новые стартовые артефакты). Derived from the account level via
+        /// <see cref="StartingArtifactUnlockSchedule"/> so it never needs to be persisted.
+        /// </summary>
+        public int UnlockedStartingArtifacts =>
+            StartingArtifactUnlockSchedule.UnlockedCountForLevel(AccountLevel);
+
+        /// <summary>The whole starting-artifact pool size, for the "unlocked / total" label.</summary>
+        public int TotalStartingArtifacts => StartingArtifactUnlockSchedule.TotalCount;
+
+        /// <summary>"unlocked / total" label for the starting-artifact roster.</summary>
+        public string StartingArtifactUnlockLabel => $"{UnlockedStartingArtifacts} / {TotalStartingArtifacts}";
+
+        /// <summary>
+        /// The starting-artifact ids the account has unlocked at its current level, in unlock
+        /// order (GDD "Метапрогрессия": новые стартовые артефакты).
+        /// </summary>
+        public IReadOnlyList<string> UnlockedStartingArtifactIds =>
+            StartingArtifactUnlockSchedule.UnlockedIdsForLevel(AccountLevel);
+
+        /// <summary>True when the account has unlocked the given starting artifact at its current level.</summary>
+        public bool IsStartingArtifactUnlocked(string artifactId) =>
+            StartingArtifactUnlockSchedule.IsUnlocked(artifactId, AccountLevel);
+
+        /// <summary>
+        /// The next starting-artifact unlock above the current account level, or <c>null</c>
+        /// when every starting artifact is already unlocked.
+        /// </summary>
+        public StartingArtifactUnlock? NextStartingArtifactUnlock =>
+            StartingArtifactUnlockSchedule.NextUnlock(AccountLevel);
+
+        /// <summary>
         /// A fresh account: level one, no XP or currency, the full hero roster available, and
         /// only the commanders unlocked at account level one (the catalog default) per
         /// <see cref="CommanderUnlockSchedule"/>. The rest of the commander roster unlocks as
