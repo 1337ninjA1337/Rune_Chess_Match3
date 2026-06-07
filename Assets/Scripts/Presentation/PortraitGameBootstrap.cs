@@ -48,6 +48,8 @@ namespace RuneChess.Presentation
         private AppNavigationState navigationState = AppNavigationState.AtMainMenu;
         private Text mainMenuStatusText;
         private AccountProgress accountProgress = AccountProgress.Starting;
+        private readonly AccountProgressStore accountStore = new AccountProgressStore();
+        private RunSummaryModel pendingRunSummary;
         private SettingsModel settings = SettingsModel.Default;
         private string commanderSelectId;
         private string selectedCollectionHeroId;
@@ -75,6 +77,7 @@ namespace RuneChess.Presentation
                 return;
             }
 
+            accountProgress = accountStore.Load();
             EnsureMainCamera();
             EnsureEventSystem();
             ClearGeneratedCanvases();
@@ -363,6 +366,7 @@ namespace RuneChess.Presentation
             runState = RunState.NewRun(runState.Commander.Id);
             selectedArtifactId = null;
             rewardClaimedForRound = 0;
+            pendingRunSummary = null;
             navigationState = AppNavigationState.AtMainMenu
                 .NavigateTo(AppScreen.LevelSelect)
                 .NavigateTo(AppScreen.Preparation);
@@ -678,6 +682,7 @@ namespace RuneChess.Presentation
             var chosen = commanderSelectId ?? runState.Commander.Id;
             runState = RunState.NewRun(chosen);
             commanderSelectId = chosen;
+            pendingRunSummary = null;
             ShowMainMenu();
         }
 
@@ -1317,10 +1322,23 @@ namespace RuneChess.Presentation
                 return;
             }
 
+            // Apply and persist the run's meta rewards once (GDD "Метапрогрессия": опыт и
+            // валюта после забега). The preview is computed against the pre-reward account so
+            // the summary shows the gains, then the account is carried forward via the store.
+            if (pendingRunSummary == null)
+            {
+                pendingRunSummary = RunSummaryModel.Build(runState, accountProgress);
+                if (pendingRunSummary.Rewards is { } gains)
+                {
+                    accountProgress = accountProgress.WithGains(gains.AccountXpGained, gains.SoftCurrencyGained);
+                    accountStore.Save(accountProgress);
+                }
+            }
+
             SetNavigationForScreen(AppScreen.RunSummary);
             ClearChildren(contentRoot);
             AddHeader(contentRoot);
-            AddRunSummaryPanel(contentRoot);
+            AddRunSummaryPanel(contentRoot, pendingRunSummary);
             AddScreenNavigationRow(
                 contentRoot,
                 "В меню",
@@ -1331,9 +1349,8 @@ namespace RuneChess.Presentation
                 ShowLevelSelectScreen);
         }
 
-        private void AddRunSummaryPanel(Transform parent)
+        private void AddRunSummaryPanel(Transform parent, RunSummaryModel summary)
         {
-            var summary = RunSummaryModel.Build(runState);
             var panel = CreatePanel("Run Summary Panel", parent, GameColors.PanelDeep);
             AddLayoutElement(panel, 560);
             AddOutline(panel, GameColors.WithAlpha(summary.IsVictory ? GameColors.Gold : GameColors.Health, 0.72f));
@@ -1362,6 +1379,24 @@ namespace RuneChess.Presentation
             CreateStatusPill(stats.transform, "GOLD", summary.Gold.ToString(), GameColors.Gold);
             CreateStatusPill(stats.transform, "LEVEL", summary.PlayerLevel.ToString(), GameColors.Mana);
             CreateStatusPill(stats.transform, "TEAM", summary.Team.Count.ToString(), GameColors.Commander);
+
+            if (summary.Rewards is { } rewards)
+            {
+                var rewardPanel = CreatePanel("Run Summary Rewards", panel.transform, GameColors.WithAlpha(GameColors.Mana, 0.16f));
+                AddOutline(rewardPanel, GameColors.WithAlpha(GameColors.Mana, 0.5f));
+                AddLayoutElement(rewardPanel, rewards.HasUnlocks ? 88 : 60);
+                var rewardStack = rewardPanel.AddComponent<VerticalLayoutGroup>();
+                rewardStack.padding = new RectOffset(8, 8, 4, 4);
+                rewardStack.spacing = 2;
+                rewardStack.childAlignment = TextAnchor.MiddleCenter;
+                rewardStack.childForceExpandHeight = false;
+                CreateText("НАГРАДА АККАУНТА", rewardPanel.transform, 12, GameColors.Text, TextAnchor.MiddleCenter);
+                CreateText($"+{rewards.AccountXpGained} XP · +{rewards.SoftCurrencyGained} валюты", rewardPanel.transform, 13, GameColors.Mana, TextAnchor.MiddleCenter);
+                if (rewards.HasUnlocks)
+                {
+                    CreateText($"Разблокировки: {string.Join(", ", rewards.Unlocks)}", rewardPanel.transform, 10, GameColors.Gold, TextAnchor.MiddleCenter);
+                }
+            }
 
             if (summary.BestHero is { } best)
             {
