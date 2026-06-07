@@ -2177,6 +2177,28 @@ RequireThrows(() => AccountProgress.XpForNextLevel(0), "account XP curve rejects
 RequireThrows(() => startingAccount.WithGains(-1, 0), "account gains reject negative XP");
 RequireThrows(() => AccountProgress.CalculateRunRewards(null!), "run reward calculation rejects a null summary");
 
+// Account progress persistence between runs (GDD "Метапрогрессия": опыт и валюта сохраняются после забега).
+var accountStore = new AccountProgressStore();
+Require(!accountStore.HasSavedProgress, "a new account store has no saved progress");
+Require(accountStore.Load().AccountLevel == 1 && accountStore.Load().SoftCurrency == 0, "an empty account store loads a fresh starting account");
+Require(!accountStore.TryLoad(out var emptyLoaded) && emptyLoaded.AccountLevel == 1, "an empty account store reports no save and yields a starting account");
+var earnedAccount = startingAccount.WithGains(260, 35);
+accountStore.Save(earnedAccount);
+Require(accountStore.HasSavedProgress, "saving account progress marks the store as populated");
+Require(accountStore.TryLoad(out var reloadedAccount), "a populated account store reports a save");
+Require(reloadedAccount.AccountLevel == earnedAccount.AccountLevel
+    && reloadedAccount.AccountXp == earnedAccount.AccountXp
+    && reloadedAccount.SoftCurrency == earnedAccount.SoftCurrency, "account progress survives a save/load round-trip");
+Require(reloadedAccount.UnlockedCommanders == earnedAccount.UnlockedCommanders
+    && reloadedAccount.UnlockedHeroes == earnedAccount.UnlockedHeroes, "account roster unlocks survive a save/load round-trip");
+var capturedSnapshot = AccountProgressSnapshot.Capture(earnedAccount);
+Require(capturedSnapshot.Version == AccountProgressSnapshot.CurrentVersion, "an account snapshot stamps the current version");
+Require(capturedSnapshot.Restore().SoftCurrency == earnedAccount.SoftCurrency, "an account snapshot restores its captured currency");
+RequireThrows(() => AccountProgressSnapshot.Capture(null!), "capturing an account snapshot rejects a null account");
+RequireThrows(() => (capturedSnapshot with { Version = AccountProgressSnapshot.CurrentVersion + 1 }).Restore(), "restoring rejects an unsupported snapshot version");
+accountStore.Clear();
+Require(!accountStore.HasSavedProgress && accountStore.Load().SoftCurrency == 0, "clearing the account store drops the save");
+
 // Run summary reward/unlock preview (GDD UI screen "Итог забега": опыт, валюта, разблокировки).
 Require(victorySummary.Rewards is null, "the run summary without an account omits the reward preview");
 var summaryWithRewards = RunSummaryModel.Build(finalReward, startingAccount);
