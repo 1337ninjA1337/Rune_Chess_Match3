@@ -19,10 +19,12 @@ namespace RuneChess.Core
         RunPhase Phase,
         string NextEnemyId,
         CombatProgressSnapshot? Combat,
-        string? DefeatReason
+        string? DefeatReason,
+        string PendingFactionBoostId,
+        bool RoundEventResolved
     )
     {
-        public const int CurrentVersion = 9;
+        public const int CurrentVersion = 10;
 
         public static RunProgressSnapshot Capture(RunState state)
         {
@@ -41,7 +43,9 @@ namespace RuneChess.Core
                 Phase: state.Phase,
                 NextEnemyId: state.NextEnemyId,
                 Combat: state.Combat is null ? null : CombatProgressSnapshot.Capture(state.Combat),
-                DefeatReason: state.DefeatReason
+                DefeatReason: state.DefeatReason,
+                PendingFactionBoostId: state.PendingFactionBoostId,
+                RoundEventResolved: state.RoundEventResolved
             );
         }
 
@@ -72,7 +76,9 @@ namespace RuneChess.Core
                 Phase: Phase,
                 NextEnemyId: NextEnemyId,
                 Combat: combat,
-                DefeatReason: DefeatReason
+                DefeatReason: DefeatReason,
+                PendingFactionBoostId: PendingFactionBoostId ?? string.Empty,
+                RoundEventResolved: RoundEventResolved
             );
         }
 

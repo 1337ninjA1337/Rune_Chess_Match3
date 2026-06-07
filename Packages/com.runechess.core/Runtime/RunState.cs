@@ -58,6 +58,12 @@ namespace RuneChess.Core
             ? FactionBoost.None
             : new FactionBoost(PendingFactionBoostId, EventCatalog.FactionBoostStatMultiplier);
 
+        /// <summary>True when a faction is empowered for the next battle by a resolved event.</summary>
+        public bool HasPendingFactionBoost => !string.IsNullOrEmpty(PendingFactionBoostId);
+
+        /// <summary>True when the current round is a roguelite event round.</summary>
+        public bool IsEventRound => CurrentRoundDefinition.Type == PveRoundType.Event;
+
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
         public bool IsRunWon => Phase == RunPhase.Victory;
         public bool IsRunLost => Phase == RunPhase.Defeat;
