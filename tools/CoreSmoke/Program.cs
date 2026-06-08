@@ -2954,6 +2954,44 @@ Require(synergyRunPanel.HasActiveSynergies, "the synergy panel builds from a run
 RequireThrows(() => SynergyPanelModel.Build((RunState)null!), "the synergy panel rejects a null run");
 RequireThrows(() => SynergyPanelModel.Build((IReadOnlyList<BoardHero>)null!), "the synergy panel rejects a null team");
 
+// Balance goals (GDD "Баланс целей MVP"). The goals are explicit, validated data and the
+// shipped economy/combat configuration must provably reach each of them.
+Require(BalanceTargets.HeroesOwnedByRound3.Contains(3) && BalanceTargets.HeroesOwnedByRound3.Contains(4), "the round-3 ownership goal is the 3-4 hero band");
+Require(!BalanceTargets.HeroesOwnedByRound3.Contains(2) && !BalanceTargets.HeroesOwnedByRound3.Contains(5), "the round-3 ownership band excludes values outside 3-4");
+Require(BalanceTargets.ActiveSynergiesByRound8.Min == 1 && BalanceTargets.ActiveSynergiesByRound8.Max == 2, "the round-8 synergy goal is 1-2 active synergies");
+Require(BalanceTargets.HeroesFieldedByFinal.Min == 5 && BalanceTargets.HeroesFieldedByFinal.Max == 6, "the final goal fields 5-6 heroes");
+Require(BalanceTargets.Match3MovesPerBattle.Min == 4 && BalanceTargets.Match3MovesPerBattle.Max == 8, "the match-3 cadence goal is 4-8 moves per battle");
+Require(BalanceTargets.FirstTwoStarMilestoneRound == 5, "the first 2-star hero is expected by round 5");
+RequireThrows(() => new BalanceRange(5, 4), "a balance range rejects a minimum above its maximum");
+RequireThrows(() => BalanceTargets.ExpectedMatch3MovesInBattle(0.0), "expected move count rejects a non-positive battle duration");
+
+// Battle duration goal (45-75s): the default autobattle length must sit inside the band.
+Require(BalanceTargets.BattleDurationSeconds.Contains(BattleState.DefaultDurationSeconds), "the default battle duration sits inside the 45-75s goal");
+Require(BalanceTargets.BattleDurationSeconds.Contains(60.0) && !BalanceTargets.BattleDurationSeconds.Contains(40.0) && !BalanceTargets.BattleDurationSeconds.Contains(80.0), "the duration band accepts 60s and rejects out-of-band lengths");
+
+// Match-3 cadence goal (4-8 moves): the modeled swap cadence keeps every legal battle length on target.
+Require(BalanceTargets.Match3MovesPerBattle.Contains(BalanceTargets.ExpectedMatch3MovesInBattle(BattleState.DefaultDurationSeconds)), "the default battle yields a match-3 move count inside the 4-8 goal");
+Require(BalanceTargets.Match3MovesPerBattle.Contains(BalanceTargets.ExpectedMatch3MovesInBattle(BalanceTargets.BattleDurationSeconds.Min)), "the shortest legal battle still yields at least 4 match-3 moves");
+Require(BalanceTargets.Match3MovesPerBattle.Contains(BalanceTargets.ExpectedMatch3MovesInBattle(BalanceTargets.BattleDurationSeconds.Max)), "the longest legal battle yields at most 8 match-3 moves");
+
+// Economy feasibility: an always-winning player's gold by each milestone round covers a concrete plan to hit the goal.
+var cumulativeGold = BalanceProjection.CumulativeGoldByRound();
+Require(cumulativeGold.Count == PveRunSchedule.FinalRound, "the gold projection covers every MVP round");
+for (var i = 1; i < cumulativeGold.Count; i += 1)
+{
+    Require(cumulativeGold[i] >= cumulativeGold[i - 1], "cumulative run gold never decreases round over round");
+}
+Require(BalanceProjection.GoldAvailableByRound(1) == EconomyConfig.Default.StartingGold + PveRunSchedule.GetRound(1).BaseGoldReward, "round-1 gold is the starting gold plus the round-1 payout");
+Require(BalanceProjection.RequiredLevelToField(5) == 4 && BalanceProjection.RequiredLevelToField(6) == 5, "fielding 5 heroes needs level 4 and 6 heroes needs level 5");
+Require(BalanceProjection.GoldToReachLevel(5) == 16, "reaching level 5 costs sixteen gold of experience at the default economy");
+Require(BalanceProjection.AllMilestonesReachable(), "the shipped economy lets an on-track player reach every GDD balance milestone");
+var balanceMilestones = BalanceProjection.Milestones();
+Require(balanceMilestones.Count == 4, "the projection reports the four economy-grounded GDD milestones");
+Require(balanceMilestones.All(milestone => milestone.GoldMargin > 0), "every balance milestone clears its required gold with spare margin for rerolls and imperfect play");
+// A deliberately starved economy must fail the check, proving the guard has teeth.
+var starvedEconomy = EconomyConfig.Default with { StartingGold = 0, PlayerLevelXpThresholds = Array.AsReadOnly(new[] { 0, 40, 80, 120, 160 }) };
+Require(!BalanceProjection.AllMilestonesReachable(starvedEconomy), "a starved economy fails the balance-milestone feasibility check");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
