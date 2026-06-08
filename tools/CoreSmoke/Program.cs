@@ -3053,6 +3053,36 @@ RequireThrows(() => DesignPillarProjection.CompositionOutput(0, 60.0), "composit
 RequireThrows(() => DesignPillarProjection.Match3Output(-1), "match-3 output rejects a negative move budget");
 RequireThrows(() => DesignPillarTargets.LeverFor((RuneEffectKind)999), "the lever map rejects an unknown rune effect kind");
 
+// Battle readability (GDD/codex: "не перегружай экран одновременными эффектами"; highlight key events).
+var readThreeCells = new[] { new BoardPoint(0, 0), new BoardPoint(0, 1), new BoardPoint(0, 2) };
+var readFourCells = new[] { new BoardPoint(0, 0), new BoardPoint(0, 1), new BoardPoint(0, 2), new BoardPoint(0, 3) };
+var readTCells = new[] { new BoardPoint(0, 0), new BoardPoint(0, 1), new BoardPoint(0, 2), new BoardPoint(1, 1), new BoardPoint(2, 1) };
+var minorEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Green, readThreeCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1);
+var damageEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Red, readThreeCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1);
+var match4Effect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Blue, readFourCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1);
+var massEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.White, readTCells, IsTOrLShaped: true, ContainsGreatRune: false), chainNumber: 1);
+var greatRuneEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Purple, readThreeCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1, greatRuneActivated: true);
+// Salience tiers: support match-3 is minor, damage/enhanced is major, great-rune/mass is critical.
+Require(BattleReadabilityModel.SalienceOf(minorEffect) == BattleEventSalience.Minor, "a base support match-3 is a minor readability event");
+Require(BattleReadabilityModel.SalienceOf(damageEffect) == BattleEventSalience.Major, "a damage match is a major readability event");
+Require(BattleReadabilityModel.SalienceOf(match4Effect) == BattleEventSalience.Major, "an enhanced match-4 is a major readability event");
+Require(BattleReadabilityModel.SalienceOf(massEffect) == BattleEventSalience.Critical, "a T/L mass effect is a critical readability event");
+Require(BattleReadabilityModel.SalienceOf(greatRuneEffect) == BattleEventSalience.Critical, "a great-rune activation is a critical readability event");
+// Large-combo slowdown trigger mirrors CombatState's match-4+/chain threshold.
+Require(BattleReadabilityModel.IsLargeComboEvent(match4Effect), "a match-4 is a large-combo slowdown event");
+Require(!BattleReadabilityModel.IsLargeComboEvent(minorEffect), "a base match-3 is not a large-combo slowdown event");
+// Effect cap: surfacing several effects keeps only the most important MaxSimultaneousEffects.
+var allReadEffects = new List<RuneEffect> { minorEffect, damageEffect, match4Effect, massEffect, greatRuneEffect };
+var visibleEffects = BattleReadabilityModel.SelectVisibleEffects(allReadEffects);
+Require(visibleEffects.Count == BattleReadabilityModel.MaxSimultaneousEffects, "the readability cap limits simultaneous on-screen effects");
+Require(visibleEffects.Contains(massEffect) && visibleEffects.Contains(greatRuneEffect), "the most fight-swinging effects always win the on-screen budget");
+Require(!visibleEffects.Contains(minorEffect), "a minor support effect is dropped when the screen is crowded");
+Require(BattleReadabilityModel.RespectsAttentionBudget(visibleEffects), "the selected effects respect the attention budget");
+Require(!BattleReadabilityModel.RespectsAttentionBudget(allReadEffects), "showing every effect at once overloads the attention budget");
+Require(BattleReadabilityModel.SelectVisibleEffects(allReadEffects, cap: 0).Count == 0, "a zero cap surfaces no effects");
+RequireThrows(() => BattleReadabilityModel.SelectVisibleEffects(allReadEffects, cap: -1), "the effect selector rejects a negative cap");
+RequireThrows(() => BattleReadabilityModel.SalienceOf((RuneEffect)null!), "salience scoring rejects a null effect");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
