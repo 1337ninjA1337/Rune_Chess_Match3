@@ -14,7 +14,7 @@ namespace RuneChess.Presentation
         private const string RuntimeCanvasName = "RuneChessRuntimeCanvas";
         private const float ContentWidth = 390f;
         private const float ContentHeight = 844f;
-        private const float RuneTileSize = 34f;
+        private const float RuneTileSize = 46f;
         private const float RuneTileSpacing = 3f;
         private const float SwapAnimationSeconds = 0.16f;
         private const float MatchFadeSeconds = 0.12f;
@@ -189,7 +189,10 @@ namespace RuneChess.Presentation
             stack.childForceExpandHeight = false;
 
             contentRoot = content.transform;
-            AddMainMenu(contentRoot);
+
+            // Open straight onto the play screen (board + one enemy), the useful game screen the
+            // codex UI rules call for. The main menu stays reachable from the screen footer.
+            ShowCombatScreen();
         }
 
         private void AddMainMenu(Transform parent)
@@ -1266,19 +1269,19 @@ namespace RuneChess.Presentation
                 return;
             }
 
+            // Minimal play screen (per direct user request): just the match-3 field and a single
+            // enemy on top. Tactical field, bench, shop, status rows and rune legend are kept in
+            // code but off this screen so the core match-3 stays the focus.
             SetNavigationForScreen(AppScreen.Combat);
             ClearChildren(contentRoot);
             ResetMatch3Board();
-            AddHeader(contentRoot);
             AddEnemyStagePanel(contentRoot);
             AddRunePanel(contentRoot);
-            AddRuneEffectStrip(contentRoot);
-            AddCombatStatusRow(contentRoot);
             AddScreenNavigationRow(
                 contentRoot,
-                "Подготовка",
-                "BACK",
-                ShowPreparationScreen,
+                "Меню",
+                "MENU",
+                ShowMainMenu,
                 "Завершить",
                 "REWARD",
                 ShowRewardScreen);
@@ -1817,7 +1820,7 @@ namespace RuneChess.Presentation
             var card = LevelSelectModel.Build(runState)[runState.Round - 1];
 
             var panel = CreatePanel("Enemy Stage Panel", parent, GameColors.PanelDeep);
-            AddLayoutElement(panel, 220);
+            AddLayoutElement(panel, 250);
             AddOutline(panel, GameColors.WithAlpha(GameColors.Health, 0.7f));
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
@@ -1842,7 +1845,7 @@ namespace RuneChess.Presentation
         private void AddEnemyCharacterPrimitive(Transform parent, string enemyName)
         {
             var stage = CreatePanel("Enemy Character Stage", parent, GameColors.WithAlpha(GameColors.Health, 0.10f));
-            AddLayoutElement(stage, 122);
+            AddLayoutElement(stage, 152);
             AddOutline(stage, GameColors.WithAlpha(GameColors.Border, 0.5f));
 
             var character = CreatePanel("Enemy Character", stage.transform, GameColors.EnemyCellOccupied);
@@ -1851,7 +1854,7 @@ namespace RuneChess.Presentation
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(96, 102);
+            rect.sizeDelta = new Vector2(124, 132);
             rect.anchoredPosition = Vector2.zero;
 
             CreateOverlayText(HeroShortName(enemyName), character.transform, 30, GameColors.Text, TextAnchor.MiddleCenter);
@@ -1979,7 +1982,7 @@ namespace RuneChess.Presentation
         private void AddRunePanel(Transform parent)
         {
             var panel = CreatePanel("Rune Panel", parent, GameColors.Panel);
-            AddLayoutElement(panel, 326);
+            AddLayoutElement(panel, 388);
             AddOutline(panel, GameColors.Border);
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
@@ -2018,7 +2021,7 @@ namespace RuneChess.Presentation
             var gridRoot = CreatePanel("Rune Grid", parent, Color.clear);
             runeGridRoot = gridRoot.transform;
             gridRoot.GetComponent<Image>().raycastTarget = false;
-            AddLayoutElement(gridRoot, 270);
+            AddLayoutElement(gridRoot, 346);
 
             RebuildRuneGrid();
         }
