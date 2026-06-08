@@ -1270,9 +1270,10 @@ namespace RuneChess.Presentation
             ClearChildren(contentRoot);
             ResetMatch3Board();
             AddHeader(contentRoot);
-            AddBattlePanel(contentRoot);
+            AddEnemyStagePanel(contentRoot);
             AddRunePanel(contentRoot);
             AddRuneEffectStrip(contentRoot);
+            AddCombatStatusRow(contentRoot);
             AddScreenNavigationRow(
                 contentRoot,
                 "Подготовка",
@@ -1805,26 +1806,106 @@ namespace RuneChess.Presentation
             CreateStat(stats.transform, "LV", runState.PlayerLevel.ToString(), GameColors.Mana);
         }
 
-        private void AddBattlePanel(Transform parent)
+        /// <summary>
+        /// The enemy stage at the top of the battle screen (portrait hero-match-3 layout): the
+        /// stage label, the enemy's name, a large primitive "character" block standing in for the
+        /// boss art, and the enemy health bar. Uses primitive shapes only — placeholder visuals
+        /// the art pass can replace later without changing the layout.
+        /// </summary>
+        private void AddEnemyStagePanel(Transform parent)
         {
-            var panel = CreatePanel("Battle Panel", parent, GameColors.PanelDeep);
-            AddLayoutElement(panel, 272);
-            AddOutline(panel, GameColors.Border);
+            var card = LevelSelectModel.Build(runState)[runState.Round - 1];
+
+            var panel = CreatePanel("Enemy Stage Panel", parent, GameColors.PanelDeep);
+            AddLayoutElement(panel, 220);
+            AddOutline(panel, GameColors.WithAlpha(GameColors.Health, 0.7f));
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
-            stack.padding = new RectOffset(8, 8, 7, 7);
-            stack.spacing = 6;
+            stack.padding = new RectOffset(10, 10, 8, 8);
+            stack.spacing = 5;
             stack.childAlignment = TextAnchor.UpperCenter;
             stack.childControlWidth = true;
             stack.childForceExpandWidth = true;
             stack.childForceExpandHeight = false;
 
+            CreateText($"STAGE {runState.Round}  ·  {GetDifficultyLabel(card.DifficultyTier)}", panel.transform, 11, GameColors.Muted, TextAnchor.MiddleCenter);
+            CreateText(card.EnemyName.ToUpperInvariant(), panel.transform, 20, GameColors.Text, TextAnchor.MiddleCenter);
+            AddEnemyCharacterPrimitive(panel.transform, card.EnemyName);
+            AddEnemyHealthBar(panel.transform);
+        }
+
+        /// <summary>
+        /// The enemy "character" rendered as a primitive block centred on a stage backdrop. A
+        /// colored square placeholder until real art exists; the short enemy name is overlaid so
+        /// the player can tell who they are fighting.
+        /// </summary>
+        private void AddEnemyCharacterPrimitive(Transform parent, string enemyName)
+        {
+            var stage = CreatePanel("Enemy Character Stage", parent, GameColors.WithAlpha(GameColors.Health, 0.10f));
+            AddLayoutElement(stage, 122);
+            AddOutline(stage, GameColors.WithAlpha(GameColors.Border, 0.5f));
+
+            var character = CreatePanel("Enemy Character", stage.transform, GameColors.EnemyCellOccupied);
+            AddOutline(character, GameColors.Health);
+            var rect = character.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(96, 102);
+            rect.anchoredPosition = Vector2.zero;
+
+            CreateOverlayText(HeroShortName(enemyName), character.transform, 30, GameColors.Text, TextAnchor.MiddleCenter);
+        }
+
+        /// <summary>The enemy health bar under the character; full at the start of the encounter.</summary>
+        private void AddEnemyHealthBar(Transform parent)
+        {
+            var fraction = EnemyHealthFraction();
+
+            var track = CreatePanel("Enemy HP Track", parent, GameColors.BarTrack);
+            AddLayoutElement(track, 20);
+            AddOutline(track, GameColors.WithAlpha(GameColors.Health, 0.6f));
+
+            var fill = CreatePanel("Enemy HP Fill", track.transform, GameColors.Health);
+            var rect = fill.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = new Vector2(Mathf.Clamp01(fraction), 1f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            CreateOverlayText($"{Mathf.RoundToInt(fraction * 100f)} / 100", track.transform, 10, GameColors.Text, TextAnchor.MiddleCenter);
+        }
+
+        /// <summary>
+        /// The enemy's remaining health as a 0..1 fraction. The match-3 fight replays into the
+        /// round autobattle on resolution, so the visible enemy starts each encounter at full
+        /// health here; this is the single place to wire live enemy damage when it lands.
+        /// </summary>
+        private float EnemyHealthFraction() => 1f;
+
+        /// <summary>
+        /// The compact auto-battler readout under the board (GDD "нижняя панель"): the battle timer,
+        /// match cadence and power pills, plus the key ally/enemy unit cards so the squad fight stays
+        /// legible while the player works the match-3 board above.
+        /// </summary>
+        private void AddCombatStatusRow(Transform parent)
+        {
             var combat = runState.Combat ?? CombatState.Start(runeSeed);
             var hud = CombatHudModel.Build(combat, BuildKeyHudUnits());
 
-            AddPanelHeader(panel.transform, "TACTICAL FIELD", $"SPEED {hud.SpeedLabel}");
+            var panel = CreatePanel("Combat Status Panel", parent, GameColors.PanelDeep);
+            AddLayoutElement(panel, 98);
+            AddOutline(panel, GameColors.Border);
+
+            var stack = panel.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(8, 8, 6, 6);
+            stack.spacing = 5;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
             AddBattleTimerRow(panel.transform, hud);
-            AddTacticalGrid(panel.transform);
             AddBattleKeyUnitsRow(panel.transform, hud);
         }
 
@@ -1893,37 +1974,6 @@ namespace RuneChess.Presentation
             var keyUnits = new List<CombatHudUnit>(allies);
             keyUnits.AddRange(enemies);
             return keyUnits;
-        }
-
-        private void AddTacticalGrid(Transform parent)
-        {
-            var gridRoot = CreatePanel("Tactical Grid", parent, Color.clear);
-            AddLayoutElement(gridRoot, 150);
-
-            var grid = gridRoot.AddComponent<GridLayoutGroup>();
-            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            grid.constraintCount = TacticalField.Mvp.Columns;
-            grid.spacing = new Vector2(3, 3);
-            grid.cellSize = new Vector2(57, 36);
-            grid.childAlignment = TextAnchor.MiddleCenter;
-
-            for (var row = 0; row < TacticalField.Mvp.Rows; row += 1)
-            {
-                for (var column = 0; column < TacticalField.Mvp.Columns; column += 1)
-                {
-                    var position = new TacticalPosition(row, column);
-                    var state = GetDemoCellState(position);
-                    var cell = CreatePanel($"Cell {row}:{column}", gridRoot.transform, GameColors.TacticalCellColor(state));
-                    AddOutline(cell, GameColors.WithAlpha(GameColors.Border, 0.45f));
-                    AddCellLaneMarker(cell.transform, position);
-
-                    UnitVisual unit;
-                    if (TryGetUnitAt(row, column, out unit))
-                    {
-                        AddUnitToken(cell.transform, unit);
-                    }
-                }
-            }
         }
 
         private void AddRunePanel(Transform parent)
@@ -2974,17 +3024,6 @@ namespace RuneChess.Presentation
             rect.offsetMax = Vector2.zero;
         }
 
-        private void AddUnitToken(Transform parent, UnitVisual unit)
-        {
-            var token = CreatePanel($"Unit {unit.ShortName}", parent, unit.Tint);
-            SetAnchoredFill(token, 0.10f, 0.10f, 0.10f, 0.10f);
-            AddOutline(token, unit.IsPlayer ? GameColors.Heal : GameColors.Health);
-
-            CreateOverlayText(unit.ShortName, token.transform, 14, GameColors.Text, TextAnchor.MiddleCenter);
-            AddOverlayBar(token.transform, "HP", GameColors.Health, unit.Health, 0.05f, 0.12f);
-            AddOverlayBar(token.transform, "MP", GameColors.Mana, unit.Mana, 0.84f, 0.91f);
-        }
-
         private void CreateHeroCard(Transform parent, UnitVisual hero, bool showCost)
         {
             var card = CreatePanel($"Hero {hero.Name}", parent, GameColors.PanelRaised);
@@ -3058,33 +3097,6 @@ namespace RuneChess.Presentation
             }
 
             CreateOverlayText(label, buttonObject.transform, 11, label == "FIGHT" ? GameColors.Background : GameColors.Text, TextAnchor.MiddleCenter);
-        }
-
-        private TacticalCellState GetDemoCellState(TacticalPosition position)
-        {
-            UnitVisual unit;
-            if (TryGetUnitAt(position.Row, position.Column, out unit))
-            {
-                return unit.IsPlayer ? TacticalCellState.OccupiedAlly : TacticalCellState.OccupiedEnemy;
-            }
-
-            return position.IsPlayerSide ? TacticalCellState.AvailableForPlacement : TacticalCellState.Unavailable;
-        }
-
-        private bool TryGetUnitAt(int row, int column, out UnitVisual unit)
-        {
-            for (var index = 0; index < Units.Length; index += 1)
-            {
-                var candidate = Units[index];
-                if (candidate.Row == row && candidate.Column == column)
-                {
-                    unit = candidate;
-                    return true;
-                }
-            }
-
-            unit = null;
-            return false;
         }
 
         private Canvas CreateCanvas()
