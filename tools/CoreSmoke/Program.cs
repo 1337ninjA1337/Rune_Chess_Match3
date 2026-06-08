@@ -3025,6 +3025,64 @@ Require(balanceMilestones.All(milestone => milestone.GoldMargin > 0), "every bal
 var starvedEconomy = EconomyConfig.Default with { StartingGold = 0, PlayerLevelXpThresholds = Array.AsReadOnly(new[] { 0, 40, 80, 120, 160 }) };
 Require(!BalanceProjection.AllMilestonesReachable(starvedEconomy), "a starved economy fails the balance-milestone feasibility check");
 
+// Core-loop design pillars (GDD "Цель MVP" / codex "Продуктовые правила"): team composition stays
+// the main strategic decision, while match-3 is a meaningful-but-secondary tempo/abilities/clutch layer.
+Require(DesignPillarTargets.Match3OutputShareCeiling == 1.0 - DesignPillarTargets.CompositionDominanceFloor, "the match-3 output ceiling is the complement of the composition dominance floor");
+Require(DesignPillarTargets.Match3Levers.Count == 3, "the design model names the three GDD match-3 levers");
+Require(DesignPillarTargets.LeverFor(RuneEffectKind.Mana) == Match3Lever.Abilities, "blue-rune mana serves the abilities lever");
+Require(DesignPillarTargets.LeverFor(RuneEffectKind.PhysicalDamage) == Match3Lever.Tempo && DesignPillarTargets.LeverFor(RuneEffectKind.MagicDamage) == Match3Lever.Tempo, "rune damage serves the tempo lever");
+Require(DesignPillarTargets.LeverFor(RuneEffectKind.CommanderEnergy) == Match3Lever.Clutch && DesignPillarTargets.LeverFor(RuneEffectKind.Healing) == Match3Lever.Clutch && DesignPillarTargets.LeverFor(RuneEffectKind.Shield) == Match3Lever.Clutch, "energy, healing and shields serve the clutch lever");
+
+// Pillar 1 (333) + Pillar 3 (335): composition dominates combat output; match-3 stays a minority.
+var pillarShare = DesignPillarProjection.RepresentativeMatch3OutputShare();
+Require(pillarShare > 0.0 && pillarShare < DesignPillarTargets.CompositionDominanceFloor, "the representative match-3 output share is positive but well under the composition share");
+Require(DesignPillarProjection.CompositionRemainsPrimary(), "team composition keeps the dominant share of player combat output (composition stays the main decision)");
+Require(DesignPillarProjection.Match3StaysMinority(), "match-3 stays at or below its output-share ceiling (it does not suppress the auto battler)");
+// Pillar 4 (336): the auto battler does not make match-3 pointless — match-3 still contributes output.
+Require(DesignPillarProjection.Match3Contributes(), "match-3 contributes a strictly positive share of combat output (the auto battler does not make it meaningless)");
+// Pillar 2 (334): match-3 genuinely influences tempo, abilities and clutch, grounded in the rune resolver.
+Require(DesignPillarProjection.Match3CoversAllLevers(), "the shipped rune colours cover all three design levers (tempo, abilities, clutch)");
+Require(DesignPillarProjection.Match3ChargesAbilityWithinBattle(), "a single in-budget match-4 charges a hero ability");
+Require(DesignPillarProjection.Match3DeliversClutchWithinBattle(), "a single in-budget T/L combo delivers commander energy as a clutch lever");
+Require(DesignPillarProjection.AllPillarsHold(), "every core-loop design pillar holds for the shipped configuration");
+// Guards with teeth: if match-3 output ballooned past composition, the dominance pillar must fail.
+var inflatedShare = DesignPillarProjection.Match3OutputShare(1, 100_000, BattleState.DefaultDurationSeconds);
+Require(inflatedShare > DesignPillarTargets.Match3OutputShareCeiling, "an inflated match-3 output share trips the dominance guard");
+Require(DesignPillarProjection.CoveredLevers().Count == 3, "the rune colours resolve to exactly the three design levers");
+RequireThrows(() => DesignPillarProjection.CompositionOutput(0, 60.0), "composition output rejects an empty field");
+RequireThrows(() => DesignPillarProjection.Match3Output(-1), "match-3 output rejects a negative move budget");
+RequireThrows(() => DesignPillarTargets.LeverFor((RuneEffectKind)999), "the lever map rejects an unknown rune effect kind");
+
+// Battle readability (GDD/codex: "не перегружай экран одновременными эффектами"; highlight key events).
+var readThreeCells = new[] { new BoardPoint(0, 0), new BoardPoint(0, 1), new BoardPoint(0, 2) };
+var readFourCells = new[] { new BoardPoint(0, 0), new BoardPoint(0, 1), new BoardPoint(0, 2), new BoardPoint(0, 3) };
+var readTCells = new[] { new BoardPoint(0, 0), new BoardPoint(0, 1), new BoardPoint(0, 2), new BoardPoint(1, 1), new BoardPoint(2, 1) };
+var minorEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Green, readThreeCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1);
+var damageEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Red, readThreeCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1);
+var match4Effect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Blue, readFourCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1);
+var massEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.White, readTCells, IsTOrLShaped: true, ContainsGreatRune: false), chainNumber: 1);
+var greatRuneEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Purple, readThreeCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1, greatRuneActivated: true);
+// Salience tiers: support match-3 is minor, damage/enhanced is major, great-rune/mass is critical.
+Require(BattleReadabilityModel.SalienceOf(minorEffect) == BattleEventSalience.Minor, "a base support match-3 is a minor readability event");
+Require(BattleReadabilityModel.SalienceOf(damageEffect) == BattleEventSalience.Major, "a damage match is a major readability event");
+Require(BattleReadabilityModel.SalienceOf(match4Effect) == BattleEventSalience.Major, "an enhanced match-4 is a major readability event");
+Require(BattleReadabilityModel.SalienceOf(massEffect) == BattleEventSalience.Critical, "a T/L mass effect is a critical readability event");
+Require(BattleReadabilityModel.SalienceOf(greatRuneEffect) == BattleEventSalience.Critical, "a great-rune activation is a critical readability event");
+// Large-combo slowdown trigger mirrors CombatState's match-4+/chain threshold.
+Require(BattleReadabilityModel.IsLargeComboEvent(match4Effect), "a match-4 is a large-combo slowdown event");
+Require(!BattleReadabilityModel.IsLargeComboEvent(minorEffect), "a base match-3 is not a large-combo slowdown event");
+// Effect cap: surfacing several effects keeps only the most important MaxSimultaneousEffects.
+var allReadEffects = new List<RuneEffect> { minorEffect, damageEffect, match4Effect, massEffect, greatRuneEffect };
+var visibleEffects = BattleReadabilityModel.SelectVisibleEffects(allReadEffects);
+Require(visibleEffects.Count == BattleReadabilityModel.MaxSimultaneousEffects, "the readability cap limits simultaneous on-screen effects");
+Require(visibleEffects.Contains(massEffect) && visibleEffects.Contains(greatRuneEffect), "the most fight-swinging effects always win the on-screen budget");
+Require(!visibleEffects.Contains(minorEffect), "a minor support effect is dropped when the screen is crowded");
+Require(BattleReadabilityModel.RespectsAttentionBudget(visibleEffects), "the selected effects respect the attention budget");
+Require(!BattleReadabilityModel.RespectsAttentionBudget(allReadEffects), "showing every effect at once overloads the attention budget");
+Require(BattleReadabilityModel.SelectVisibleEffects(allReadEffects, cap: 0).Count == 0, "a zero cap surfaces no effects");
+RequireThrows(() => BattleReadabilityModel.SelectVisibleEffects(allReadEffects, cap: -1), "the effect selector rejects a negative cap");
+RequireThrows(() => BattleReadabilityModel.SalienceOf((RuneEffect)null!), "salience scoring rejects a null effect");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
