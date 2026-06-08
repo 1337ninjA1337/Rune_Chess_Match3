@@ -6,16 +6,18 @@ namespace RuneChess.Core
 {
     /// <summary>
     /// One step of the first-run onboarding: the round it fires on, the single mechanic that
-    /// round reveals, the round's GDD design goal, and the short interactive hint the tutorial
-    /// layer shows. Pure data so the progressive reveal is authored in one place and the Unity
-    /// presentation only has to render and gate it.
+    /// round reveals, the round's GDD design goal, the short interactive hint the tutorial layer
+    /// shows, and the <see cref="OnboardingGate"/> the player must actually perform to clear the
+    /// step. Pure data so the progressive reveal is authored in one place and the Unity
+    /// presentation only has to render the prompt and report when the gated action happened.
     /// </summary>
     public sealed record OnboardingStep(
         int Round,
         OnboardingMechanic Mechanic,
         string Title,
         string Hint,
-        string DesignGoal);
+        string DesignGoal,
+        OnboardingGate Gate);
 
     /// <summary>
     /// The first-run onboarding script (GDD "Обучение и onboarding"): a deterministic,
@@ -23,8 +25,12 @@ namespace RuneChess.Core
     /// so the player learns buying/placement, runes, positioning, risk/reward, shields/healing,
     /// backline threats and magic damage in turn. Each step's <see cref="OnboardingStep.DesignGoal"/>
     /// mirrors the matching <see cref="PveRoundDefinition.DesignGoal"/>, keeping the teaching
-    /// schedule in sync with the round table. The interactive presentation of these hints is the
-    /// Unity tutorial layer's job; this type is the single source of truth it drives.
+    /// schedule in sync with the round table. Each step also carries the <see cref="OnboardingGate"/>
+    /// the player must perform to clear it, so the tutorial advances by doing the mechanic
+    /// (GDD "обучение должно быть интерактивным, а не текстовым") rather than by reading. The
+    /// interactive presentation of these prompts is the Unity tutorial layer's job; this type is
+    /// the single source of truth it drives, and <see cref="OnboardingFlowModel"/> decides when a
+    /// prompt is satisfied.
     /// </summary>
     public static class OnboardingScript
     {
@@ -89,7 +95,15 @@ namespace RuneChess.Core
         public static IReadOnlyList<OnboardingMechanic> RevealedBy(int round) =>
             Steps.Where(step => step.Round <= round).Select(step => step.Mechanic).ToList();
 
+        /// <summary>The interactive gate the given round asks the player to perform, or <c>null</c> when the round teaches nothing new.</summary>
+        public static OnboardingGate? GateForRound(int round) =>
+            ForRound(round)?.Gate;
+
+        /// <summary>The interactive gates for every tutorial step, in reveal order.</summary>
+        public static IReadOnlyList<OnboardingGate> AllGates { get; } =
+            Array.AsReadOnly(Steps.Select(step => step.Gate).ToArray());
+
         private static OnboardingStep Step(int round, OnboardingMechanic mechanic, string title, string hint) =>
-            new(round, mechanic, title, hint, PveRunSchedule.GetRound(round).DesignGoal);
+            new(round, mechanic, title, hint, PveRunSchedule.GetRound(round).DesignGoal, OnboardingGates.ForMechanic(mechanic));
     }
 }

@@ -2913,6 +2913,39 @@ Require(OnboardingScript.RevealedBy(3).SequenceEqual(new[] { OnboardingMechanic.
 Require(OnboardingScript.ForRun(RunState.NewRun() with { Round = 2 })!.Mechanic == OnboardingMechanic.RedAndBlueRunes, "the onboarding step resolves from a run's current round");
 RequireThrows(() => OnboardingScript.ForRun(null!), "the onboarding script rejects a null run");
 
+// Interactive onboarding (GDD "Обучение должно быть интерактивным, а не текстовым"): each tutorial
+// step is cleared by performing its gate, not by reading text, and the flow model gates on the action.
+Require(OnboardingScript.AllGates.Count == 7, "every tutorial step carries an interactive gate");
+Require(OnboardingScript.AllGates.Distinct().Count() == 7, "each tutorial round has a distinct interactive gate");
+Require(OnboardingScript.GateForRound(1) == OnboardingGate.PlaceHeroOnField, "round 1 is cleared by placing a hero on the field");
+Require(OnboardingScript.GateForRound(2) == OnboardingGate.MatchRedAndBlueRunes, "round 2 is cleared by matching red and blue runes");
+Require(OnboardingScript.GateForRound(8) is null, "rounds past the tutorial carry no gate");
+Require(OnboardingScript.Steps.All(step => step.Gate == OnboardingGates.ForMechanic(step.Mechanic)), "each step's gate matches the action that completes its mechanic");
+Require(OnboardingGates.ParseId(OnboardingGates.GetId(OnboardingGate.ProtectBacklineHero)) == OnboardingGate.ProtectBacklineHero, "onboarding gate ids round-trip for persistence");
+Require(!OnboardingGates.TryParseId("not_a_gate", out _), "unknown onboarding gate ids are rejected");
+var freshOnboarding = OnboardingProgress.Empty;
+Require(freshOnboarding.CompletedCount == 0 && !freshOnboarding.IsTutorialComplete, "a fresh tutorial has cleared nothing");
+var round1Flow = OnboardingFlowModel.Build(1, freshOnboarding);
+Require(round1Flow.IsActive && round1Flow.RequiresPlayerAction && round1Flow.PendingGate == OnboardingGate.PlaceHeroOnField, "round 1 shows an active prompt waiting on the place-hero action");
+Require(round1Flow.Title == OnboardingScript.ForRound(1)!.Title && round1Flow.ActionPrompt == OnboardingScript.ForRound(1)!.Hint, "the flow surfaces the step title and interactive prompt");
+var afterPlace = freshOnboarding.CompleteRound(1);
+Require(afterPlace.IsCompleted(OnboardingGate.PlaceHeroOnField) && afterPlace.CompletedCount == 1, "performing the gated action clears the step");
+var round1Cleared = OnboardingFlowModel.Build(1, afterPlace);
+Require(!round1Cleared.IsActive && !round1Cleared.RequiresPlayerAction && round1Cleared.PendingGate is null, "a cleared step stops blocking once its action is done");
+Require(round1Cleared.IsTutorialRound, "a cleared tutorial round is still recognised as a tutorial round");
+Require(freshOnboarding.CompletedCount == 0, "completing a gate does not mutate the original progress value");
+Require(afterPlace.Complete(OnboardingGate.PlaceHeroOnField).Equals(afterPlace), "completing an already-cleared gate is idempotent");
+var roundtrippedProgress = OnboardingProgress.FromGateIds(afterPlace.CompletedGateIds);
+Require(roundtrippedProgress.Equals(afterPlace), "onboarding progress round-trips through its persisted gate ids");
+var fullyTaught = OnboardingScript.AllGates.Aggregate(OnboardingProgress.Empty, (progress, gate) => progress.Complete(gate));
+Require(fullyTaught.IsTutorialComplete && fullyTaught.CompletedCount == 7, "performing every gate completes the tutorial");
+var nonTutorialFlow = OnboardingFlowModel.Build(9, fullyTaught);
+Require(!nonTutorialFlow.IsActive && !nonTutorialFlow.IsTutorialRound && nonTutorialFlow.IsTutorialComplete, "rounds past the tutorial show no prompt and report completion");
+Require(OnboardingFlowModel.Build(RunState.NewRun() with { Round = 3 }, OnboardingProgress.Empty).PendingGate == OnboardingGate.PlaceTankInFrontline, "the flow resolves the pending gate from a run's current round");
+RequireThrows(() => freshOnboarding.CompleteRound(8), "a non-tutorial round cannot complete an onboarding gate");
+RequireThrows(() => OnboardingFlowModel.Build((RunState)null!, OnboardingProgress.Empty), "the onboarding flow rejects a null run");
+RequireThrows(() => OnboardingFlowModel.Build(1, null!), "the onboarding flow rejects null progress");
+
 // Synergy panel view-model (GDD UI screen "Панель синергий").
 var synergyTeam = new List<BoardHero>
 {
