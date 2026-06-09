@@ -3083,6 +3083,57 @@ Require(BattleReadabilityModel.SelectVisibleEffects(allReadEffects, cap: 0).Coun
 RequireThrows(() => BattleReadabilityModel.SelectVisibleEffects(allReadEffects, cap: -1), "the effect selector rejects a negative cap");
 RequireThrows(() => BattleReadabilityModel.SalienceOf((RuneEffect)null!), "salience scoring rejects a null effect");
 
+// Cross-zone attention (codex: "Сделать бой визуально читаемым при одновременном автобое и match-3").
+// Coordinating the auto battler and match-3 when both fire at once: focus, shared budget, dimming.
+var match3MinorCue = BattleCue.FromRuneEffect(minorEffect);
+var match3MajorCue = BattleCue.FromRuneEffect(damageEffect);
+var match3CriticalCue = BattleCue.FromRuneEffect(massEffect);
+// A deep-chain match-3 beat (chain 4): critical salience with real chain depth the clock slows for.
+var match3DeepComboCue = BattleCue.FromRuneEffect(Effect(RuneEffectKind.PhysicalDamage, power: 30.0, chainNumber: 4));
+var autoMinorCue = BattleCue.AutoBattle(BattleEventSalience.Minor, power: 5.0, label: "Удар героя");
+var autoMajorCue = BattleCue.AutoBattle(BattleEventSalience.Major, power: 20.0, label: "Способность героя");
+var autoCriticalCue = BattleCue.AutoBattle(BattleEventSalience.Critical, power: 40.0, label: "Гибель союзника");
+Require(match3MajorCue.IsMatch3 && !match3MajorCue.IsAutoBattle, "a rune-effect cue is tagged to the match-3 zone");
+Require(autoMajorCue.IsAutoBattle && !autoMajorCue.IsMatch3, "an auto-battle cue is tagged to the auto-battle zone");
+Require(BattleAttentionModel.PrimaryFocus(Array.Empty<BattleCue>()) is null, "no cues means no focus zone");
+// Ties between equally salient zones break toward the auto battler (composition is the primary loop).
+Require(
+    BattleAttentionModel.PrimaryFocus(new[] { autoMajorCue, match3MajorCue }) == BattleZone.AutoBattle,
+    "an equal-salience tie hands focus to the auto battler");
+// An escalating match-3 combo (the clock slows for it) claims focus over an equal-salience auto cue.
+Require(
+    BattleAttentionModel.PrimaryFocus(new[] { autoCriticalCue, match3DeepComboCue }) == BattleZone.Match3
+        && match3DeepComboCue.ChainDepth >= CombatState.LargeComboComboDepthThreshold,
+    "a deeper-chain match-3 combo claims focus over an equal-salience auto-battle cue");
+// A flat critical match-3 beat (no chain depth) still yields focus to the auto battler on a tie.
+Require(
+    BattleAttentionModel.PrimaryFocus(new[] { autoCriticalCue, match3CriticalCue }) == BattleZone.AutoBattle,
+    "a flat critical match-3 beat yields focus to the auto battler on an equal-depth tie");
+// The single most salient cue wins focus regardless of zone.
+Require(
+    BattleAttentionModel.PrimaryFocus(new[] { autoCriticalCue, match3MinorCue }) == BattleZone.AutoBattle,
+    "the most salient cue (an auto-battle critical) owns the focus");
+// Shared budget: cues from both zones are capped together, not per-zone.
+var crossZoneCues = new List<BattleCue>
+{
+    match3MinorCue, match3MajorCue, match3CriticalCue, autoMinorCue, autoMajorCue, autoCriticalCue
+};
+var visibleCues = BattleAttentionModel.SelectVisibleCues(crossZoneCues);
+Require(visibleCues.Count == BattleAttentionModel.MaxSimultaneousCues, "the shared budget caps cues across both zones together");
+Require(visibleCues.Contains(autoCriticalCue) && visibleCues.Contains(match3CriticalCue), "critical cues from both zones always survive the shared budget");
+Require(!visibleCues.Contains(autoMinorCue) && !visibleCues.Contains(match3MinorCue), "minor cues are dropped first when both zones are busy");
+Require(BattleAttentionModel.RespectsAttentionBudget(visibleCues), "the surfaced cross-zone cues respect the attention budget");
+Require(!BattleAttentionModel.RespectsAttentionBudget(crossZoneCues), "surfacing every cross-zone cue overloads the attention budget");
+// Dimming: a critical beat in the focus zone dims the other zone; an all-minor screen does not.
+Require(BattleAttentionModel.ShouldDimOffFocusZone(new[] { autoCriticalCue, match3MajorCue }), "a critical focus-zone beat dims the off-focus zone");
+Require(!BattleAttentionModel.ShouldDimOffFocusZone(new[] { autoMinorCue, match3MinorCue }), "two minor zones leave both fully visible");
+Require(!BattleAttentionModel.ShouldDimOffFocusZone(Array.Empty<BattleCue>()), "an empty screen dims nothing");
+Require(BattleAttentionModel.SelectVisibleCues(crossZoneCues, cap: 0).Count == 0, "a zero cross-zone cap surfaces no cues");
+RequireThrows(() => BattleAttentionModel.SelectVisibleCues(crossZoneCues, cap: -1), "the cross-zone selector rejects a negative cap");
+RequireThrows(() => BattleAttentionModel.PrimaryFocus(null!), "cross-zone focus rejects a null cue list");
+RequireThrows(() => BattleCue.FromRuneEffect(null!), "a match-3 cue rejects a null rune effect");
+RequireThrows(() => BattleCue.AutoBattle(BattleEventSalience.Major, power: -1.0, label: "bad"), "an auto-battle cue rejects negative power");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
