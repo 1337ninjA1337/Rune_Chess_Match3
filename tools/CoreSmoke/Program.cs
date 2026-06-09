@@ -3193,6 +3193,36 @@ Require(tutorialWalk.Select(step => step.CompletedStepsAfter).SequenceEqual(Enum
 Require(tutorialWalk.Select(step => step.Mechanic).SequenceEqual(OnboardingScript.Steps.Select(s => s.Mechanic)), "the scripted walkthrough reveals mechanics in GDD order");
 Require(tutorialWalk.Last().Round == OnboardingScript.LastTutorialRound, "the scripted onboarding finishes exactly at the last tutorial round");
 
+// MVP boss content (GDD "Контент MVP": "3 босса"). Three set-piece encounters anchored to the run.
+Require(BossCatalog.All.Count == 3, "the MVP ships exactly three bosses");
+Require(BossCatalog.All.Select(boss => boss.Id).Distinct().Count() == 3, "each boss has a distinct id");
+Require(BossCatalog.BossRounds.SequenceEqual(new[] { 5, 8, 10 }), "the bosses sit on the elite, boss and final rounds");
+// The catalog's boss rounds are exactly the schedule's boss-tier rounds — identity and rounds never drift.
+var scheduleBossRounds = PveRunSchedule.Rounds
+    .Where(round => BossCatalog.BossTiers.Contains(round.Type))
+    .Select(round => round.Round)
+    .ToList();
+Require(scheduleBossRounds.SequenceEqual(BossCatalog.BossRounds), "boss catalog rounds match the schedule's boss-tier rounds exactly");
+foreach (var boss in BossCatalog.All)
+{
+    var round = PveRunSchedule.GetRound(boss.Round);
+    Require(boss.Name == round.EnemyName, $"boss '{boss.Id}' name mirrors its round's enemy name");
+    Require(boss.Tier == round.Type, $"boss '{boss.Id}' tier matches its round type");
+    Require(boss.DesignGoal == round.DesignGoal, $"boss '{boss.Id}' mirrors its round's GDD design goal");
+    Require(!string.IsNullOrWhiteSpace(boss.Title) && !string.IsNullOrWhiteSpace(boss.SignatureMechanic), $"boss '{boss.Id}' has an identity and a signature mechanic");
+    Require(HeroCatalog.TryGet(boss.LeadUnitHeroId, out _), $"boss '{boss.Id}' lead unit is a real hero");
+    Require(round.EnemyUnits.Any(unit => unit.HeroId == boss.LeadUnitHeroId), $"boss '{boss.Id}' lead unit fights in its round composition");
+    Require(round.HasEnemyComposition, $"boss '{boss.Id}' round actually fields enemies");
+}
+Require(BossCatalog.IsBossRound(8) && !BossCatalog.IsBossRound(2), "boss-round lookup distinguishes boss rounds from regular rounds");
+Require(BossCatalog.ForRound(10)!.IsFinalBoss && BossCatalog.FinalBoss.Round == 10, "the final boss is the round 10 encounter");
+Require(BossCatalog.ForRound(5)!.IsElite, "the round 5 encounter is the elite mini-boss");
+Require(BossCatalog.ForRound(3) is null, "a regular round has no boss");
+Require(BossCatalog.Get("STONE_GUARDIAN").Round == 5, "boss lookup is case-insensitive");
+Require(!BossCatalog.TryGet("unknown_boss", out _), "boss lookup rejects unknown ids");
+RequireThrows(() => BossCatalog.Get("unknown_boss"), "boss get throws on unknown ids");
+Require(BossCatalog.All.Count(boss => boss.IsFinalBoss) == 1, "the run has exactly one final boss");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
