@@ -50,12 +50,7 @@ namespace RuneChess.Core
             TutorialCompleted: false);
 
         /// <summary>Battle simulation speed multiplier applied to combat ticks.</summary>
-        public double BattleSpeedMultiplier => BattleSpeed switch
-        {
-            BattleSpeed.Normal => 1.0,
-            BattleSpeed.Fast => 1.5,
-            _ => throw new ArgumentOutOfRangeException(nameof(BattleSpeed), BattleSpeed, "Unknown battle speed.")
-        };
+        public double BattleSpeedMultiplier => BattleSpeedOptions.Multiplier(BattleSpeed);
 
         public SettingsModel ToggleSound() => this with { SoundEnabled = !SoundEnabled };
 
@@ -88,10 +83,7 @@ namespace RuneChess.Core
         };
 
         /// <summary>Toggle the battle speed between Normal and Fast.</summary>
-        public SettingsModel CycleBattleSpeed() => this with
-        {
-            BattleSpeed = BattleSpeed == BattleSpeed.Normal ? BattleSpeed.Fast : BattleSpeed.Normal
-        };
+        public SettingsModel CycleBattleSpeed() => this with { BattleSpeed = BattleSpeedOptions.Next(BattleSpeed) };
 
         /// <summary>Mark the tutorial as finished so onboarding hints stop appearing.</summary>
         public SettingsModel CompleteTutorial() => this with { TutorialCompleted = true };

@@ -22,11 +22,39 @@ namespace RuneChess.Core
     }
 
     /// <summary>
+    /// View-model for the in-combat battle speed-up button (GDD "кнопка ускорения боя"; faster
+    /// speeds are a later-version upgrade). It shows the speed currently applied to the autobattle
+    /// and what the next tap toggles to, reusing <see cref="BattleSpeedOptions"/> so it matches the
+    /// settings-screen control. The multiplier only changes how fast the battle plays, never an
+    /// outcome, so the button is a pure pacing convenience. Pure data so the Unity layer just draws
+    /// the button and applies the multiplier to its tick rate.
+    /// </summary>
+    public sealed record BattleSpeedButtonModel(BattleSpeed Current, BattleSpeed Next)
+    {
+        /// <summary>The simulation-tick multiplier the current speed applies.</summary>
+        public double Multiplier => BattleSpeedOptions.Multiplier(Current);
+
+        /// <summary>Compact label for the button face, e.g. "x1.0" or "x1.5".</summary>
+        public string Label => BattleSpeedOptions.Label(Current);
+
+        /// <summary>Label for the speed a tap toggles to, for a preview hint.</summary>
+        public string NextLabel => BattleSpeedOptions.Label(Next);
+
+        /// <summary>True when the button is currently running the battle faster than normal.</summary>
+        public bool IsSpedUp => BattleSpeedOptions.IsSpedUp(Current);
+
+        /// <summary>Build the button model for a battle speed, deriving the toggle target.</summary>
+        public static BattleSpeedButtonModel For(BattleSpeed speed) =>
+            new(speed, BattleSpeedOptions.Next(speed));
+    }
+
+    /// <summary>
     /// View-model for the combat screen heads-up display: the battle timer, the
-    /// combat-speed indicator (normal vs the large-combo slowdown), the match-3
-    /// progress numbers and the key units to show with health/mana bars. It reads
-    /// from <see cref="CombatState"/> so the Unity layer renders without owning any
-    /// timing rules; keeping it in core lets the formatting be smoke-tested.
+    /// combat-speed indicator (normal vs the large-combo slowdown), the player-facing
+    /// battle speed-up button, the match-3 progress numbers and the key units to show
+    /// with health/mana bars. It reads from <see cref="CombatState"/> so the Unity layer
+    /// renders without owning any timing rules; keeping it in core lets the formatting be
+    /// smoke-tested.
     /// </summary>
     public sealed record CombatHudModel(
         int RemainingSeconds,
@@ -37,6 +65,7 @@ namespace RuneChess.Core
         int CombatSpeedPercent,
         bool IsSlowed,
         string SpeedLabel,
+        BattleSpeedButtonModel SpeedButton,
         int Match3MovesUsed,
         int LastMatchPower,
         IReadOnlyList<CombatHudUnit> KeyUnits)
@@ -57,9 +86,13 @@ namespace RuneChess.Core
         /// <summary>
         /// Build the HUD view-model from the live combat state. Optional
         /// <paramref name="keyUnits"/> are the units (allies and enemies) the screen
-        /// should surface with health/mana bars.
+        /// should surface with health/mana bars, and <paramref name="battleSpeed"/> is the
+        /// player's chosen autobattle speed driving the in-combat speed-up button.
         /// </summary>
-        public static CombatHudModel Build(CombatState combat, IReadOnlyList<CombatHudUnit>? keyUnits = null)
+        public static CombatHudModel Build(
+            CombatState combat,
+            IReadOnlyList<CombatHudUnit>? keyUnits = null,
+            BattleSpeed battleSpeed = BattleSpeed.Normal)
         {
             if (combat is null)
             {
@@ -79,6 +112,7 @@ namespace RuneChess.Core
                 CombatSpeedPercent: combat.CombatSpeedPercent,
                 IsSlowed: combat.IsCombatSlowed,
                 SpeedLabel: combat.IsCombatSlowed ? $"SLOW {combat.CombatSpeedPercent}%" : "NORMAL",
+                SpeedButton: BattleSpeedButtonModel.For(battleSpeed),
                 Match3MovesUsed: combat.Match3MovesUsed,
                 LastMatchPower: combat.LastMatchPower,
                 KeyUnits: keyUnits ?? Array.Empty<CombatHudUnit>());

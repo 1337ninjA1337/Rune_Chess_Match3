@@ -1971,6 +1971,13 @@ Require(combatHud.RemainingSeconds == 45 && combatHud.TimerLabel == "0:45", "com
 Require(Math.Abs(combatHud.TimerFraction - 0.75) < 1e-9, "combat HUD timer fraction tracks remaining/total duration");
 Require(!combatHud.IsSlowed && combatHud.CombatSpeedPercent == 100 && combatHud.SpeedLabel == "NORMAL", "combat HUD reports normal speed when not slowed");
 Require(combatHud.KeyUnits.Count == 0, "combat HUD defaults to no key units when none are supplied");
+// In-combat battle speed-up button (GDD "кнопка ускорения боя"; faster speeds are a later upgrade).
+Require(combatHud.SpeedButton.Current == BattleSpeed.Normal && !combatHud.SpeedButton.IsSpedUp, "combat HUD defaults the speed-up button to normal speed");
+Require(combatHud.SpeedButton.Next == BattleSpeed.Fast && Math.Abs(combatHud.SpeedButton.Multiplier - 1.0) < 1e-9, "the speed button toggles toward fast and reports the normal multiplier");
+Require(combatHud.SpeedButton.Label == "x1.0" && combatHud.SpeedButton.NextLabel == "x1.5", "the speed button labels the current and next battle speed");
+var fastHud = CombatHudModel.Build(hudCombat, battleSpeed: BattleSpeed.Fast);
+Require(fastHud.SpeedButton.Current == BattleSpeed.Fast && fastHud.SpeedButton.IsSpedUp, "the speed button reports the sped-up state when fast is chosen");
+Require(fastHud.SpeedButton.Next == BattleSpeed.Normal && Math.Abs(fastHud.SpeedButton.Multiplier - 1.5) < 1e-9 && fastHud.SpeedButton.Label == "x1.5", "fast battle speed applies a 1.5x tick multiplier and toggles back to normal");
 Require(CombatHudModel.FormatTimer(75) == "1:15" && CombatHudModel.FormatTimer(5) == "0:05", "combat HUD formats minutes and zero-padded seconds");
 Require(CombatHudModel.FormatTimer(-10) == "0:00", "combat HUD clamps negative durations to zero");
 var expiredHud = CombatHudModel.Build(CombatState.Start(7, 30).AdvanceTimer(30));
@@ -2463,6 +2470,13 @@ Require(defaultSettings.CycleGraphicsQuality().GraphicsQuality == GraphicsQualit
 Require(defaultSettings.CycleLanguage().Language == SettingsLanguage.English, "settings cycle the language");
 Require(defaultSettings.CycleBattleSpeed().BattleSpeed == BattleSpeed.Fast, "settings cycle the battle speed");
 Require(Math.Abs(defaultSettings.CycleBattleSpeed().BattleSpeedMultiplier - 1.5) < 1e-9, "fast battle speed applies a 1.5x multiplier");
+// Centralised battle-speed tiers shared by the settings toggle and the in-combat speed-up button.
+Require(Math.Abs(BattleSpeedOptions.Multiplier(BattleSpeed.Normal) - 1.0) < 1e-9 && Math.Abs(BattleSpeedOptions.Multiplier(BattleSpeed.Fast) - 1.5) < 1e-9, "battle-speed options define the normal and fast tick multipliers");
+Require(BattleSpeedOptions.Next(BattleSpeed.Normal) == BattleSpeed.Fast && BattleSpeedOptions.Next(BattleSpeed.Fast) == BattleSpeed.Normal, "the battle-speed cycle toggles between normal and fast");
+Require(BattleSpeedOptions.Label(BattleSpeed.Normal) == "x1.0" && BattleSpeedOptions.Label(BattleSpeed.Fast) == "x1.5", "battle-speed labels format the tick multiplier");
+Require(!BattleSpeedOptions.IsSpedUp(BattleSpeed.Normal) && BattleSpeedOptions.IsSpedUp(BattleSpeed.Fast), "only the fast tier counts as sped up");
+Require(Math.Abs(defaultSettings.BattleSpeedMultiplier - BattleSpeedOptions.Multiplier(defaultSettings.BattleSpeed)) < 1e-9, "settings and the shared options agree on the multiplier");
+RequireThrows(() => BattleSpeedOptions.Multiplier((BattleSpeed)999), "battle-speed options reject an unknown speed");
 Require(defaultSettings.CompleteTutorial().ResetTutorial().TutorialCompleted == false, "resetting the tutorial clears the completed flag");
 
 // Collection screen navigation (GDD main-menu access to the hero collection).
