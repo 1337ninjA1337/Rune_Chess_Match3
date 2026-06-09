@@ -3223,6 +3223,29 @@ Require(!BossCatalog.TryGet("unknown_boss", out _), "boss lookup rejects unknown
 RequireThrows(() => BossCatalog.Get("unknown_boss"), "boss get throws on unknown ids");
 Require(BossCatalog.All.Count(boss => boss.IsFinalBoss) == 1, "the run has exactly one final boss");
 
+// Alternate combat-round enemy variants (codex P2: "Добавить дополнительные варианты врагов для обычных боев").
+// Each variant restyles a regular combat round without changing its difficulty.
+Require(EnemyVariantCatalog.All.Count > 0, "the enemy variant catalog ships alternate compositions");
+Require(EnemyVariantCatalog.All.Select(v => v.Id).Distinct().Count() == EnemyVariantCatalog.All.Count, "each enemy variant has a distinct id");
+Require(EnemyVariantCatalog.VariantRounds.SequenceEqual(new[] { 2, 3, 6, 7 }), "variants cover exactly the regular combat rounds");
+foreach (var variant in EnemyVariantCatalog.All)
+{
+    var canonical = PveRunSchedule.GetRound(variant.Round);
+    Require(canonical.Type == PveRoundType.Combat, $"variant '{variant.Id}' targets a regular combat round");
+    Require(variant.Composition.Count > 0 && !string.IsNullOrWhiteSpace(variant.Name), $"variant '{variant.Id}' has a name and a roster");
+    Require(variant.StarTotal == canonical.EnemyStarTotal, $"variant '{variant.Id}' matches its round's enemy star total for difficulty parity");
+    Require(variant.Composition.All(unit => HeroCatalog.TryGet(unit.HeroId, out _)), $"variant '{variant.Id}' uses only real heroes");
+    Require(variant.Composition.All(unit => unit.Position.Row is 0 or 1 && unit.Position.Column is >= 0 and < TacticalField.MvpColumns), $"variant '{variant.Id}' places enemies on the enemy half of the field");
+    Require(variant.Composition.Select(unit => unit.Position).Distinct().Count() == variant.Composition.Count, $"variant '{variant.Id}' never stacks two enemies on one cell");
+    Require(!variant.Composition.SequenceEqual(canonical.EnemyUnits), $"variant '{variant.Id}' differs from the canonical composition");
+}
+Require(EnemyVariantCatalog.HasVariants(2) && !EnemyVariantCatalog.HasVariants(5), "variant lookup distinguishes combat rounds with variants from rounds without");
+Require(EnemyVariantCatalog.ForRound(3).Single().Id == "round_03_shield_wall", "the round 3 variant resolves by round");
+Require(EnemyVariantCatalog.ForRound(4).Count == 0, "a non-combat round has no variants");
+Require(EnemyVariantCatalog.Get("ROUND_06_SHADOW_AMBUSH").Round == 6, "variant lookup is case-insensitive");
+Require(!EnemyVariantCatalog.TryGet("unknown_variant", out _), "variant lookup rejects unknown ids");
+RequireThrows(() => EnemyVariantCatalog.Get("unknown_variant"), "variant get throws on unknown ids");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
