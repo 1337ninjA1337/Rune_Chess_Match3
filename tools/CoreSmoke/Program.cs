@@ -3165,6 +3165,34 @@ Require(BattlePacingModel.RecommendedSlowdownMilliseconds(extremeOverload) == Ba
 Require(BattlePacingModel.RecommendedSlowdownMilliseconds(extremeOverload) > CombatState.LargeComboSlowdownMilliseconds, "extreme overload slows longer than a single combo");
 RequireThrows(() => BattlePacingModel.CountMustWatch(null!), "the pacing model rejects a null cue list");
 
+// Scripted attention-overload playtest (codex: "Провести быстрые игровые тесты на перегруз внимания").
+// Drive the readability/attention/pacing stack through representative beats; every one must stay readable.
+Require(AttentionOverloadPlaytest.Scenarios.Count > 0, "the attention-overload playtest scripts representative scenarios");
+Require(AttentionOverloadPlaytest.AllReadable(), "every scripted attention-overload scenario keeps the screen readable");
+var overloadResults = AttentionOverloadPlaytest.RunAll();
+Require(overloadResults.Count == AttentionOverloadPlaytest.Scenarios.Count, "the playtest reports one result per scenario");
+Require(overloadResults.All(result => result.CuesShown <= BattleAttentionModel.MaxSimultaneousCues), "no scripted scenario surfaces more cues than the shared budget");
+Require(overloadResults.All(result => result.CuesFired == 0 || result.Focus.HasValue), "every scripted scenario with activity picks a focus zone");
+var calmResult = overloadResults.First();
+Require(calmResult.RecommendedSpeedPercent == CombatState.NormalCombatSpeedPercent && !calmResult.PlayerFallingBehind, "the calm scripted beat runs at full speed");
+var minorWallResult = overloadResults.Single(result => result.Scenario.Contains("Стена малых"));
+Require(!minorWallResult.PlayerFallingBehind && minorWallResult.RecommendedSpeedPercent == CombatState.NormalCombatSpeedPercent, "a scripted wall of minor effects never overloads attention");
+var heavyResult = overloadResults.Single(result => result.Scenario.Contains("Тяжёлый завал"));
+Require(heavyResult.PlayerFallingBehind && heavyResult.RecommendedSpeedPercent == BattlePacingModel.OverloadedCombatSpeedPercent, "the scripted heavy pileup drops to the overloaded combat speed");
+Require(heavyResult.RecommendedSlowdownMs > 0 && heavyResult.RecommendedSlowdownMs <= BattlePacingModel.MaxAdaptiveSlowdownMilliseconds, "the scripted heavy pileup slows within the ceiling");
+RequireThrows(() => AttentionOverloadPlaytest.Run(null!), "the attention-overload playtest rejects a null scenario");
+
+// Scripted onboarding-difficulty playtest (codex: "Провести быстрые игровые тесты на сложность onboarding").
+// Walk a fresh player through the tutorial; the difficulty curve must stay gentle and interactive.
+Require(OnboardingPlaytest.IsDifficultyFair(), $"the onboarding difficulty curve is fair ({OnboardingPlaytest.Diagnose() ?? "ok"})");
+var tutorialWalk = OnboardingPlaytest.WalkTutorial();
+Require(tutorialWalk.Count == OnboardingScript.Steps.Count, "the onboarding walkthrough covers every tutorial round");
+Require(OnboardingPlaytest.PeakNewMechanicsPerRound() == OnboardingPlaytest.MaxNewMechanicsPerRound, "the onboarding never opens more than one new mechanic per round");
+Require(tutorialWalk.All(step => step.RequiresInteractiveAction), "every scripted onboarding round requires an interactive action, not just text");
+Require(tutorialWalk.Select(step => step.CompletedStepsAfter).SequenceEqual(Enumerable.Range(1, tutorialWalk.Count)), "scripted onboarding progress advances exactly one step per round");
+Require(tutorialWalk.Select(step => step.Mechanic).SequenceEqual(OnboardingScript.Steps.Select(s => s.Mechanic)), "the scripted walkthrough reveals mechanics in GDD order");
+Require(tutorialWalk.Last().Round == OnboardingScript.LastTutorialRound, "the scripted onboarding finishes exactly at the last tutorial round");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
