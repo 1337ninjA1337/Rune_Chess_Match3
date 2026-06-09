@@ -3134,6 +3134,37 @@ RequireThrows(() => BattleAttentionModel.PrimaryFocus(null!), "cross-zone focus 
 RequireThrows(() => BattleCue.FromRuneEffect(null!), "a match-3 cue rejects a null rune effect");
 RequireThrows(() => BattleCue.AutoBattle(BattleEventSalience.Major, power: -1.0, label: "bad"), "an auto-battle cue rejects negative power");
 
+// Adaptive pacing (codex: "Уменьшить скорость боя, если игрок не успевает следить за событиями").
+// Slow combat when more must-watch beats arrive at once than the player can track.
+// Speed tiers are strictly ordered: overloaded < eased single-combo < normal.
+Require(
+    BattlePacingModel.OverloadedCombatSpeedPercent < CombatState.LargeComboCombatSpeedPercent
+        && CombatState.LargeComboCombatSpeedPercent < CombatState.NormalCombatSpeedPercent,
+    "adaptive speed tiers are strictly ordered (overloaded < eased < normal)");
+// Within budget: no overload, full speed, no adaptive slowdown.
+var withinBudget = MustWatchCues(BattlePacingModel.TrackableEventBudget);
+Require(!BattlePacingModel.IsPlayerFallingBehind(withinBudget), "a beat load within budget does not fall behind");
+Require(BattlePacingModel.RecommendedSpeedPercent(withinBudget) == CombatState.NormalCombatSpeedPercent, "within budget combat runs at normal speed");
+Require(BattlePacingModel.RecommendedSlowdownMilliseconds(withinBudget) == 0, "within budget there is no adaptive slowdown");
+// Minor support ticks never count as must-watch, so a wall of them never slows combat.
+var minorWall = Enumerable.Range(0, 10).Select(_ => match3MinorCue).ToList();
+Require(BattlePacingModel.CountMustWatch(minorWall) == 0, "minor support ticks are not must-watch beats");
+Require(!BattlePacingModel.IsPlayerFallingBehind(minorWall), "a wall of minor ticks does not overload attention");
+// One beat over budget: falling behind, eased single-combo speed, one slowdown window.
+var mildOverload = MustWatchCues(BattlePacingModel.TrackableEventBudget + 1);
+Require(BattlePacingModel.AttentionExcess(mildOverload) == 1, "one beat over budget is excess 1");
+Require(BattlePacingModel.IsPlayerFallingBehind(mildOverload), "one beat over budget means the player is falling behind");
+Require(BattlePacingModel.RecommendedSpeedPercent(mildOverload) == CombatState.LargeComboCombatSpeedPercent, "mild overload eases to the single-combo slowdown speed");
+Require(BattlePacingModel.RecommendedSlowdownMilliseconds(mildOverload) == CombatState.LargeComboSlowdownMilliseconds, "mild overload grants one single-combo slowdown window");
+// Heavy overload (budget beats over budget): deepest speed tier, slowdown capped, not exceeded.
+var heavyOverload = MustWatchCues(BattlePacingModel.TrackableEventBudget + BattlePacingModel.HeavyOverloadExcess);
+Require(BattlePacingModel.RecommendedSpeedPercent(heavyOverload) == BattlePacingModel.OverloadedCombatSpeedPercent, "heavy overload drops to the overloaded combat speed");
+Require(BattlePacingModel.RecommendedSlowdownMilliseconds(heavyOverload) == BattlePacingModel.MaxAdaptiveSlowdownMilliseconds, "heavy overload caps the slowdown window at the ceiling");
+var extremeOverload = MustWatchCues(BattlePacingModel.TrackableEventBudget + BattlePacingModel.HeavyOverloadExcess + 5);
+Require(BattlePacingModel.RecommendedSlowdownMilliseconds(extremeOverload) == BattlePacingModel.MaxAdaptiveSlowdownMilliseconds, "extreme overload never exceeds the slowdown ceiling");
+Require(BattlePacingModel.RecommendedSlowdownMilliseconds(extremeOverload) > CombatState.LargeComboSlowdownMilliseconds, "extreme overload slows longer than a single combo");
+RequireThrows(() => BattlePacingModel.CountMustWatch(null!), "the pacing model rejects a null cue list");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
@@ -3143,6 +3174,11 @@ static void Require(bool condition, string message)
         throw new InvalidOperationException($"Smoke check failed: {message}");
     }
 }
+
+static List<BattleCue> MustWatchCues(int count) => Enumerable
+    .Range(0, count)
+    .Select(_ => BattleCue.AutoBattle(BattleEventSalience.Major, power: 10.0, label: "событие"))
+    .ToList();
 
 static (BoardPoint From, BoardPoint To) FindFirstLegalSwap(Match3Board board)
 {
