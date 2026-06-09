@@ -3385,6 +3385,46 @@ Require(EliteEncounterCatalog.Get("ELITE_VOID_CHOIR").Name == "Хор Пусто
 Require(!EliteEncounterCatalog.TryGet("unknown_elite", out _), "elite lookup rejects unknown ids");
 RequireThrows(() => EliteEncounterCatalog.Get("unknown_elite"), "elite get throws on unknown ids");
 
+// Async PvP Arena foundation (codex Backlog "Будущие режимы": запись составов и подбор
+// записанных составов). See docs/async-pvp-arena.md.
+var arenaPlacement = new ArenaHeroPlacement("iron_guard", 2, 2, 1);
+Require(arenaPlacement.Position == new TacticalPosition(2, 1) && arenaPlacement.Position.IsPlayerSide, "an arena placement exposes its player-side cell");
+Require(ArenaHeroPlacement.From(new BoardHero(new HeroInstance("inst_1", "oath_archer", 1), new TacticalPosition(3, 0))).HeroId == "oath_archer", "an arena placement can be built from a board hero");
+RequireThrows(() => new ArenaHeroPlacement(" ", 1, 2, 0), "an arena placement rejects a blank hero id");
+RequireThrows(() => new ArenaHeroPlacement("iron_guard", 4, 2, 0), "an arena placement rejects stars outside 1..3");
+
+var arenaSnapshot = ArenaSnapshotBuilder.Capture(afterPlace, "snap_player", "Игрок", 1200);
+Require(arenaSnapshot.HeroCount == 1 && HeroCatalog.TryGet(arenaSnapshot.Heroes[0].HeroId, out _), "a snapshot records the placed team with a real hero id");
+Require(arenaSnapshot.Heroes[0].Position == new TacticalPosition(2, 1), "a snapshot keeps the recorded board cell");
+Require(arenaSnapshot.CommanderId == afterPlace.Commander.Id, "a snapshot records the run commander");
+Require(arenaSnapshot.Rating == 1200 && arenaSnapshot.OwnerName == "Игрок", "a snapshot records rating and owner");
+Require(ArenaCompositionSnapshot.MaxHeroes == 12, "a composition can record at most the player half");
+RequireThrows(() => ArenaSnapshotBuilder.Capture(state, "snap_empty", "Игрок", 1000), "capturing rejects a run with no placed heroes");
+RequireThrows(() => new ArenaCompositionSnapshot("id", "owner", -1, "cmd", new[] { arenaPlacement }, Array.Empty<string>()), "a snapshot rejects a negative rating");
+RequireThrows(() => new ArenaCompositionSnapshot("id", "owner", 0, "cmd", Array.Empty<ArenaHeroPlacement>(), Array.Empty<string>()), "a snapshot rejects an empty composition");
+RequireThrows(() => new ArenaCompositionSnapshot("id", "owner", 0, "cmd", new[] { new ArenaHeroPlacement("iron_guard", 1, 0, 0) }, Array.Empty<string>()), "a snapshot rejects an enemy-side placement");
+RequireThrows(() => new ArenaCompositionSnapshot("id", "owner", 0, "cmd", new[] { arenaPlacement, new ArenaHeroPlacement("oath_archer", 1, 2, 1) }, Array.Empty<string>()), "a snapshot rejects two heroes on one cell");
+RequireThrows(() => new ArenaCompositionSnapshot("id", "owner", 0, "cmd", new[] { arenaPlacement }, new[] { "merchant_seal", "merchant_seal" }), "a snapshot rejects duplicate artifacts");
+
+var arenaPool = new[]
+{
+    new ArenaCompositionSnapshot("snap_a", "Анна", 1000, "rune_archon", new[] { arenaPlacement }, Array.Empty<string>()),
+    new ArenaCompositionSnapshot("snap_b", "Борис", 1180, "rune_archon", new[] { arenaPlacement }, Array.Empty<string>()),
+    new ArenaCompositionSnapshot("snap_c", "Виктор", 1600, "rune_archon", new[] { arenaPlacement }, Array.Empty<string>()),
+};
+Require(ArenaMatchmaker.FindOpponent(1200, arenaPool)!.SnapshotId == "snap_b", "matchmaking picks the closest rating inside the bracket");
+Require(ArenaMatchmaker.FindOpponent(1200, arenaPool, excludeOwner: "Борис")!.SnapshotId == "snap_a", "matchmaking can exclude the player's own record");
+Require(ArenaMatchmaker.FindOpponent(5000, arenaPool)!.SnapshotId == "snap_c", "matchmaking falls back to the globally closest when none are inside the bracket");
+Require(ArenaMatchmaker.FindOpponent(1200, Array.Empty<ArenaCompositionSnapshot>()) is null, "matchmaking returns null for an empty pool");
+var arenaTiePool = new[]
+{
+    new ArenaCompositionSnapshot("snap_y", "Y", 1100, "rune_archon", new[] { arenaPlacement }, Array.Empty<string>()),
+    new ArenaCompositionSnapshot("snap_x", "X", 1300, "rune_archon", new[] { arenaPlacement }, Array.Empty<string>()),
+};
+Require(ArenaMatchmaker.FindOpponent(1200, arenaTiePool)!.SnapshotId == "snap_x", "matchmaking breaks rating ties by ordinal snapshot id");
+RequireThrows(() => ArenaMatchmaker.FindOpponent(-1, arenaPool), "matchmaking rejects a negative player rating");
+RequireThrows(() => ArenaMatchmaker.FindOpponent(1200, arenaPool, bracket: 0), "matchmaking rejects a non-positive bracket");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
