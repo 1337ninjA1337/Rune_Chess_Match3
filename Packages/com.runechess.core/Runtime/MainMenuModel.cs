@@ -30,6 +30,12 @@ namespace RuneChess.Core
         /// <summary>"unlocked / total" label for the hero collection access button.</summary>
         public string CollectionLabel => $"{CollectionUnlockedHeroes} / {CollectionTotalHeroes}";
 
+        /// <summary>Label for the cosmetics-shop access button (GDD "магазин косметики").</summary>
+        public string CosmeticShopLabel => "Косметика";
+
+        /// <summary>"unlocked / total" meta for the cosmetics-shop access button.</summary>
+        public string CosmeticShopMeta => Account.CosmeticUnlockLabel;
+
         /// <summary>
         /// Build the main-menu model from the live run and account progress. A run is
         /// considered "in progress" once it has advanced past the first preparation

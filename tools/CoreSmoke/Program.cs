@@ -2385,6 +2385,50 @@ Require(currencyOnly.AccountLevel == startingAccount.AccountLevel
 var xpOnly = startingAccount.WithGains(AccountProgress.XpForNextLevel(1) + AccountProgress.XpForNextLevel(2), 0);
 Require(xpOnly.AccountLevel == 3 && xpOnly.UnlockedCommanders > startingAccount.UnlockedCommanders, "playing (account XP) is the only thing that advances unlocks");
 
+// Cosmetic loadout: at most one applied cosmetic per kind, equipping gated by account unlocks.
+var maxAccount = AccountProgress.Starting.WithGains(10000, 0);
+Require(maxAccount.UnlockedCosmetics == CosmeticUnlockSchedule.TotalCount, "the test's maxed account has every cosmetic unlocked");
+Require(CosmeticLoadout.Default.IsEquipped(CosmeticUnlockSchedule.Entries[0].CosmeticId), "the default loadout applies the always-available board skin");
+Require(CosmeticLoadout.Default.EquippedFor(CosmeticKind.BoardSkin) == CosmeticUnlockSchedule.Entries[0].CosmeticId, "the default loadout equips the default board skin for its kind");
+Require(CosmeticLoadout.Default.EquippedFor(CosmeticKind.RuneEffect) is null, "the default loadout leaves unearned kinds unequipped");
+RequireThrows(() => CosmeticLoadout.Default.Equip("rune_glow", AccountProgress.Starting), "a fresh account cannot equip a cosmetic it has not unlocked");
+RequireThrows(() => CosmeticLoadout.Default.Equip("unknown_cosmetic", maxAccount), "equipping rejects an unknown cosmetic id");
+RequireThrows(() => CosmeticLoadout.Default.Equip("board_obsidian", null!), "equipping rejects a null account");
+var loadoutLvl2 = AccountProgress.Starting.WithGains(AccountProgress.XpForNextLevel(1), 0);
+var equippedRune = CosmeticLoadout.Default.Equip("rune_glow", loadoutLvl2);
+Require(equippedRune.IsEquipped("RUNE_GLOW") && equippedRune.EquippedFor(CosmeticKind.RuneEffect) == "rune_glow", "an unlocked cosmetic can be equipped for its kind (case-insensitive)");
+Require(equippedRune.IsEquipped(CosmeticUnlockSchedule.Entries[0].CosmeticId), "equipping one kind keeps the other kind's cosmetic applied");
+var swappedBoard = equippedRune.Equip("board_obsidian", maxAccount);
+Require(swappedBoard.EquippedFor(CosmeticKind.BoardSkin) == "board_obsidian" && !swappedBoard.IsEquipped("board_classic"), "equipping a board skin replaces the previously applied board skin");
+Require(swappedBoard.EquippedIds.Select(id => CosmeticCatalog.Get(id).Kind).Distinct().Count() == swappedBoard.EquippedIds.Count, "a loadout never applies two cosmetics of the same kind");
+RequireThrows(() => new CosmeticLoadout(new[] { "board_classic", "board_obsidian" }), "a loadout rejects two cosmetics of the same kind");
+RequireThrows(() => new CosmeticLoadout(new[] { "unknown_cosmetic" }), "a loadout rejects an unknown cosmetic id");
+
+// Main-screen cosmetics shop (GDD "магазин косметики"): browse unlock/equipped state, equip earned looks.
+var freshShop = CosmeticShopModel.Build(AccountProgress.Starting, CosmeticLoadout.Default);
+Require(freshShop.Entries.Count == CosmeticCatalog.All.Count, "the cosmetics shop lists every catalog cosmetic");
+Require(freshShop.Headline == CosmeticShopModel.ShopHeadline && freshShop.UnlockLabel == AccountProgress.Starting.CosmeticUnlockLabel, "the cosmetics shop shows its headline and unlocked/total label");
+Require(freshShop.Entries.Select(entry => ((int)entry.Kind, entry.RequiredAccountLevel)).SequenceEqual(freshShop.Entries.Select(entry => ((int)entry.Kind, entry.RequiredAccountLevel)).OrderBy(pair => pair).ToList()), "shop rows are ordered by kind then unlock level");
+Require(freshShop.Entries.Count(entry => entry.IsUnlocked) == AccountProgress.Starting.UnlockedCosmetics, "the shop marks exactly the account's unlocked cosmetics");
+var freshBoard = freshShop.EquippedFor(CosmeticKind.BoardSkin);
+Require(freshBoard is not null && freshBoard!.Id == CosmeticUnlockSchedule.Entries[0].CosmeticId && freshBoard.IsEquipped, "the shop reflects the equipped board skin from the loadout");
+Require(freshShop.EquippedFor(CosmeticKind.RuneEffect) is null, "the shop shows no equipped cosmetic for an unearned kind");
+var lockedRune = freshShop.Entries.First(entry => entry.Id == "rune_glow");
+Require(!lockedRune.IsUnlocked && !lockedRune.CanEquip && lockedRune.StatusLabel == "Откроется на уровне 2", "a locked cosmetic shows its unlock level and cannot be equipped");
+var unlockedBoard = freshShop.Entries.First(entry => entry.Id == CosmeticUnlockSchedule.Entries[0].CosmeticId);
+Require(unlockedBoard.IsEquipped && !unlockedBoard.CanEquip && unlockedBoard.StatusLabel == "Применено", "the applied cosmetic reads as equipped");
+Require(freshShop.NextUnlock is not null && freshShop.NextUnlock!.RequiredAccountLevel == 2, "the shop surfaces the next cosmetic unlock as a goal");
+Require(freshShop.SoftCurrency == AccountProgress.Starting.SoftCurrency, "the shop surfaces soft currency for display only");
+var maxShop = CosmeticShopModel.Build(maxAccount, swappedBoard);
+Require(maxShop.Entries.All(entry => entry.IsUnlocked) && maxShop.NextUnlock is null, "a maxed account sees every cosmetic unlocked with no next goal");
+Require(maxShop.ForKind(CosmeticKind.RuneEffect).All(entry => entry.Kind == CosmeticKind.RuneEffect) && maxShop.ForKind(CosmeticKind.RuneEffect).Count >= 1, "the shop groups rows by cosmetic kind");
+Require(maxShop.EquippedFor(CosmeticKind.BoardSkin)!.Id == "board_obsidian", "the shop reflects a swapped board skin");
+RequireThrows(() => CosmeticShopModel.Build(null!, CosmeticLoadout.Default), "the cosmetics shop rejects a null account");
+RequireThrows(() => CosmeticShopModel.Build(AccountProgress.Starting, null!), "the cosmetics shop rejects a null loadout");
+
+// The main screen links to the cosmetics shop (GDD UI screen 1).
+Require(freshMenu.CosmeticShopLabel == "Косметика" && freshMenu.CosmeticShopMeta == AccountProgress.Starting.CosmeticUnlockLabel, "the main menu links to the cosmetics shop with an unlocked/total meta");
+
 // Account-aware commander selection gates locked commanders (GDD UI screen 2 + метапрогрессия).
 var gatedSelect = CommanderSelectModel.Build(CommanderCatalog.Default.Id, AccountProgress.Starting);
 Require(gatedSelect.Commanders.Count == CommanderCatalog.All.Count, "the account-aware commander select still lists every commander");
