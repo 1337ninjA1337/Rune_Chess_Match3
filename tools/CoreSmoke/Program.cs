@@ -2756,17 +2756,23 @@ var fullBenchRewardRun = starterRewardRun with
 RequireThrows(() => fullBenchRewardRun.ClaimRewardHero(starterHeroOptions[0].Id), "a hero reward cannot be claimed when the bench is full");
 
 // Event catalog and event screen view-model (GDD UI screen "Экран события").
-Require(EventCatalog.All.Count == 4, "the event catalog ships the four MVP event archetypes");
+Require(EventCatalog.All.Count == 8, "the event catalog ships the expanded roguelite event pool");
 Require(
-    EventCatalog.All.Select(option => option.Kind).Distinct().Count() == 4,
-    "every event archetype is represented exactly once"
+    EventCatalog.All.Select(option => option.Kind).Distinct().Count() == Enum.GetValues(typeof(EventChoiceKind)).Length,
+    "every event archetype is represented at least once"
 );
+Require(EventCatalog.All[0].Id == EventCatalog.TradeHealthForGold.Id, "the canonical merchant trade leads the pool so round 4 (seed 1640) keeps offering it");
+Require(EventCatalog.All.Select(option => option.Id).Distinct().Count() == EventCatalog.All.Count, "every event option carries a unique id");
+foreach (var option in EventCatalog.All)
+{
+    Require(option.Title.Length > 0 && option.Description.Length > 0, "every event option carries player-facing copy");
+    Require(option.AcceptLabel.Length > 0 && option.DeclineLabel.Length > 0, "every event option offers accept and decline labels");
+    Require(option.RiskLabel.Length > 0 && option.RewardLabel.Length > 0, "every event option summarises its risk and reward");
+}
 foreach (EventChoiceKind kind in Enum.GetValues(typeof(EventChoiceKind)))
 {
     var option = EventCatalog.Get(kind);
     Require(option.Kind == kind, "the event catalog returns the requested archetype");
-    Require(option.Title.Length > 0 && option.Description.Length > 0, "every event option carries player-facing copy");
-    Require(option.AcceptLabel.Length > 0 && option.DeclineLabel.Length > 0, "every event option offers accept and decline labels");
 }
 var tradeEvent = EventCatalog.TradeHealthForGold;
 Require(tradeEvent.CostsHealth && tradeEvent.HealthCost == EventCatalog.TradeHealthCost, "the merchant event trades run health");
@@ -2774,7 +2780,14 @@ Require(tradeEvent.GrantsGold && tradeEvent.GoldReward == EventCatalog.TradeGold
 Require(EventCatalog.CursedFreeHero.GrantsHero && EventCatalog.CursedFreeHero.AppliesCurse, "the cursed-gift event grants a hero with a curse");
 Require(EventCatalog.FactionBoost.BuffsFaction, "the blessing event buffs a faction next battle");
 Require(EventCatalog.SacrificeHeroForArtifact.RemovesHero && EventCatalog.SacrificeHeroForArtifact.GrantsArtifact, "the sacrifice event swaps a hero for an artifact");
+// Expanded pool: pure-economy events resolved straight from the offered option's deltas.
+Require(EventCatalog.HealingSpring.Kind == EventChoiceKind.GoldForHealth && EventCatalog.HealingSpring.CostsGold && EventCatalog.HealingSpring.RestoresHealth, "the healing spring spends gold to restore run health");
+Require(EventCatalog.GoldWindfall.Kind == EventChoiceKind.GoldWindfall && EventCatalog.GoldWindfall.GrantsGold && !EventCatalog.GoldWindfall.CostsHealth && !EventCatalog.GoldWindfall.CostsGold, "the windfall grants free gold at no cost");
+Require(EventCatalog.TrainingGrounds.Kind == EventChoiceKind.TrainingBoon && EventCatalog.TrainingGrounds.CostsGold && EventCatalog.TrainingGrounds.GrantsXp, "the training grounds spend gold for XP");
+Require(EventCatalog.BoldTrade.Kind == EventChoiceKind.TradeHealthForGold && (EventCatalog.BoldTrade.HealthCost != tradeEvent.HealthCost || EventCatalog.BoldTrade.GoldReward != tradeEvent.GoldReward), "the bold trade is a same-archetype variant with its own numbers");
+Require(EventCatalog.Get(EventChoiceKind.TradeHealthForGold).Id == tradeEvent.Id, "Get returns the canonical trade even though two trade variants exist");
 Require(EventCatalog.TryGet("EVENT_TRADE_HEALTH_FOR_GOLD", out var fetchedEvent) && fetchedEvent.Kind == EventChoiceKind.TradeHealthForGold, "event lookup is case-insensitive");
+Require(EventCatalog.TryGet("event_bold_trade", out var fetchedBold) && fetchedBold.Id == EventCatalog.BoldTrade.Id, "event lookup finds the new pooled events by id");
 Require(!EventCatalog.TryGet("unknown_event", out _), "event lookup rejects unknown ids");
 RequireThrows(() => EventCatalog.Get((EventChoiceKind)999), "event catalog rejects unknown archetypes");
 
@@ -2822,9 +2835,14 @@ var lowHealthEvent = (RunState.NewRun() with { Round = 4, RunHealth = EventCatal
 RequireThrows(() => lowHealthEvent.AcceptTradeHealthForGold(), "the merchant trade is refused when it would end the run");
 RequireThrows(() => eventRunBase.AcceptTradeHealthForGold(), "events cannot be resolved before entering the encounter");
 
+// Accepting the wrong action for the offered event is rejected (resolution is data-driven by the offer).
+RequireThrows(() => enteredEvent.AcceptCursedFreeHero(), "an accept must match the offered event archetype");
+
 // Free hero with a curse (GDD "бесплатный герой с проклятием").
-var cursedAccept = enteredEvent.AcceptCursedFreeHero();
-Require(cursedAccept.Bench.Count == enteredEvent.Bench.Count + 1, "accepting the cursed gift adds a hero to the bench");
+var cursedEventRun = (RunState.NewRun() with { Round = 4, OfferedEventId = EventCatalog.CursedFreeHero.Id }).EnterEvent();
+Require(cursedEventRun.OfferedEvent.Kind == EventChoiceKind.CursedFreeHero, "a run captures its offered event so the screen and resolution agree");
+var cursedAccept = cursedEventRun.AcceptCursedFreeHero();
+Require(cursedAccept.Bench.Count == cursedEventRun.Bench.Count + 1, "accepting the cursed gift adds a hero to the bench");
 var cursedHero = cursedAccept.Bench[^1];
 Require(cursedHero.Cursed && cursedHero.Stars == 1, "the gifted hero joins cursed at one star");
 Require(cursedAccept.RoundEventResolved, "accepting the cursed gift resolves the event");
@@ -2832,6 +2850,7 @@ RequireThrows(() => cursedAccept.AcceptCursedFreeHero(), "the cursed gift cannot
 var fullBenchEvent = (RunState.NewRun() with
 {
     Round = 4,
+    OfferedEventId = EventCatalog.CursedFreeHero.Id,
     Bench = Enumerable.Range(0, EconomyConfig.Default.StartingBenchSize)
         .Select(i => new HeroInstance($"fill_{i}", "iron_guard", 1))
         .ToList()
@@ -2848,6 +2867,7 @@ Require(Math.Abs(cursedUnit.Attack - healthyUnit.Attack * EventCatalog.CursedHer
 var factionEventRun = (RunState.NewRun() with
 {
     Round = 4,
+    OfferedEventId = EventCatalog.FactionBoost.Id,
     Team = new List<BoardHero> { new(new HeroInstance("fb_ig", "iron_guard", 1), new TacticalPosition(2, 0)) }
 }).EnterEvent();
 var boosted = factionEventRun.AcceptFactionBoost("empire");
@@ -2880,6 +2900,7 @@ Require(!roundFiveAfterBoost.PendingFactionBoost.IsActive, "resolving the battle
 var sacrificeRun = (RunState.NewRun() with
 {
     Round = 4,
+    OfferedEventId = EventCatalog.SacrificeHeroForArtifact.Id,
     Bench = new List<HeroInstance> { new("sac_bench", "iron_guard", 1) },
     Team = new List<BoardHero> { new(new HeroInstance("sac_team", "oath_archer", 1), new TacticalPosition(2, 0)) }
 }).EnterEvent();
@@ -2893,6 +2914,48 @@ Require(afterTeamSacrifice.Team.All(slot => slot.Hero.InstanceId != "sac_team"),
 Require(afterTeamSacrifice.Artifacts.Count == sacrificeRun.Artifacts.Count + 1, "the sacrifice adds exactly one relic");
 RequireThrows(() => sacrificeRun.AcceptSacrificeHeroForArtifact("missing_hero"), "the sacrifice rejects an unknown hero");
 RequireThrows(() => afterBenchSacrifice.AcceptSacrificeHeroForArtifact("sac_team"), "a resolved event cannot be sacrificed into again");
+
+// Expanded event pool: every new event applies exactly the offered option's deltas (display == apply).
+// Bold trade — a second variant of the trade archetype proves resolution reads the offered option, not a fixed singleton.
+var boldTradeRun = (RunState.NewRun() with { Round = 4, OfferedEventId = EventCatalog.BoldTrade.Id }).EnterEvent();
+Require(boldTradeRun.OfferedEvent.Id == EventCatalog.BoldTrade.Id, "a run can be offered the bold trade variant");
+Require(EventScreenModel.Build(boldTradeRun).Choice.Id == boldTradeRun.OfferedEvent.Id, "the event screen shows the very option the run will apply");
+var afterBoldTrade = boldTradeRun.AcceptTradeHealthForGold();
+Require(afterBoldTrade.RunHealth == boldTradeRun.RunHealth - EventCatalog.BoldTradeHealthCost, "the bold trade applies its own health cost, not the canonical trade's");
+Require(afterBoldTrade.Gold == boldTradeRun.Gold + EventCatalog.BoldTradeGoldReward, "the bold trade applies its own gold reward, not the canonical trade's");
+Require(EventCatalog.BoldTradeHealthCost != EventCatalog.TradeHealthCost && EventCatalog.BoldTradeGoldReward != EventCatalog.TradeGoldReward, "the bold trade numbers differ from the canonical trade, so display==apply is a real guarantee");
+
+// Healing spring — spend gold to restore run health, capped at the run's starting maximum.
+var healRun = (RunState.NewRun() with { Round = 4, Gold = 12, RunHealth = 10, OfferedEventId = EventCatalog.HealingSpring.Id }).EnterEvent();
+var afterHeal = healRun.AcceptGoldForHealth();
+Require(afterHeal.Gold == healRun.Gold - EventCatalog.HealingSpringGoldCost, "the healing spring spends the offered gold cost");
+Require(afterHeal.RunHealth == healRun.RunHealth + EventCatalog.HealingSpringHealthReward, "the healing spring restores the offered run health");
+Require(afterHeal.RoundEventResolved, "accepting the healing spring resolves the event");
+var healCappedRun = (RunState.NewRun() with { Round = 4, Gold = 12, RunHealth = EconomyConfig.Default.StartingRunHealth, OfferedEventId = EventCatalog.HealingSpring.Id }).EnterEvent();
+Require(healCappedRun.AcceptGoldForHealth().RunHealth == EconomyConfig.Default.StartingRunHealth, "healing never raises run health above the starting maximum");
+var brokeHealRun = (RunState.NewRun() with { Round = 4, Gold = EventCatalog.HealingSpringGoldCost - 1, OfferedEventId = EventCatalog.HealingSpring.Id }).EnterEvent();
+RequireThrows(() => brokeHealRun.AcceptGoldForHealth(), "the healing spring is refused without enough gold");
+RequireThrows(() => boldTradeRun.AcceptGoldForHealth(), "an accept must match the offered event archetype");
+
+// Gold windfall — a free gold find with no cost.
+var windfallRun = (RunState.NewRun() with { Round = 4, OfferedEventId = EventCatalog.GoldWindfall.Id }).EnterEvent();
+var afterWindfall = windfallRun.AcceptGoldWindfall();
+Require(afterWindfall.Gold == windfallRun.Gold + EventCatalog.WindfallGoldReward, "the windfall grants the offered free gold");
+Require(afterWindfall.RunHealth == windfallRun.RunHealth, "the windfall costs no run health");
+Require(afterWindfall.RoundEventResolved, "accepting the windfall resolves the event");
+
+// Training grounds — spend gold for XP toward the next player level.
+var trainRun = (RunState.NewRun() with { Round = 4, Gold = 10, OfferedEventId = EventCatalog.TrainingGrounds.Id }).EnterEvent();
+var afterTrain = trainRun.AcceptTrainingBoon();
+Require(afterTrain.Gold == trainRun.Gold - EventCatalog.TrainingGoldCost, "training spends the offered gold cost");
+Require(afterTrain.Xp == trainRun.Xp + EventCatalog.TrainingXpReward, "training grants the offered XP");
+Require(afterTrain.RoundEventResolved, "accepting the training resolves the event");
+var brokeTrainRun = (RunState.NewRun() with { Round = 4, Gold = EventCatalog.TrainingGoldCost - 1, OfferedEventId = EventCatalog.TrainingGrounds.Id }).EnterEvent();
+RequireThrows(() => brokeTrainRun.AcceptTrainingBoon(), "training is refused without enough gold");
+
+// A resolved expanded event still advances the run, and a cleared offer does not leak into the next round.
+var advancedFromWindfall = afterWindfall.AdvanceRound();
+Require(advancedFromWindfall.Round == 5 && advancedFromWindfall.OfferedEventId.Length == 0, "advancing past an event clears the captured offer");
 
 // First-run onboarding script (GDD "Обучение и onboarding"): one mechanic revealed per round.
 Require(OnboardingScript.Steps.Count == 7, "the onboarding script covers tutorial rounds 1-7");

@@ -5,17 +5,39 @@ using System.Linq;
 namespace RuneChess.Core
 {
     /// <summary>
-    /// MVP catalog of roguelite events for the event screen ("Экран события").
-    /// It defines the four GDD event archetypes as explicit data so the screen can
-    /// render any of them and the later P1 event-mechanics task can apply the
-    /// outcomes from the same numbers. Balance magnitudes live here as named
-    /// constants per the codex rule to keep tunable values out of logic.
+    /// Catalog of roguelite events for the event screen ("Экран события"). It defines
+    /// every offered event as explicit data so the screen can render any of them and
+    /// the run resolves each one straight from the offered option's deltas (see
+    /// <see cref="EventOption"/> and <c>RunState.OfferedEvent</c>), guaranteeing that
+    /// what the card shows is exactly what gets applied. The four GDD archetypes lead
+    /// the pool; the remaining pure-economy events broaden roguelite variety. Balance
+    /// magnitudes live here as named constants per the codex rule to keep tunable
+    /// values out of logic.
     /// </summary>
     public static class EventCatalog
     {
         // Trade-health-for-gold balance (relic merchant, GDD round 4 "риск и награда").
         public const int TradeHealthCost = 2;
         public const int TradeGoldReward = 6;
+
+        // Bold-trade balance: a riskier merchant variant of the same archetype — more run
+        // health for more gold. Distinct numbers from the canonical trade prove the
+        // resolution applies the offered option's own deltas, not a fixed catalog singleton.
+        public const int BoldTradeHealthCost = 4;
+        public const int BoldTradeGoldReward = 13;
+
+        // Healing-spring balance: spend gold to restore run health, never above the run's
+        // starting maximum (the inverse of the merchant trade).
+        public const int HealingSpringGoldCost = 5;
+        public const int HealingSpringHealthReward = 5;
+
+        // Windfall balance: a free gold find, roughly one round of base income, with no cost.
+        public const int WindfallGoldReward = 4;
+
+        // Training-grounds balance: buy XP toward the next player level. Mirrors the shop's
+        // <c>EconomyConfig.BuyXpCost</c>/<c>XpPerPurchase</c> so the event is variety, not power creep.
+        public const int TrainingGoldCost = 4;
+        public const int TrainingXpReward = 4;
 
         // Cursed-free-hero balance: the gifted hero fights at this fraction of its stats for
         // the rest of the run (GDD "бесплатный герой с проклятием").
@@ -71,13 +93,69 @@ namespace RuneChess.Core
             RemovesHero: true,
             GrantsArtifact: true);
 
-        /// <summary>Every MVP event, in the GDD listing order.</summary>
+        /// <summary>Heal run health by spending gold (the inverse of the merchant trade).</summary>
+        public static EventOption HealingSpring { get; } = new(
+            Kind: EventChoiceKind.GoldForHealth,
+            Id: "event_healing_spring",
+            Title: "Целебный родник",
+            Description: $"Заплатите {HealingSpringGoldCost} золота, чтобы восстановить {HealingSpringHealthReward} здоровья забега.",
+            RiskLabel: $"-{HealingSpringGoldCost} золота",
+            RewardLabel: $"+{HealingSpringHealthReward} здоровья забега",
+            AcceptLabel: "Испить из родника",
+            GoldCost: HealingSpringGoldCost,
+            HealthReward: HealingSpringHealthReward);
+
+        /// <summary>A free gold find with no cost (a lucky cache).</summary>
+        public static EventOption GoldWindfall { get; } = new(
+            Kind: EventChoiceKind.GoldWindfall,
+            Id: "event_gold_windfall",
+            Title: "Забытый тайник",
+            Description: $"Вы находите забытый тайник с {WindfallGoldReward} золота.",
+            RiskLabel: "Без риска",
+            RewardLabel: $"+{WindfallGoldReward} золота",
+            AcceptLabel: "Забрать золото",
+            GoldReward: WindfallGoldReward);
+
+        /// <summary>Spend gold to gain XP toward the next player level (war maneuvers).</summary>
+        public static EventOption TrainingGrounds { get; } = new(
+            Kind: EventChoiceKind.TrainingBoon,
+            Id: "event_training_grounds",
+            Title: "Военные манёвры",
+            Description: $"Потратьте {TrainingGoldCost} золота на манёвры и получите {TrainingXpReward} опыта.",
+            RiskLabel: $"-{TrainingGoldCost} золота",
+            RewardLabel: $"+{TrainingXpReward} опыта",
+            AcceptLabel: "Провести манёвры",
+            GoldCost: TrainingGoldCost,
+            XpReward: TrainingXpReward);
+
+        /// <summary>A riskier merchant trade variant of the <see cref="EventChoiceKind.TradeHealthForGold"/> archetype.</summary>
+        public static EventOption BoldTrade { get; } = new(
+            Kind: EventChoiceKind.TradeHealthForGold,
+            Id: "event_bold_trade",
+            Title: "Дерзкая сделка",
+            Description: $"Торговец предлагает {BoldTradeGoldReward} золота в обмен на {BoldTradeHealthCost} здоровья забега.",
+            RiskLabel: $"-{BoldTradeHealthCost} здоровья забега",
+            RewardLabel: $"+{BoldTradeGoldReward} золота",
+            AcceptLabel: "Заключить дерзкую сделку",
+            HealthCost: BoldTradeHealthCost,
+            GoldReward: BoldTradeGoldReward);
+
+        /// <summary>
+        /// Every event in the pool. The four GDD archetypes lead so the single MVP event
+        /// round (round 4, seed 1640) keeps offering the canonical merchant trade
+        /// (1640 % 8 == 0), with the broader pool surfacing on other seeds and future
+        /// event rounds.
+        /// </summary>
         public static IReadOnlyList<EventOption> All { get; } = Array.AsReadOnly(new[]
         {
             TradeHealthForGold,
             CursedFreeHero,
             FactionBoost,
-            SacrificeHeroForArtifact
+            SacrificeHeroForArtifact,
+            HealingSpring,
+            GoldWindfall,
+            TrainingGrounds,
+            BoldTrade
         });
 
         /// <summary>The canonical event for a given archetype.</summary>
@@ -87,6 +165,9 @@ namespace RuneChess.Core
             EventChoiceKind.CursedFreeHero => CursedFreeHero,
             EventChoiceKind.FactionBoost => FactionBoost,
             EventChoiceKind.SacrificeHeroForArtifact => SacrificeHeroForArtifact,
+            EventChoiceKind.GoldForHealth => HealingSpring,
+            EventChoiceKind.GoldWindfall => GoldWindfall,
+            EventChoiceKind.TrainingBoon => TrainingGrounds,
             _ => throw new ArgumentOutOfRangeException(nameof(kind), "Unknown event choice kind.")
         };
 

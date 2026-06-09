@@ -79,11 +79,14 @@ namespace RuneChess.Core
                 throw new InvalidOperationException("An event screen can only be built for an event round.");
             }
 
-            var choice = PickForSeed(round.CombatRuneSeed);
-            return ForEvent(choice, round.Round, round.EnemyName, round.DesignGoal);
+            return ForEvent(OfferedFor(round), round.Round, round.EnemyName, round.DesignGoal);
         }
 
-        /// <summary>Build the event screen for a run currently on an event round.</summary>
+        /// <summary>
+        /// Build the event screen for a run currently on an event round. The card renders
+        /// the run's offered event so the screen and the run's resolution share one source
+        /// of truth (display == apply).
+        /// </summary>
         public static EventScreenModel Build(RunState run)
         {
             if (run is null)
@@ -91,10 +94,31 @@ namespace RuneChess.Core
                 throw new ArgumentNullException(nameof(run));
             }
 
-            return Build(run.CurrentRoundDefinition);
+            var round = run.CurrentRoundDefinition;
+            return ForEvent(run.OfferedEvent, round.Round, round.EnemyName, round.DesignGoal);
         }
 
-        /// <summary>Deterministically pick one of the four supported events from a seed.</summary>
+        /// <summary>
+        /// The event an event round offers, picked deterministically from the round seed so
+        /// the same round always presents the same event. This is the seed-derived default;
+        /// a run captures it on entry so the offered event stays stable through resolution.
+        /// </summary>
+        public static EventOption OfferedFor(PveRoundDefinition round)
+        {
+            if (round is null)
+            {
+                throw new ArgumentNullException(nameof(round));
+            }
+
+            if (round.Type != PveRoundType.Event)
+            {
+                throw new InvalidOperationException("Only event rounds offer an event.");
+            }
+
+            return PickForSeed(round.CombatRuneSeed);
+        }
+
+        /// <summary>Deterministically pick one of the pooled events from a seed.</summary>
         private static EventOption PickForSeed(int seed)
         {
             var index = (int)((uint)seed % (uint)EventCatalog.All.Count);

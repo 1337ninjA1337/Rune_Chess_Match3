@@ -22,7 +22,8 @@ namespace RuneChess.Core
         bool RoundArtifactClaimed = false,
         bool RoundHeroClaimed = false,
         bool RoundEventResolved = false,
-        string PendingFactionBoostId = ""
+        string PendingFactionBoostId = "",
+        string OfferedEventId = ""
     )
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
@@ -703,7 +704,8 @@ namespace RuneChess.Core
                 NextEnemyId = nextEnemyId,
                 Combat = null,
                 DefeatReason = null,
-                RoundEventResolved = false
+                RoundEventResolved = false,
+                OfferedEventId = ""
             };
         }
 
@@ -721,11 +723,22 @@ namespace RuneChess.Core
                 throw new InvalidOperationException("Only event rounds offer an event encounter.");
             }
 
-            return this with { Phase = RunPhase.Event, RoundEventResolved = false };
+            var offeredId = !string.IsNullOrEmpty(OfferedEventId) && EventCatalog.TryGet(OfferedEventId, out _)
+                ? OfferedEventId
+                : EventScreenModel.OfferedFor(CurrentRoundDefinition).Id;
+
+            return this with { Phase = RunPhase.Event, RoundEventResolved = false, OfferedEventId = offeredId };
         }
 
-        /// <summary>The event archetype offered by the current event round, drawn deterministically from the round seed.</summary>
-        public EventOption OfferedEvent => EventScreenModel.Build(this).Choice;
+        /// <summary>
+        /// The event offered by the current event round. A run entering an event captures the
+        /// seed-picked event so it stays stable through resolution; the run then applies that
+        /// very option's deltas, so what the screen shows is exactly what gets applied.
+        /// </summary>
+        public EventOption OfferedEvent =>
+            !string.IsNullOrEmpty(OfferedEventId) && EventCatalog.TryGet(OfferedEventId, out var captured)
+                ? captured
+                : EventScreenModel.OfferedFor(CurrentRoundDefinition);
 
         /// <summary>
         /// Decline the offered event (GDD "Отказаться") and leave it resolved so the run can
@@ -739,14 +752,14 @@ namespace RuneChess.Core
 
         /// <summary>
         /// Accept the relic-merchant trade (GDD "обмен здоровья на золото"): pay run health to
-        /// gain gold using the balance numbers on <see cref="EventCatalog.TradeHealthForGold"/>.
-        /// The trade is only allowed while it keeps the run alive (run health stays at least 1).
+        /// gain gold using the deltas on the offered event, so the trade applies exactly the
+        /// numbers the screen showed. The trade is only allowed while it keeps the run alive
+        /// (run health stays at least 1). Both the canonical and bold merchant variants share
+        /// this <see cref="EventChoiceKind.TradeHealthForGold"/> path.
         /// </summary>
         public RunState AcceptTradeHealthForGold()
         {
-            EnsureUnresolvedEvent();
-
-            var option = EventCatalog.TradeHealthForGold;
+            var option = RequireOffered(EventChoiceKind.TradeHealthForGold);
             if (RunHealth <= option.HealthCost)
             {
                 throw new InvalidOperationException("Not enough run health to safely make this trade.");
@@ -761,13 +774,73 @@ namespace RuneChess.Core
         }
 
         /// <summary>
+        /// Accept the healing spring (<see cref="EventChoiceKind.GoldForHealth"/>): spend gold from
+        /// the offered event to restore run health, never above the run's starting maximum. The
+        /// player must hold enough gold to pay the cost.
+        /// </summary>
+        public RunState AcceptGoldForHealth(EconomyConfig? economy = null)
+        {
+            var option = RequireOffered(EventChoiceKind.GoldForHealth);
+            if (Gold < option.GoldCost)
+            {
+                throw new InvalidOperationException("Not enough gold to pay for healing.");
+            }
+
+            var config = economy ?? EconomyConfig.Default;
+            var healed = Math.Min(RunHealth + option.HealthReward, config.StartingRunHealth);
+
+            return this with
+            {
+                Gold = Gold - option.GoldCost,
+                RunHealth = healed,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>
+        /// Accept the gold windfall (<see cref="EventChoiceKind.GoldWindfall"/>): a free gold find
+        /// with no cost, applying the offered event's reward.
+        /// </summary>
+        public RunState AcceptGoldWindfall()
+        {
+            var option = RequireOffered(EventChoiceKind.GoldWindfall);
+
+            return this with
+            {
+                Gold = Gold + option.GoldReward,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>
+        /// Accept the training maneuvers (<see cref="EventChoiceKind.TrainingBoon"/>): spend gold
+        /// from the offered event to gain XP toward the next player level. The player must hold
+        /// enough gold to pay the cost.
+        /// </summary>
+        public RunState AcceptTrainingBoon()
+        {
+            var option = RequireOffered(EventChoiceKind.TrainingBoon);
+            if (Gold < option.GoldCost)
+            {
+                throw new InvalidOperationException("Not enough gold to train.");
+            }
+
+            return this with
+            {
+                Gold = Gold - option.GoldCost,
+                Xp = Xp + option.XpReward,
+                RoundEventResolved = true
+            };
+        }
+
+        /// <summary>
         /// Accept the cursed gift (GDD "бесплатный герой с проклятием"): a free Common hero,
         /// picked deterministically from the round seed, joins the bench at one star carrying a
         /// curse that weakens it in combat for the rest of the run. The bench must have a free slot.
         /// </summary>
         public RunState AcceptCursedFreeHero(EconomyConfig? economy = null)
         {
-            EnsureUnresolvedEvent();
+            RequireOffered(EventChoiceKind.CursedFreeHero);
 
             var config = economy ?? EconomyConfig.Default;
             if (Bench.Count >= config.StartingBenchSize)
@@ -794,7 +867,7 @@ namespace RuneChess.Core
         /// </summary>
         public RunState AcceptFactionBoost(string factionId)
         {
-            EnsureUnresolvedEvent();
+            RequireOffered(EventChoiceKind.FactionBoost);
 
             if (string.IsNullOrWhiteSpace(factionId))
             {
@@ -832,7 +905,7 @@ namespace RuneChess.Core
         /// </summary>
         public RunState AcceptSacrificeHeroForArtifact(string instanceId)
         {
-            EnsureUnresolvedEvent();
+            RequireOffered(EventChoiceKind.SacrificeHeroForArtifact);
 
             if (string.IsNullOrWhiteSpace(instanceId))
             {
@@ -865,6 +938,25 @@ namespace RuneChess.Core
                 Team = team,
                 RoundEventResolved = true
             }).AddArtifact(relic.ToArtifactState());
+        }
+
+        /// <summary>
+        /// Guards an event resolution and returns the offered event, requiring the run to be on
+        /// an unresolved encounter that offers the expected archetype. This keeps resolution
+        /// data-driven by the offered event: the caller applies the very option the screen showed.
+        /// </summary>
+        private EventOption RequireOffered(EventChoiceKind kind)
+        {
+            EnsureUnresolvedEvent();
+
+            var option = OfferedEvent;
+            if (option.Kind != kind)
+            {
+                throw new InvalidOperationException(
+                    $"The offered event is '{option.Kind}', not '{kind}'.");
+            }
+
+            return option;
         }
 
         /// <summary>Guards an event resolution: the run must be on an unresolved event encounter.</summary>

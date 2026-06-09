@@ -19,6 +19,9 @@ namespace RuneChess.Core
         string DeclineLabel = "Отказаться",
         int HealthCost = 0,
         int GoldReward = 0,
+        int GoldCost = 0,
+        int HealthReward = 0,
+        int XpReward = 0,
         string FactionId = "",
         bool GrantsHero = false,
         bool RemovesHero = false,
@@ -30,6 +33,15 @@ namespace RuneChess.Core
 
         /// <summary>True when accepting the event grants gold.</summary>
         public bool GrantsGold => GoldReward > 0;
+
+        /// <summary>True when accepting the event costs the player gold.</summary>
+        public bool CostsGold => GoldCost > 0;
+
+        /// <summary>True when accepting the event restores run health.</summary>
+        public bool RestoresHealth => HealthReward > 0;
+
+        /// <summary>True when accepting the event grants XP toward the next player level.</summary>
+        public bool GrantsXp => XpReward > 0;
 
         /// <summary>True when accepting the event buffs a specific faction next battle.</summary>
         public bool BuffsFaction => Kind == EventChoiceKind.FactionBoost;
