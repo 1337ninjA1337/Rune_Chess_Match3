@@ -3246,6 +3246,24 @@ Require(EnemyVariantCatalog.Get("ROUND_06_SHADOW_AMBUSH").Round == 6, "variant l
 Require(!EnemyVariantCatalog.TryGet("unknown_variant", out _), "variant lookup rejects unknown ids");
 RequireThrows(() => EnemyVariantCatalog.Get("unknown_variant"), "variant get throws on unknown ids");
 
+// Additional elite encounters (codex P2: "Добавить дополнительные элитные бои").
+// Harder set-pieces with distinct twists, tuned to the canonical elite's difficulty.
+Require(EliteEncounterCatalog.All.Count >= 3, "the elite pool ships several extra encounters");
+Require(EliteEncounterCatalog.All.Select(e => e.Id).Distinct().Count() == EliteEncounterCatalog.All.Count, "each elite encounter has a distinct id");
+Require(PveRunSchedule.GetRound(EliteEncounterCatalog.ReferenceEliteRound).Type == PveRoundType.Elite, "the elite pool references the canonical elite round");
+foreach (var elite in EliteEncounterCatalog.All)
+{
+    Require(elite.Composition.Count > 0 && !string.IsNullOrWhiteSpace(elite.Name) && !string.IsNullOrWhiteSpace(elite.EliteTwist), $"elite '{elite.Id}' has a name, twist and roster");
+    Require(elite.StarTotal == EliteEncounterCatalog.EliteStarBudget, $"elite '{elite.Id}' matches the canonical elite star budget");
+    Require(elite.Composition.All(unit => HeroCatalog.TryGet(unit.HeroId, out _)), $"elite '{elite.Id}' uses only real heroes");
+    Require(elite.Composition.All(unit => unit.Position.Row is 0 or 1 && unit.Position.Column is >= 0 and < TacticalField.MvpColumns), $"elite '{elite.Id}' places enemies on the enemy half of the field");
+    Require(elite.Composition.Select(unit => unit.Position).Distinct().Count() == elite.Composition.Count, $"elite '{elite.Id}' never stacks two enemies on one cell");
+}
+Require(EliteEncounterCatalog.All.Select(e => e.EliteTwist).Distinct().Count() == EliteEncounterCatalog.All.Count, "each elite encounter tests a distinct twist");
+Require(EliteEncounterCatalog.Get("ELITE_VOID_CHOIR").Name == "Хор Пустоты", "elite lookup is case-insensitive");
+Require(!EliteEncounterCatalog.TryGet("unknown_elite", out _), "elite lookup rejects unknown ids");
+RequireThrows(() => EliteEncounterCatalog.Get("unknown_elite"), "elite get throws on unknown ids");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
