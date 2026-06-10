@@ -3500,6 +3500,47 @@ Require(duelAfter.Participants.Single(player => player.Id == "a").Placement == 1
 var liveEight = LivePvpMatch.Create(Enumerable.Range(1, 8).Select(n => ($"s{n}", $"Player {n}")).ToList());
 Require(liveEight.Participants.Count == 8 && liveEight.AliveCount == 8, "an eight-seat Live PvP lobby seats every player");
 
+// Monetization policy (codex Backlog "Монетизация без pay-to-win": подходящие косметические
+// форматы и запрещённые pay-to-win форматы). See docs/monetization.md.
+Require(MonetizationCatalog.AcceptableFormats.Count == 8, "the monetization design lists the eight acceptable cosmetic formats");
+Require(MonetizationCatalog.AcceptableFormats.Select(format => format.Id).Distinct().Count() == 8, "every acceptable monetization format has a unique id");
+Require(MonetizationCatalog.AcceptableFormats.Select(format => format.Kind).Distinct().Count() == 8, "every acceptable monetization format is a distinct kind");
+Require(Enum.GetValues(typeof(MonetizationFormatKind)).Cast<MonetizationFormatKind>().All(kind => MonetizationCatalog.AcceptableFormats.Any(format => format.Kind == kind)), "every acceptable format kind appears in the catalog");
+Require(MonetizationCatalog.ForKind(MonetizationFormatKind.BattlePass).Id == "battle_pass", "the catalog resolves a format by kind");
+Require(MonetizationCatalog.Get("HERO_SKINS").Kind == MonetizationFormatKind.HeroSkin, "monetization format lookup is case-insensitive");
+Require(!MonetizationCatalog.TryGet("not_a_format", out _), "monetization lookup rejects an unknown id");
+RequireThrows(() => MonetizationCatalog.Get("not_a_format"), "monetization get throws on an unknown id");
+
+// The three formats that reskin an existing run surface map to a CosmeticKind; the rest do not.
+Require(MonetizationCatalog.ForKind(MonetizationFormatKind.HeroSkin).AppliesTo == CosmeticKind.HeroSkin
+    && MonetizationCatalog.ForKind(MonetizationFormatKind.BoardSkin).AppliesTo == CosmeticKind.BoardSkin
+    && MonetizationCatalog.ForKind(MonetizationFormatKind.RuneEffect).AppliesTo == CosmeticKind.RuneEffect, "loadout cosmetic formats map to their run surface");
+Require(MonetizationCatalog.ForKind(MonetizationFormatKind.HeroSkin).ReskinsRunSurface, "a loadout cosmetic format reskins a run surface");
+Require(MonetizationCatalog.AcceptableFormats.Count(format => format.ReskinsRunSurface) == 3, "exactly the three loadout cosmetics map onto a run surface");
+Require(MonetizationCatalog.ForKind(MonetizationFormatKind.BattlePass).AppliesTo is null, "non-loadout formats like a battle pass do not reskin a run surface");
+
+// The four prohibitions are recognised as forbidden, and the catalog honours the policy.
+Require(MonetizationCatalog.Prohibitions.Count == 4, "the design names the four prohibited monetization formats");
+Require(Enum.GetValues(typeof(MonetizationProhibitionKind)).Cast<MonetizationProhibitionKind>().All(MonetizationPolicy.IsProhibited), "every prohibited format is forbidden unconditionally");
+Require(!string.IsNullOrWhiteSpace(MonetizationCatalog.ReasonFor(MonetizationProhibitionKind.MandatoryEnergyToPlay)), "each prohibition carries a stated reason");
+Require(MonetizationPolicy.AcceptableKinds.Count == 8 && MonetizationPolicy.IsAcceptable(MonetizationFormatKind.Emote), "the policy exposes the acceptable kinds");
+Require(MonetizationPolicy.CatalogHonoursPolicy(), "the whole monetization catalog honours the non-pay-to-win policy");
+
+// Cosmetic-only has teeth: no acceptable format exposes a numeric (power) field.
+Require(MonetizationCatalog.AcceptableFormats.All(MonetizationPolicy.IsCosmeticOnly), "no acceptable monetization format exposes a numeric power field");
+MonetizationCatalog.AcceptableFormats.ToList().ForEach(MonetizationPolicy.EnsureCosmeticOnly);
+RequireThrows(() => MonetizationPolicy.IsCosmeticOnly(null!), "the cosmetic-only guard rejects a null format");
+
+// Cross-check the real game invariants the policy depends on.
+Require(MonetizationPolicy.IsCosmeticOnly(MonetizationCatalog.ForKind(MonetizationFormatKind.HeroSkin))
+    && typeof(CosmeticDefinition).GetProperties().All(property => property.PropertyType == typeof(string) || property.PropertyType == typeof(CosmeticKind) || property.PropertyType == typeof(bool)), "monetized cosmetics reuse the power-free CosmeticDefinition shape");
+var p2wCurrencyAccount = AccountProgress.Starting.WithGains(0, 1000000);
+Require(p2wCurrencyAccount.UnlockedCommanders == AccountProgress.Starting.UnlockedCommanders
+    && p2wCurrencyAccount.UnlockedStartingArtifacts == AccountProgress.Starting.UnlockedStartingArtifacts
+    && p2wCurrencyAccount.UnlockedCosmetics == AccountProgress.Starting.UnlockedCosmetics, "soft currency buys no power: spending it unlocks no commander, artifact, or cosmetic");
+var noEnergyRun = RunState.NewRun();
+Require(noEnergyRun.Phase == RunPhase.Preparation && noEnergyRun.Round == 1, "a run starts with no mandatory energy/stamina gate (NewRun needs no energy resource)");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
