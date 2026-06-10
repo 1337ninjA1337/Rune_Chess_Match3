@@ -3425,6 +3425,81 @@ Require(ArenaMatchmaker.FindOpponent(1200, arenaTiePool)!.SnapshotId == "snap_x"
 RequireThrows(() => ArenaMatchmaker.FindOpponent(-1, arenaPool), "matchmaking rejects a negative player rating");
 RequireThrows(() => ArenaMatchmaker.FindOpponent(1200, arenaPool, bracket: 0), "matchmaking rejects a non-positive bracket");
 
+// Live PvP lobby (codex Backlog "Будущие режимы": Live PvP на 4/8 игроков, параллельные
+// раунды, потеря здоровья после поражений). See docs/live-pvp.md.
+Require(LivePvpConfig.IsValidLobbySize(4) && LivePvpConfig.IsValidLobbySize(8), "a Live PvP lobby seats 4 or 8 players");
+Require(!LivePvpConfig.IsValidLobbySize(5) && !LivePvpConfig.IsValidLobbySize(2), "a Live PvP lobby rejects sizes other than 4 or 8");
+Require(LivePvpConfig.Default.StartingHealth == 100, "the default Live PvP config starts players at 100 health");
+RequireThrows(() => new LivePvpConfig(0), "a Live PvP config rejects non-positive starting health");
+
+var livePvpSeats = new (string, string)[] { ("p1", "Анна"), ("p2", "Борис"), ("p3", "Виктор"), ("p4", "Галина") };
+var liveMatch = LivePvpMatch.Create(livePvpSeats);
+Require(liveMatch.Participants.Count == 4 && liveMatch.AliveCount == 4, "a fresh Live PvP match seats every player alive");
+Require(liveMatch.Round == 1 && liveMatch.Phase == LivePvpPhase.InProgress && !liveMatch.IsFinished, "a fresh Live PvP match opens at round 1 in progress");
+Require(liveMatch.Participants.All(player => player.Health == 100 && !player.HasPlacement), "every Live PvP player starts on full health with no placement");
+Require(liveMatch.Winner is null, "an unfinished Live PvP match has no winner yet");
+RequireThrows(() => LivePvpMatch.Create(new (string, string)[] { ("p1", "A"), ("p2", "B"), ("p3", "C") }), "a Live PvP match rejects a lobby of three");
+RequireThrows(() => LivePvpMatch.Create(new (string, string)[] { ("p1", "A"), ("p1", "B"), ("p3", "C"), ("p4", "D") }), "a Live PvP match rejects duplicate seat ids");
+RequireThrows(() => LivePvpMatch.Create(null!), "a Live PvP match rejects a null seat list");
+
+// Parallel round progression: every alive player advances one shared round at once.
+var liveRound1 = liveMatch.ResolveRound(new[]
+{
+    LivePvpRoundOutcome.Win("p1"),
+    LivePvpRoundOutcome.Loss("p2", 30),
+    LivePvpRoundOutcome.Win("p3"),
+    LivePvpRoundOutcome.Loss("p4", 100),
+});
+Require(liveRound1.Round == 2, "resolving a Live PvP round advances the shared round clock for the whole lobby");
+Require(liveRound1.Participants.Single(player => player.Id == "p1").Health == 100, "a Live PvP winner keeps all of their health");
+Require(liveRound1.Participants.Single(player => player.Id == "p2").Health == 70, "a Live PvP loser spends the reported health");
+Require(liveRound1.Participants.Single(player => player.Id == "p4").Health == 0 && liveRound1.Participants.Single(player => player.Id == "p4").IsEliminated, "a Live PvP player drained to zero is eliminated");
+Require(liveRound1.AliveCount == 3 && !liveRound1.IsFinished, "the match continues while more than one player survives");
+Require(liveRound1.Participants.Single(player => player.Id == "p4").Placement == 4, "a player knocked out with three survivors finishes fourth");
+RequireThrows(() => liveRound1.ResolveRound(new[] { LivePvpRoundOutcome.Win("p1"), LivePvpRoundOutcome.Win("p2") }), "a round needs exactly one outcome per alive player — a missing one throws");
+RequireThrows(() => liveRound1.ResolveRound(new[] { LivePvpRoundOutcome.Win("p1"), LivePvpRoundOutcome.Win("p2"), LivePvpRoundOutcome.Win("p3"), LivePvpRoundOutcome.Win("p4") }), "a round rejects an outcome for an eliminated player");
+RequireThrows(() => liveRound1.ResolveRound(new[] { LivePvpRoundOutcome.Win("p1"), LivePvpRoundOutcome.Win("p1"), LivePvpRoundOutcome.Win("p2"), LivePvpRoundOutcome.Win("p3") }), "a round rejects two outcomes for the same player");
+
+// Health loss accumulates across parallel rounds down to a single winner.
+var liveRound2 = liveRound1.ResolveRound(new[]
+{
+    LivePvpRoundOutcome.Win("p1"),
+    LivePvpRoundOutcome.Loss("p2", 70),
+    LivePvpRoundOutcome.Loss("p3", 40),
+});
+Require(liveRound2.Participants.Single(player => player.Id == "p2").IsEliminated && liveRound2.Participants.Single(player => player.Id == "p2").Placement == 3, "the next knockout finishes third above the two survivors' line");
+Require(liveRound2.AliveCount == 2 && !liveRound2.IsFinished, "two survivors keep the match in progress");
+var liveFinal = liveRound2.ResolveRound(new[]
+{
+    LivePvpRoundOutcome.Win("p1"),
+    LivePvpRoundOutcome.Loss("p3", 100),
+});
+Require(liveFinal.IsFinished && liveFinal.Phase == LivePvpPhase.Finished, "the match finishes once one player remains");
+Require(liveFinal.Winner!.Id == "p1" && liveFinal.Winner!.Placement == 1, "the last player standing wins at first place");
+Require(liveFinal.Participants.Single(player => player.Id == "p3").Placement == 2, "the runner-up is placed second");
+Require(liveFinal.Standings.Select(player => player.Id).SequenceEqual(new[] { "p1", "p3", "p2", "p4" }), "final standings rank players best-first by placement");
+RequireThrows(() => liveFinal.ResolveRound(new[] { LivePvpRoundOutcome.Win("p1") }), "a finished Live PvP match cannot resolve another round");
+
+// Health-loss invariants on the outcome value itself.
+Require(LivePvpRoundOutcome.Loss("p", 25).Damage == 25 && !LivePvpRoundOutcome.Loss("p", 25).Won, "a defeat outcome records its health cost");
+Require(LivePvpRoundOutcome.Win("p").Damage == 0 && LivePvpRoundOutcome.Win("p").Won, "a win outcome costs no health");
+RequireThrows(() => new LivePvpRoundOutcome("p", Won: true, Damage: 5), "a winning outcome cannot carry health damage");
+RequireThrows(() => new LivePvpRoundOutcome("p", Won: false, Damage: 0), "a losing outcome must cost at least one health");
+RequireThrows(() => new LivePvpParticipant("p", "A", 10).TakeDamage(-1), "a participant rejects negative damage");
+Require(new LivePvpParticipant("p", "A", 10).TakeDamage(25).Health == 0, "participant health never drops below zero");
+
+// Mutual knockout: the last survivors dying together tie as co-winners.
+var duelMatch = LivePvpMatch.Create(new (string, string)[] { ("a", "A"), ("b", "B"), ("c", "C"), ("d", "D") });
+var duelAfter = duelMatch
+    .ResolveRound(new[] { LivePvpRoundOutcome.Win("a"), LivePvpRoundOutcome.Win("b"), LivePvpRoundOutcome.Loss("c", 100), LivePvpRoundOutcome.Loss("d", 100) })
+    .ResolveRound(new[] { LivePvpRoundOutcome.Loss("a", 100), LivePvpRoundOutcome.Loss("b", 100) });
+Require(duelAfter.IsFinished && duelAfter.AliveCount == 0, "a mutual knockout finishes the match with no survivors");
+Require(duelAfter.Participants.Single(player => player.Id == "a").Placement == 1 && duelAfter.Participants.Single(player => player.Id == "b").Placement == 1, "a mutual knockout ties the last players as co-winners");
+
+// An eight-player lobby is the other GDD-allowed size.
+var liveEight = LivePvpMatch.Create(Enumerable.Range(1, 8).Select(n => ($"s{n}", $"Player {n}")).ToList());
+Require(liveEight.Participants.Count == 8 && liveEight.AliveCount == 8, "an eight-seat Live PvP lobby seats every player");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
