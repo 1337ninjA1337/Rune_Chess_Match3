@@ -2405,9 +2405,9 @@ var loadoutLvl2 = AccountProgress.Starting.WithGains(AccountProgress.XpForNextLe
 var equippedRune = CosmeticLoadout.Default.Equip("rune_glow", loadoutLvl2);
 Require(equippedRune.IsEquipped("RUNE_GLOW") && equippedRune.EquippedFor(CosmeticKind.RuneEffect) == "rune_glow", "an unlocked cosmetic can be equipped for its kind (case-insensitive)");
 Require(equippedRune.IsEquipped(CosmeticUnlockSchedule.Entries[0].CosmeticId), "equipping one kind keeps the other kind's cosmetic applied");
-var swappedBoard = equippedRune.Equip("board_obsidian", maxAccount);
-Require(swappedBoard.EquippedFor(CosmeticKind.BoardSkin) == "board_obsidian" && !swappedBoard.IsEquipped("board_classic"), "equipping a board skin replaces the previously applied board skin");
-Require(swappedBoard.EquippedIds.Select(id => CosmeticCatalog.Get(id).Kind).Distinct().Count() == swappedBoard.EquippedIds.Count, "a loadout never applies two cosmetics of the same kind");
+var swappedBoardLoadout = equippedRune.Equip("board_obsidian", maxAccount);
+Require(swappedBoardLoadout.EquippedFor(CosmeticKind.BoardSkin) == "board_obsidian" && !swappedBoardLoadout.IsEquipped("board_classic"), "equipping a board skin replaces the previously applied board skin");
+Require(swappedBoardLoadout.EquippedIds.Select(id => CosmeticCatalog.Get(id).Kind).Distinct().Count() == swappedBoardLoadout.EquippedIds.Count, "a loadout never applies two cosmetics of the same kind");
 RequireThrows(() => new CosmeticLoadout(new[] { "board_classic", "board_obsidian" }), "a loadout rejects two cosmetics of the same kind");
 RequireThrows(() => new CosmeticLoadout(new[] { "unknown_cosmetic" }), "a loadout rejects an unknown cosmetic id");
 
@@ -2426,7 +2426,7 @@ var unlockedBoard = freshShop.Entries.First(entry => entry.Id == CosmeticUnlockS
 Require(unlockedBoard.IsEquipped && !unlockedBoard.CanEquip && unlockedBoard.StatusLabel == "Применено", "the applied cosmetic reads as equipped");
 Require(freshShop.NextUnlock is not null && freshShop.NextUnlock!.RequiredAccountLevel == 2, "the shop surfaces the next cosmetic unlock as a goal");
 Require(freshShop.SoftCurrency == AccountProgress.Starting.SoftCurrency, "the shop surfaces soft currency for display only");
-var maxShop = CosmeticShopModel.Build(maxAccount, swappedBoard);
+var maxShop = CosmeticShopModel.Build(maxAccount, swappedBoardLoadout);
 Require(maxShop.Entries.All(entry => entry.IsUnlocked) && maxShop.NextUnlock is null, "a maxed account sees every cosmetic unlocked with no next goal");
 Require(maxShop.ForKind(CosmeticKind.RuneEffect).All(entry => entry.Kind == CosmeticKind.RuneEffect) && maxShop.ForKind(CosmeticKind.RuneEffect).Count >= 1, "the shop groups rows by cosmetic kind");
 Require(maxShop.EquippedFor(CosmeticKind.BoardSkin)!.Id == "board_obsidian", "the shop reflects a swapped board skin");
@@ -3049,15 +3049,15 @@ Require(freshOnboarding.CompletedCount == 0 && !freshOnboarding.IsTutorialComple
 var round1Flow = OnboardingFlowModel.Build(1, freshOnboarding);
 Require(round1Flow.IsActive && round1Flow.RequiresPlayerAction && round1Flow.PendingGate == OnboardingGate.PlaceHeroOnField, "round 1 shows an active prompt waiting on the place-hero action");
 Require(round1Flow.Title == OnboardingScript.ForRound(1)!.Title && round1Flow.ActionPrompt == OnboardingScript.ForRound(1)!.Hint, "the flow surfaces the step title and interactive prompt");
-var afterPlace = freshOnboarding.CompleteRound(1);
-Require(afterPlace.IsCompleted(OnboardingGate.PlaceHeroOnField) && afterPlace.CompletedCount == 1, "performing the gated action clears the step");
-var round1Cleared = OnboardingFlowModel.Build(1, afterPlace);
+var afterOnboardingPlace = freshOnboarding.CompleteRound(1);
+Require(afterOnboardingPlace.IsCompleted(OnboardingGate.PlaceHeroOnField) && afterOnboardingPlace.CompletedCount == 1, "performing the gated action clears the step");
+var round1Cleared = OnboardingFlowModel.Build(1, afterOnboardingPlace);
 Require(!round1Cleared.IsActive && !round1Cleared.RequiresPlayerAction && round1Cleared.PendingGate is null, "a cleared step stops blocking once its action is done");
 Require(round1Cleared.IsTutorialRound, "a cleared tutorial round is still recognised as a tutorial round");
 Require(freshOnboarding.CompletedCount == 0, "completing a gate does not mutate the original progress value");
-Require(afterPlace.Complete(OnboardingGate.PlaceHeroOnField).Equals(afterPlace), "completing an already-cleared gate is idempotent");
-var roundtrippedProgress = OnboardingProgress.FromGateIds(afterPlace.CompletedGateIds);
-Require(roundtrippedProgress.Equals(afterPlace), "onboarding progress round-trips through its persisted gate ids");
+Require(afterOnboardingPlace.Complete(OnboardingGate.PlaceHeroOnField).Equals(afterOnboardingPlace), "completing an already-cleared gate is idempotent");
+var roundtrippedProgress = OnboardingProgress.FromGateIds(afterOnboardingPlace.CompletedGateIds);
+Require(roundtrippedProgress.Equals(afterOnboardingPlace), "onboarding progress round-trips through its persisted gate ids");
 var fullyTaught = OnboardingScript.AllGates.Aggregate(OnboardingProgress.Empty, (progress, gate) => progress.Complete(gate));
 Require(fullyTaught.IsTutorialComplete && fullyTaught.CompletedCount == 7, "performing every gate completes the tutorial");
 var nonTutorialFlow = OnboardingFlowModel.Build(9, fullyTaught);
@@ -3180,23 +3180,23 @@ var readFourCells = new[] { new BoardPoint(0, 0), new BoardPoint(0, 1), new Boar
 var readTCells = new[] { new BoardPoint(0, 0), new BoardPoint(0, 1), new BoardPoint(0, 2), new BoardPoint(1, 1), new BoardPoint(2, 1) };
 var minorEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Green, readThreeCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1);
 var damageEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Red, readThreeCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1);
-var match4Effect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Blue, readFourCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1);
+var readMatch4Effect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Blue, readFourCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1);
 var massEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.White, readTCells, IsTOrLShaped: true, ContainsGreatRune: false), chainNumber: 1);
-var greatRuneEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Purple, readThreeCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1, greatRuneActivated: true);
+var readGreatRuneEffect = RuneEffectResolver.Resolve(new RuneMatchGroup(RuneType.Purple, readThreeCells, IsTOrLShaped: false, ContainsGreatRune: false), chainNumber: 1, greatRuneActivated: true);
 // Salience tiers: support match-3 is minor, damage/enhanced is major, great-rune/mass is critical.
 Require(BattleReadabilityModel.SalienceOf(minorEffect) == BattleEventSalience.Minor, "a base support match-3 is a minor readability event");
 Require(BattleReadabilityModel.SalienceOf(damageEffect) == BattleEventSalience.Major, "a damage match is a major readability event");
-Require(BattleReadabilityModel.SalienceOf(match4Effect) == BattleEventSalience.Major, "an enhanced match-4 is a major readability event");
+Require(BattleReadabilityModel.SalienceOf(readMatch4Effect) == BattleEventSalience.Major, "an enhanced match-4 is a major readability event");
 Require(BattleReadabilityModel.SalienceOf(massEffect) == BattleEventSalience.Critical, "a T/L mass effect is a critical readability event");
-Require(BattleReadabilityModel.SalienceOf(greatRuneEffect) == BattleEventSalience.Critical, "a great-rune activation is a critical readability event");
+Require(BattleReadabilityModel.SalienceOf(readGreatRuneEffect) == BattleEventSalience.Critical, "a great-rune activation is a critical readability event");
 // Large-combo slowdown trigger mirrors CombatState's match-4+/chain threshold.
-Require(BattleReadabilityModel.IsLargeComboEvent(match4Effect), "a match-4 is a large-combo slowdown event");
+Require(BattleReadabilityModel.IsLargeComboEvent(readMatch4Effect), "a match-4 is a large-combo slowdown event");
 Require(!BattleReadabilityModel.IsLargeComboEvent(minorEffect), "a base match-3 is not a large-combo slowdown event");
 // Effect cap: surfacing several effects keeps only the most important MaxSimultaneousEffects.
-var allReadEffects = new List<RuneEffect> { minorEffect, damageEffect, match4Effect, massEffect, greatRuneEffect };
+var allReadEffects = new List<RuneEffect> { minorEffect, damageEffect, readMatch4Effect, massEffect, readGreatRuneEffect };
 var visibleEffects = BattleReadabilityModel.SelectVisibleEffects(allReadEffects);
 Require(visibleEffects.Count == BattleReadabilityModel.MaxSimultaneousEffects, "the readability cap limits simultaneous on-screen effects");
-Require(visibleEffects.Contains(massEffect) && visibleEffects.Contains(greatRuneEffect), "the most fight-swinging effects always win the on-screen budget");
+Require(visibleEffects.Contains(massEffect) && visibleEffects.Contains(readGreatRuneEffect), "the most fight-swinging effects always win the on-screen budget");
 Require(!visibleEffects.Contains(minorEffect), "a minor support effect is dropped when the screen is crowded");
 Require(BattleReadabilityModel.RespectsAttentionBudget(visibleEffects), "the selected effects respect the attention budget");
 Require(!BattleReadabilityModel.RespectsAttentionBudget(allReadEffects), "showing every effect at once overloads the attention budget");
