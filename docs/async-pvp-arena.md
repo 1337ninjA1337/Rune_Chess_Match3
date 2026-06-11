@@ -99,10 +99,22 @@ intended path, recorded here so the schema fits it:
 This reuses the existing combat module wholesale, which is the whole point of recording
 compositions instead of building live PvP.
 
-## Rating update (future task)
+## Rating update
 
-Win/loss rating adjustment (e.g. Elo) is intentionally deferred. The schema already carries
-`Rating`, so an update step can be added without changing stored snapshots.
+`ArenaRatingRules.Update(playerRating, opponentRating, won)` applies the win/loss adjustment
+that keeps the matchmaking pool self-correcting. It is a standard Elo step:
+
+- expected score is the logistic of the rating gap (`RatingSpread = 400`, so a 400-point gap is
+  a 10:1 expected win ratio), `0.5` for equal ratings;
+- the change is `kFactor * (actual - expected)`, capped by the K-factor so one match cannot swing
+  the rating wildly (`DefaultKFactor = 32`, bounded by `MaxKFactor = 64`);
+- the result is clamped at zero, so a rating can never go negative;
+- beating a stronger opponent rewards more than beating a weaker one, and for even ratings the
+  winner's gain equals the loser's loss.
+
+Matching reads rating only — never account or spend state — so the ladder stays non-pay-to-win.
+The step is pure math with no I/O; persisting the new rating onto a stored `ArenaCompositionSnapshot`
+remains a presentation/backend concern.
 
 ## Out of scope
 

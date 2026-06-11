@@ -3425,6 +3425,21 @@ Require(ArenaMatchmaker.FindOpponent(1200, arenaTiePool)!.SnapshotId == "snap_x"
 RequireThrows(() => ArenaMatchmaker.FindOpponent(-1, arenaPool), "matchmaking rejects a negative player rating");
 RequireThrows(() => ArenaMatchmaker.FindOpponent(1200, arenaPool, bracket: 0), "matchmaking rejects a non-positive bracket");
 
+// Arena rating step (docs/async-pvp-arena.md "Rating updates"): the Elo move that keeps the
+// matchmaking pool self-correcting after each recorded match.
+var ratedWin = ArenaRatingRules.Update(1000, 1000, won: true);
+var ratedLoss = ArenaRatingRules.Update(1000, 1000, won: false);
+Require(ratedWin > 1000 && ratedLoss < 1000, "a win raises the rating and a loss lowers it");
+Require((ratedWin - 1000) == (1000 - ratedLoss), "even-rated win gain equals loss for symmetry");
+Require(Math.Abs(ArenaRatingRules.Update(1000, 2000, won: false) - 1000) <= ArenaRatingRules.DefaultKFactor, "a single match moves the rating by at most the K-factor");
+Require(ArenaRatingRules.Update(1000, 2000, won: true) - 1000 > ArenaRatingRules.Update(1000, 1000, won: true) - 1000, "beating a stronger opponent rewards more rating");
+Require(ArenaRatingRules.Update(10, 10, won: false) == 0, "rating is clamped at zero and never goes negative");
+Require(Math.Abs(ArenaRatingRules.ExpectedScore(1500, 1500) - 0.5) < 1e-9, "equal ratings have a 0.5 expected score");
+RequireThrows(() => ArenaRatingRules.Update(-1, 1000, won: true), "the rating step rejects a negative player rating");
+RequireThrows(() => ArenaRatingRules.Update(1000, -1, won: true), "the rating step rejects a negative opponent rating");
+RequireThrows(() => ArenaRatingRules.Update(1000, 1000, won: true, kFactor: 0), "the rating step rejects a non-positive K-factor");
+RequireThrows(() => ArenaRatingRules.Update(1000, 1000, won: true, kFactor: ArenaRatingRules.MaxKFactor + 1), "the rating step caps the K-factor");
+
 // Live PvP lobby (codex Backlog "Будущие режимы": Live PvP на 4/8 игроков, параллельные
 // раунды, потеря здоровья после поражений). See docs/live-pvp.md.
 Require(LivePvpConfig.IsValidLobbySize(4) && LivePvpConfig.IsValidLobbySize(8), "a Live PvP lobby seats 4 or 8 players");
