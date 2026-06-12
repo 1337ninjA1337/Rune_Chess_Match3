@@ -1,0 +1,37 @@
+name: Core Smoke
+
+# Compiles the pure C# core package and runs the CoreSmoke check suite on every
+# push and pull request. This closes the long-standing "verification gap" where
+# core tasks could only be statically reviewed because no .NET SDK was available
+# in automation.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "Packages/com.runechess.core/**"
+      - "tools/CoreSmoke/**"
+      - ".github/workflows/core-smoke.yml"
+      - "scripts/run-core-smoke.sh"
+  pull_request:
+    paths:
+      - "Packages/com.runechess.core/**"
+      - "tools/CoreSmoke/**"
+      - ".github/workflows/core-smoke.yml"
+      - "scripts/run-core-smoke.sh"
+  workflow_dispatch:
+
+jobs:
+  core-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Run CoreSmoke
+        run: ./scripts/run-core-smoke.sh
