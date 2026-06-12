@@ -1,5 +1,7 @@
 # Rune Chess Match-3
 
+[![Core Smoke](https://github.com/1337ninjA1337/Rune_Chess_Match3/actions/workflows/core-smoke.yml/badge.svg)](https://github.com/1337ninjA1337/Rune_Chess_Match3/actions/workflows/core-smoke.yml)
+
 Windows-developed Unity tactical roguelite targeting iOS portrait play sessions. The MVP combines auto battler squad building with an active match-3 rune board during combat.
 
 ## Project Sources
@@ -31,11 +33,14 @@ Inside Unity:
 2. Press Play.
 3. Use the Game view in portrait resolution, for example `390x844`.
 
-For pure core smoke checks without Unity:
+For pure core smoke checks without Unity (requires the .NET 8 SDK):
 
 ```sh
-dotnet run --project tools/CoreSmoke/CoreSmoke.csproj
+./scripts/run-core-smoke.sh
 ```
+
+This is the same check CI runs on every push and pull request via the
+[`Core Smoke`](.github/workflows/core-smoke.yml) workflow.
 
 ## Working Rules
 
