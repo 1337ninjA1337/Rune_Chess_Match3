@@ -3440,6 +3440,23 @@ RequireThrows(() => ArenaRatingRules.Update(1000, -1, won: true), "the rating st
 RequireThrows(() => ArenaRatingRules.Update(1000, 1000, won: true, kFactor: 0), "the rating step rejects a non-positive K-factor");
 RequireThrows(() => ArenaRatingRules.Update(1000, 1000, won: true, kFactor: ArenaRatingRules.MaxKFactor + 1), "the rating step caps the K-factor");
 
+// Persisting the rating back onto a stored snapshot (docs/async-pvp-arena.md "Rating updates"):
+// the recorded composition carries its post-match rating into the next matchmaking pass while
+// its identity (heroes/commander/artifacts/owner/id) stays untouched.
+var ratedSnapshot = new ArenaCompositionSnapshot("snap_rated", "Игрок", 1000, "rune_archon", new[] { arenaPlacement }, new[] { "merchant_seal" });
+var snapshotAfterWin = ArenaSnapshotBuilder.WithUpdatedRating(ratedSnapshot, 1000, won: true);
+var snapshotAfterLoss = ArenaSnapshotBuilder.WithUpdatedRating(ratedSnapshot, 1000, won: false);
+Require(snapshotAfterWin.Rating == ArenaRatingRules.Update(1000, 1000, won: true), "persisting a win stamps the snapshot with the Elo win rating");
+Require(snapshotAfterWin.Rating > 1000 && snapshotAfterLoss.Rating < 1000, "a recorded win raises and a loss lowers the stored snapshot rating");
+Require(snapshotAfterWin.SnapshotId == "snap_rated" && snapshotAfterWin.OwnerName == "Игрок" && snapshotAfterWin.CommanderId == "rune_archon", "updating the rating leaves the snapshot identity untouched");
+Require(snapshotAfterWin.HeroCount == 1 && snapshotAfterWin.Heroes[0].Position == ratedSnapshot.Heroes[0].Position && snapshotAfterWin.ArtifactIds.Count == 1, "updating the rating leaves the recorded composition untouched");
+Require(ratedSnapshot.Rating == 1000, "updating the rating returns a new snapshot and does not mutate the original");
+Require(ArenaSnapshotBuilder.WithUpdatedRating(ratedSnapshot, 2000, won: true).Rating - 1000 > ArenaSnapshotBuilder.WithUpdatedRating(ratedSnapshot, 1000, won: true).Rating - 1000, "beating a stronger opponent raises the stored rating more");
+Require(ArenaSnapshotBuilder.WithUpdatedRating(ratedSnapshot, 1000, won: false, kFactor: ArenaRatingRules.MaxKFactor).Rating >= 0, "a persisted rating is clamped at zero");
+RequireThrows(() => ArenaSnapshotBuilder.WithUpdatedRating(null!, 1000, won: true), "persisting a rating rejects a null snapshot");
+RequireThrows(() => ArenaSnapshotBuilder.WithUpdatedRating(ratedSnapshot, -1, won: true), "persisting a rating rejects a negative opponent rating");
+RequireThrows(() => ArenaSnapshotBuilder.WithUpdatedRating(ratedSnapshot, 1000, won: true, kFactor: 0), "persisting a rating rejects a non-positive K-factor");
+
 // Live PvP lobby (codex Backlog "Будущие режимы": Live PvP на 4/8 игроков, параллельные
 // раунды, потеря здоровья после поражений). See docs/live-pvp.md.
 Require(LivePvpConfig.IsValidLobbySize(4) && LivePvpConfig.IsValidLobbySize(8), "a Live PvP lobby seats 4 or 8 players");

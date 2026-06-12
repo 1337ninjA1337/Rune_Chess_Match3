@@ -56,5 +56,36 @@ namespace RuneChess.Core
                 heroes,
                 artifactIds);
         }
+
+        /// <summary>
+        /// Returns <paramref name="snapshot"/> with its matchmaking rating moved by one Elo step
+        /// after a recorded match against <paramref name="opponentRating"/> (GDD "Будущие режимы":
+        /// async PvP против записанных составов). <see cref="ArenaSnapshotBuilder.Capture"/> stamps
+        /// a snapshot with a rating once; this carries the post-match rating back onto the stored
+        /// record so the next matchmaking pass pairs it fairly. The composition (heroes, commander,
+        /// artifacts, owner, id) is untouched — only <see cref="ArenaCompositionSnapshot.Rating"/>
+        /// changes — so a recorded run keeps its identity while its ladder position self-corrects.
+        ///
+        /// It is a thin, pure wrapper over <see cref="ArenaRatingRules.Update"/>: a win raises the
+        /// stored rating, a loss lowers it, the swing is capped by <paramref name="kFactor"/>, and
+        /// the result never goes negative. Rating reads only the two ratings, never spend, so the
+        /// ladder stays non-pay-to-win (GDD: "Монетизация не должна давать прямое преимущество в
+        /// PvP"). No I/O — persistence belongs to the backend layer — so it stays smoke-testable.
+        /// </summary>
+        /// <exception cref="ArgumentNullException">The snapshot is null.</exception>
+        public static ArenaCompositionSnapshot WithUpdatedRating(
+            ArenaCompositionSnapshot snapshot,
+            int opponentRating,
+            bool won,
+            int kFactor = ArenaRatingRules.DefaultKFactor)
+        {
+            if (snapshot is null)
+            {
+                throw new ArgumentNullException(nameof(snapshot));
+            }
+
+            var updatedRating = ArenaRatingRules.Update(snapshot.Rating, opponentRating, won, kFactor);
+            return snapshot with { Rating = updatedRating };
+        }
     }
 }
