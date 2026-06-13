@@ -1269,14 +1269,16 @@ namespace RuneChess.Presentation
                 return;
             }
 
-            // Minimal play screen (per direct user request): just the match-3 field and a single
-            // enemy on top. Tactical field, bench, shop, status rows and rune legend are kept in
-            // code but off this screen so the core match-3 stays the focus.
+            // Portrait auto-battler combat skeleton (docs/visual-style.md "Portrait combat
+            // layout"): a top HUD bar, the enemy arena, the match-3 board as the primary input
+            // surface in the thumb zone, and a bottom combat-status panel, then the footer nav.
             SetNavigationForScreen(AppScreen.Combat);
             ClearChildren(contentRoot);
             ResetMatch3Board();
+            AddCombatHud(contentRoot);
             AddEnemyStagePanel(contentRoot);
             AddRunePanel(contentRoot);
+            AddCombatStatusRow(contentRoot);
             AddScreenNavigationRow(
                 contentRoot,
                 "Меню",
@@ -1810,6 +1812,48 @@ namespace RuneChess.Presentation
         }
 
         /// <summary>
+        /// Top HUD bar of the portrait combat skeleton (docs/visual-style.md "Top HUD bar"):
+        /// round/phase and next enemy on the left, then the live phase timer and run resources
+        /// (HP, gold, level) as stat tiles on the right. Sized off <see cref="UiTheme"/> spacing
+        /// tokens so the skeleton shares one source of truth with the rest of the overhaul.
+        /// </summary>
+        private void AddCombatHud(Transform parent)
+        {
+            var combat = runState.Combat ?? CombatState.Start(runeSeed);
+            var hud = CombatHudModel.Build(combat, BuildKeyHudUnits());
+
+            var panel = CreatePanel("Combat HUD", parent, GameColors.Panel);
+            AddLayoutElement(panel, 52);
+            AddOutline(panel, GameColors.Border);
+
+            var row = panel.AddComponent<HorizontalLayoutGroup>();
+            row.padding = new RectOffset((int)UiTheme.SpacingSm, (int)UiTheme.SpacingSm, (int)UiTheme.SpacingXs, (int)UiTheme.SpacingXs);
+            row.spacing = UiTheme.SpacingSm;
+            row.childAlignment = TextAnchor.MiddleCenter;
+            row.childControlWidth = true;
+            row.childForceExpandWidth = true;
+
+            var title = CreatePanel("HUD Title", panel.transform, Color.clear);
+            var titleLayout = title.AddComponent<VerticalLayoutGroup>();
+            titleLayout.childAlignment = TextAnchor.MiddleLeft;
+            titleLayout.childForceExpandHeight = false;
+            CreateText($"ROUND {runState.Round}", title.transform, 16, GameColors.Text, TextAnchor.MiddleLeft);
+            CreateText($"BATTLE  ·  NEXT {runState.NextEnemyId}", title.transform, 9, GameColors.Muted, TextAnchor.MiddleLeft);
+
+            var stats = CreatePanel("HUD Stats", panel.transform, Color.clear);
+            var statsLayout = stats.AddComponent<HorizontalLayoutGroup>();
+            statsLayout.spacing = 5;
+            statsLayout.childAlignment = TextAnchor.MiddleRight;
+            statsLayout.childControlWidth = false;
+            statsLayout.childForceExpandWidth = false;
+
+            CreateStat(stats.transform, "TIME", hud.TimerLabel, GameColors.Health);
+            CreateStat(stats.transform, "HP", runState.RunHealth.ToString(), GameColors.Heal);
+            CreateStat(stats.transform, "G", runState.Gold.ToString(), GameColors.Gold);
+            CreateStat(stats.transform, "LV", runState.PlayerLevel.ToString(), GameColors.Mana);
+        }
+
+        /// <summary>
         /// The enemy stage at the top of the battle screen (portrait hero-match-3 layout): the
         /// stage label, the enemy's name, a large primitive "character" block standing in for the
         /// boss art, and the enemy health bar. Uses primitive shapes only — placeholder visuals
@@ -1820,7 +1864,7 @@ namespace RuneChess.Presentation
             var card = LevelSelectModel.Build(runState)[runState.Round - 1];
 
             var panel = CreatePanel("Enemy Stage Panel", parent, GameColors.PanelDeep);
-            AddLayoutElement(panel, 250);
+            AddLayoutElement(panel, 198);
             AddOutline(panel, GameColors.WithAlpha(GameColors.Health, 0.7f));
 
             var stack = panel.AddComponent<VerticalLayoutGroup>();
@@ -1845,7 +1889,7 @@ namespace RuneChess.Presentation
         private void AddEnemyCharacterPrimitive(Transform parent, string enemyName)
         {
             var stage = CreatePanel("Enemy Character Stage", parent, GameColors.WithAlpha(GameColors.Health, 0.10f));
-            AddLayoutElement(stage, 152);
+            AddLayoutElement(stage, 100);
             AddOutline(stage, GameColors.WithAlpha(GameColors.Border, 0.5f));
 
             var character = CreatePanel("Enemy Character", stage.transform, GameColors.EnemyCellOccupied);
@@ -1854,10 +1898,10 @@ namespace RuneChess.Presentation
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(124, 132);
+            rect.sizeDelta = new Vector2(100, 84);
             rect.anchoredPosition = Vector2.zero;
 
-            CreateOverlayText(HeroShortName(enemyName), character.transform, 30, GameColors.Text, TextAnchor.MiddleCenter);
+            CreateOverlayText(HeroShortName(enemyName), character.transform, 26, GameColors.Text, TextAnchor.MiddleCenter);
         }
 
         /// <summary>The enemy health bar under the character; full at the start of the encounter.</summary>
