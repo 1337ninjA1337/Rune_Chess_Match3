@@ -50,25 +50,24 @@ namespace RuneChess.Presentation
             }
         }
 
+        // Rune and tier colours come from the engine-agnostic UiTheme token set
+        // so the match-3 board, rarity borders, and synergy panel share one
+        // source of truth with the core package (and its smoke checks).
         public static Color RuneColor(RuneType rune)
         {
-            switch (rune)
-            {
-                case RuneType.Red:
-                    return ColorFromHex(0xC94B4B);
-                case RuneType.Blue:
-                    return ColorFromHex(0x4A7ED1);
-                case RuneType.Green:
-                    return ColorFromHex(0x54A06A);
-                case RuneType.Yellow:
-                    return ColorFromHex(0xDFBF4F);
-                case RuneType.Purple:
-                    return ColorFromHex(0x8662BD);
-                case RuneType.White:
-                    return ColorFromHex(0xE8E2D2);
-                default:
-                    return Text;
-            }
+            return ColorFromPacked(UiTheme.RuneColor(rune));
+        }
+
+        /// <summary>Border/gem colour for a hero rarity (auto-battler card tiers).</summary>
+        public static Color RarityColor(HeroRarity rarity)
+        {
+            return ColorFromPacked(UiTheme.RarityColor(rarity));
+        }
+
+        /// <summary>Colour for a synergy strength tier in the alliance panel.</summary>
+        public static Color SynergyTierColor(SynergyStrength strength)
+        {
+            return ColorFromPacked(UiTheme.SynergyTierColor(strength));
         }
 
         public static Color WithAlpha(Color color, float alpha)
@@ -82,6 +81,15 @@ namespace RuneChess.Presentation
             var green = ((hex >> 8) & 0xFF) / 255f;
             var blue = (hex & 0xFF) / 255f;
             return new Color(red, green, blue, 1f);
+        }
+
+        private static Color ColorFromPacked(uint packed)
+        {
+            return new Color(
+                UiTheme.RedChannel(packed) / 255f,
+                UiTheme.GreenChannel(packed) / 255f,
+                UiTheme.BlueChannel(packed) / 255f,
+                1f);
         }
     }
 }

@@ -3573,6 +3573,20 @@ Require(p2wCurrencyAccount.UnlockedCommanders == AccountProgress.Starting.Unlock
 var noEnergyRun = RunState.NewRun();
 Require(noEnergyRun.Phase == RunPhase.Preparation && noEnergyRun.Round == 1, "a run starts with no mandatory energy/stamina gate (NewRun needs no energy resource)");
 
+// UI design tokens (portrait auto-battler visual overhaul). UiTheme is the
+// engine-agnostic single source of truth consumed by the presentation layer.
+Require(HeroRarities.All.Select(UiTheme.RarityColor).Distinct().Count() == HeroRarities.All.Count, "every hero rarity maps to a distinct tier colour");
+Require(RuneTypes.All.Select(UiTheme.RuneColor).Distinct().Count() == RuneTypes.All.Count, "every rune type maps to a distinct palette colour");
+Require(UiTheme.RuneColor(RuneType.Red) == 0xC94B4Bu, "the rune palette is the single source of truth for board colours");
+var synergyStrengths = new[] { SynergyStrength.Building, SynergyStrength.Active, SynergyStrength.Maxed };
+Require(synergyStrengths.Select(UiTheme.SynergyTierColor).Distinct().Count() == synergyStrengths.Length, "every synergy strength maps to a distinct tier colour");
+RequireThrows(() => UiTheme.RarityColor((HeroRarity)999), "rarity colour rejects an unknown rarity");
+RequireThrows(() => UiTheme.RuneColor((RuneType)999), "rune colour rejects an unknown rune");
+RequireThrows(() => UiTheme.SynergyTierColor((SynergyStrength)999), "synergy tier colour rejects an unknown strength");
+Require(UiTheme.SpacingScale.Count > 0 && IsStrictlyAscendingPositive(UiTheme.SpacingScale), "the spacing scale is strictly ascending and positive");
+Require(UiTheme.TypeScale.Count > 0 && IsStrictlyAscendingPositive(UiTheme.TypeScale), "the type scale is strictly ascending and positive");
+Require(UiTheme.RedChannel(0xC94B4Bu) == 0xC9 && UiTheme.GreenChannel(0xC94B4Bu) == 0x4B && UiTheme.BlueChannel(0xC94B4Bu) == 0x4B, "colour channel helpers unpack packed RGB");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)
@@ -3581,6 +3595,24 @@ static void Require(bool condition, string message)
     {
         throw new InvalidOperationException($"Smoke check failed: {message}");
     }
+}
+
+static bool IsStrictlyAscendingPositive(IReadOnlyList<float> values)
+{
+    for (var index = 0; index < values.Count; index++)
+    {
+        if (values[index] <= 0f)
+        {
+            return false;
+        }
+
+        if (index > 0 && values[index] <= values[index - 1])
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 static List<BattleCue> MustWatchCues(int count) => Enumerable
