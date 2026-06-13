@@ -65,21 +65,23 @@ Stacked top-to-bottom to suit a single thumb on a tall screen:
    the player half (lower) from the enemy half (upper); units face each other.
 3. **Match-3 board** — the 7x7 rune board directly under the arena, the player's
    primary input surface in the thumb zone.
-4. **Bottom panel** — shop row (5 tier-coloured cards), reroll and buy-XP
-   buttons, and the bench slots; the alliance/synergy panel is a slide-out from
-   the side so it never crowds the action.
+4. **Bottom panel** — phase-specific controls. This project has **no shop and no
+   bench** (a deliberate departure from the genre); how heroes are acquired and
+   placed is being redesigned and the prep-phase surface is TBD. The
+   alliance/synergy panel is a slide-out from the side so it never crowds the
+   action.
 
-Off-screen, the prep and combat phases share this skeleton; only the bottom
-panel swaps shop/bench (prep) for combat controls (speed button, pause).
+Off-screen, the prep and combat phases share this skeleton; the bottom panel
+swaps the (TBD) prep acquisition/placement surface for combat controls (speed
+button, pause).
 
 ## Component anatomy
 
 - **Unit on board**: facing sprite, star pips (tier-coloured) above, thin HP bar
   and mana bar below (`UnitBarHeight`), rarity frame, status icons.
-- **Shop card**: portrait, name, cost gem, rarity-coloured border, faction/class
-  icons; buy by tap or drag.
-- **Bench slot**: mini-card with stars; drag to/from board; glows when a 3-copy
-  merge is ready.
+- **Hero card** (acquisition/placement surface, TBD mechanic): portrait, name,
+  rarity-coloured border, faction/class icons. The rarity frame still uses
+  `GameColors.RarityColor` regardless of how heroes are obtained.
 - **Alliance row**: icon + `current/threshold` count, tier colour, next-threshold
   hint and the heroes that would complete it (drives off `SynergyPanelModel`).
 
