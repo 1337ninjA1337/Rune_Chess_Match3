@@ -32,6 +32,9 @@ namespace RuneChess.Core
             };
         }
 
+        // --- Economy accent (gold/coins). Single source of truth for the HUD gold colour. ---
+        public const uint GoldColor = 0xD9A441u;
+
         // --- Rune palette (match-3 board). Single source of truth for the six colours. ---
         public static uint RuneColor(RuneType rune)
         {

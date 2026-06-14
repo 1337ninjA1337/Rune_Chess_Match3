@@ -34,6 +34,13 @@ namespace RuneChess.Core
         public string LevelLabel => $"LV {PlayerLevel}";
 
         /// <summary>
+        /// Stable placeholder-asset key for the gold coin icon shown next to the gold readout
+        /// (GDD "HUD: золото с иконкой"). The Unity layer draws the placeholder primitive — and
+        /// later the real sprite — behind this key (see <see cref="PlaceholderAssetCatalog.GoldHudIcon"/>).
+        /// </summary>
+        public string GoldIconKey => PlaceholderAssetCatalog.GoldHudIcon.Key;
+
+        /// <summary>
         /// Build the run-vitals view-model from the live run state. Max run health is the
         /// configured starting health (the value run healing is capped to), and XP progress is
         /// measured against the cost to reach the next player level; at max level the XP bar reads

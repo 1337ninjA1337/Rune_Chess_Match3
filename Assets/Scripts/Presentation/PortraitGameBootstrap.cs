@@ -1859,7 +1859,10 @@ namespace RuneChess.Presentation
             statsLayout.childForceExpandWidth = false;
 
             CreateStat(stats.transform, "TIME", hud.TimerLabel, GameColors.Health);
-            CreateStat(stats.transform, "G", vitals.Gold.ToString(), GameColors.Gold);
+            // Gold readout with its coin icon (GDD "HUD: золото с иконкой"). The icon is the
+            // catalog placeholder keyed by RunVitalsModel.GoldIconKey, so the real coin sprite
+            // later drops in behind the same key without touching this layout.
+            CreateIconStat(stats.transform, vitals.GoldIconKey, vitals.Gold.ToString(), GameColors.Gold);
 
             // Win/loss streak indicator (GDD "серия побед/поражений"): only one direction is ever
             // active, so a single tile shows "W3"/"L2" tinted by direction (или "—" when none).
@@ -3182,6 +3185,42 @@ namespace RuneChess.Presentation
 
             CreateText(value, stat.transform, 16, GameColors.Text, TextAnchor.MiddleCenter);
             CreateText(label, stat.transform, 8, accent, TextAnchor.MiddleCenter);
+        }
+
+        /// <summary>
+        /// A HUD stat tile whose caption is a placeholder icon swatch instead of a text label
+        /// (GDD "HUD: золото с иконкой"). The icon is resolved from
+        /// <see cref="PlaceholderAssetCatalog"/> by its stable key and tinted to the catalog token
+        /// colour, so the real sprite later drops in behind the same key without changing layout.
+        /// </summary>
+        private void CreateIconStat(Transform parent, string iconKey, string value, Color accent)
+        {
+            var stat = CreatePanel($"Stat {iconKey}", parent, GameColors.WithAlpha(accent, 0.20f));
+            var layoutElement = stat.AddComponent<LayoutElement>();
+            layoutElement.preferredWidth = 48;
+            layoutElement.preferredHeight = 48;
+            layoutElement.flexibleWidth = 0f;
+            AddOutline(stat, GameColors.WithAlpha(accent, 0.55f));
+
+            var stack = stat.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset(4, 4, 4, 4);
+            stack.spacing = 2;
+            stack.childAlignment = TextAnchor.MiddleCenter;
+            stack.childForceExpandHeight = false;
+
+            CreateText(value, stat.transform, 16, GameColors.Text, TextAnchor.MiddleCenter);
+
+            // Coin placeholder: a tinted primitive keyed to the catalog spec until real art exists.
+            var iconTint = PlaceholderAssetCatalog.TryGet(iconKey, out var iconSpec)
+                ? GameColors.PlaceholderTint(iconSpec)
+                : accent;
+            var icon = CreatePanel($"Icon {iconKey}", stat.transform, iconTint);
+            AddOutline(icon, GameColors.WithAlpha(GameColors.Frame, 0.6f));
+            var iconLayout = icon.AddComponent<LayoutElement>();
+            iconLayout.preferredWidth = 14;
+            iconLayout.preferredHeight = 14;
+            iconLayout.flexibleWidth = 0f;
+            iconLayout.flexibleHeight = 0f;
         }
 
         private void CreateActionButton(Transform parent, string label, Color color, Action onClick = null)

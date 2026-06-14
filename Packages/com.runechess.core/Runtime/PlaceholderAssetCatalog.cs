@@ -12,7 +12,8 @@ namespace RuneChess.Core
         RuneIcon,
         FactionIcon,
         ClassIcon,
-        ArenaBackground
+        ArenaBackground,
+        HudIcon
     }
 
     /// <summary>
@@ -136,6 +137,20 @@ namespace RuneChess.Core
                 Description: "Фон арены боссов и финального босса.")
         });
 
+        /// <summary>Coin/economy icon for the combat HUD gold readout, tinted to the gold token colour.</summary>
+        public static PlaceholderAssetSpec GoldHudIcon { get; } = new(
+            Key: "hud.gold",
+            Kind: PlaceholderAssetKind.HudIcon,
+            DisplayName: "Иконка: золото",
+            TokenColor: UiTheme.GoldColor,
+            Description: "Иконка-монета рядом с числом золота в HUD. Тинт берётся из UiTheme.GoldColor (единый источник правды для золотого акцента).");
+
+        /// <summary>Top-bar HUD icons (gold). Colour-fixed to their UiTheme accent token.</summary>
+        public static IReadOnlyList<PlaceholderAssetSpec> HudIcons { get; } = Array.AsReadOnly(new[]
+        {
+            GoldHudIcon
+        });
+
         /// <summary>Every placeholder asset across all categories.</summary>
         public static IReadOnlyList<PlaceholderAssetSpec> All { get; } = Array.AsReadOnly(
             new[] { UnitSprite }
@@ -144,6 +159,7 @@ namespace RuneChess.Core
                 .Concat(FactionIcons)
                 .Concat(ClassIcons)
                 .Concat(ArenaBackgrounds)
+                .Concat(HudIcons)
                 .ToArray());
 
         private static IReadOnlyDictionary<string, PlaceholderAssetSpec> ByKey { get; } =

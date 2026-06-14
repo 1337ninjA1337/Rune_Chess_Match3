@@ -2026,6 +2026,7 @@ var damagedVitals = RunVitalsModel.Build(RunState.NewRun() with { RunHealth = 0 
 Require(Math.Abs(damagedVitals.HealthBar - 0.0) < 1e-9 && damagedVitals.HealthLabel == "0 / 20", "run vitals show an empty health bar at zero run health");
 var maxLevelVitals = RunVitalsModel.Build(RunState.NewRun() with { PlayerLevel = EconomyConfig.Default.MaxPlayerLevel, Xp = 7 });
 Require(maxLevelVitals.IsMaxLevel && maxLevelVitals.XpForNextLevel == 0 && Math.Abs(maxLevelVitals.XpBar - 1.0) < 1e-9 && maxLevelVitals.XpLabel == "MAX", "run vitals show a full XP bar labelled MAX at the level cap");
+Require(freshVitals.GoldIconKey == "hud.gold" && PlaceholderAssetCatalog.TryGet(freshVitals.GoldIconKey, out _), "run vitals expose the gold coin icon key resolvable in the placeholder catalog");
 RequireThrows(() => RunVitalsModel.Build(null!), "run vitals reject a null run state");
 
 // Combat screen view-model (battlefield with heroes/enemies, HP/mana bars, 7x7 rune
@@ -3637,6 +3638,10 @@ Require(PlaceholderAssetCatalog.All.Select(spec => spec.Key).Distinct(StringComp
 Require(RuneTypes.All.All(rune => PlaceholderAssetCatalog.RuneIcon(rune).TokenColor == UiTheme.RuneColor(rune)), "rune placeholder icons tint to the UiTheme rune palette");
 Require(HeroRarities.All.All(rarity => PlaceholderAssetCatalog.RarityFrame(rarity).TokenColor == UiTheme.RarityColor(rarity)), "rarity placeholder frames tint to the UiTheme rarity colour");
 Require(PlaceholderAssetCatalog.FactionIcons.All(spec => !spec.HasTokenColor), "faction placeholder icons carry no fixed token colour (tinted by synergy tier at runtime)");
+Require(PlaceholderAssetCatalog.HudIcons.Count == 1 && PlaceholderAssetCatalog.HudIcons.All(spec => spec.Kind == PlaceholderAssetKind.HudIcon), "the placeholder manifest ships the HUD icon set");
+Require(PlaceholderAssetCatalog.GoldHudIcon.Key == "hud.gold" && PlaceholderAssetCatalog.GoldHudIcon.TokenColor == UiTheme.GoldColor, "the gold HUD icon tints to the UiTheme gold token");
+Require(PlaceholderAssetCatalog.All.Contains(PlaceholderAssetCatalog.GoldHudIcon), "the gold HUD icon is part of the full placeholder manifest");
+Require(PlaceholderAssetCatalog.TryGet("hud.gold", out var goldHudAsset) && goldHudAsset.Kind == PlaceholderAssetKind.HudIcon, "the gold HUD icon is addressable by its stable key");
 Require(PlaceholderAssetCatalog.ArenaBackgroundFor(PveRoundType.Tutorial).Key == "arena.field", "tutorial rounds use the field arena background");
 Require(PlaceholderAssetCatalog.ArenaBackgroundFor(PveRoundType.FinalBoss).Key == "arena.throne", "the final boss uses the throne arena background");
 RequireThrows(() => PlaceholderAssetCatalog.ArenaBackgroundFor(PveRoundType.EnhancedShop), "non-combat rounds have no arena background");

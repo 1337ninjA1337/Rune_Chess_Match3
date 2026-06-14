@@ -21,7 +21,7 @@ namespace RuneChess.Presentation
         public static readonly Color AllyCellOccupied = ColorFromHex(0x255B4B);
         public static readonly Color EnemyCellOccupied = ColorFromHex(0x5B2C36);
 
-        public static readonly Color Gold = ColorFromHex(0xD9A441);
+        public static readonly Color Gold = ColorFromPacked(UiTheme.GoldColor);
         public static readonly Color Health = ColorFromHex(0xD85F57);
         public static readonly Color Mana = ColorFromHex(0x5D8BD6);
         public static readonly Color Commander = ColorFromHex(0xC884D8);
@@ -73,6 +73,20 @@ namespace RuneChess.Presentation
         public static Color WithAlpha(Color color, float alpha)
         {
             return new Color(color.r, color.g, color.b, alpha);
+        }
+
+        /// <summary>
+        /// Tint a placeholder asset swatch from its <see cref="UiTheme"/> token colour (single source
+        /// of truth). Assets whose colour is decided at runtime (no token) fall back to the muted tone.
+        /// </summary>
+        public static Color PlaceholderTint(PlaceholderAssetSpec spec)
+        {
+            if (spec == null)
+            {
+                return Muted;
+            }
+
+            return spec.TokenColor.HasValue ? ColorFromPacked(spec.TokenColor.Value) : Muted;
         }
 
         private static Color ColorFromHex(int hex)
