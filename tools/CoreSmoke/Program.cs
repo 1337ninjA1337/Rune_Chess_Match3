@@ -370,6 +370,8 @@ Require(restoredGreatSnapshot.RuneBoard.IsGreatRune(greatSnapshotPoint), "combat
 Require(restoredGreatSnapshot.RuneBoard[greatSnapshotPoint] == savedCombat.RuneBoard[greatSnapshotPoint], "great-rune snapshot preserves rune color");
 var unsupportedSnapshot = progressStore.Snapshot ?? throw new InvalidOperationException("Smoke check failed: snapshot missing");
 RequireThrows(() => (unsupportedSnapshot with { Version = 0 }).Restore(), "unsupported progress version is rejected");
+var streakSnapshot = RunProgressSnapshot.Capture(combatProgress with { WinStreak = 3, LossStreak = 0 }).Restore();
+Require(streakSnapshot.WinStreak == 3 && streakSnapshot.LossStreak == 0, "a progress snapshot preserves the win/loss streak");
 progressStore.Clear();
 Require(!progressStore.HasSavedRun, "progress store clears saved run");
 
@@ -511,6 +513,25 @@ Require(combatDefeat.IsRunLost, "combat defeat exposes a run loss flag");
 Require(combatDefeat.DefeatReason == "all_allies_defeated", "combat defeat records a reason");
 RequireThrows(() => afterPlace.ResolveCombatDefeat(), "combat defeat cannot be resolved outside combat");
 RequireThrows(() => (afterPlace with { Round = 2 }).StartCombat().ResolveCombatDefeat(" "), "combat defeat requires a reason");
+
+// Win/loss streak (GDD "серия побед/поражений"): a round win extends the win streak and clears
+// the loss streak; a combat loss does the reverse, so the HUD never shows both at once.
+Require(RunState.NewRun().Streak.Kind == RunStreakKind.None && !RunState.NewRun().Streak.IsActive, "a fresh run starts with no streak");
+var firstWin = afterRuneSwap.ClaimReward(2);
+Require(firstWin.WinStreak == 1 && firstWin.LossStreak == 0, "claiming a round reward extends the win streak");
+Require(firstWin.Streak.IsWinning && firstWin.Streak.Label == "W1", "a win streak surfaces a winning HUD status");
+var secondWin = (firstWin with { Phase = RunPhase.Combat, Combat = combat }).ClaimReward(2);
+Require(secondWin.WinStreak == 2 && secondWin.Streak.Label == "W2", "consecutive wins accumulate the win streak");
+var lossAfterWins = (secondWin with { Round = 2, Phase = RunPhase.Combat, Combat = combat }).ResolveCombatDefeat("all_allies_defeated");
+Require(lossAfterWins.WinStreak == 0 && lossAfterWins.LossStreak == 1, "a combat loss clears the win streak and starts a loss streak");
+Require(lossAfterWins.Streak.IsLosing && lossAfterWins.Streak.Label == "L1", "a loss streak surfaces a losing HUD status");
+var winAfterLoss = (lossAfterWins with { Phase = RunPhase.Combat, Combat = combat, Round = 1 }).ClaimReward(2);
+Require(winAfterLoss.LossStreak == 0 && winAfterLoss.WinStreak == 1, "a win clears the loss streak");
+Require(tutorialCombatProtection.LossStreak == 1, "a protected tutorial loss still counts toward the loss streak");
+Require(RunStreakStatus.From(0, 0) == RunStreakStatus.None && RunStreakStatus.None.Label == "—", "an empty streak collapses to None with a dash label");
+Require(RunStreakStatus.From(3, 0).Kind == RunStreakKind.Winning && RunStreakStatus.From(0, 2).Kind == RunStreakKind.Losing, "From picks the active streak direction");
+RequireThrows(() => RunStreakStatus.From(-1, 0), "From rejects a negative win streak");
+RequireThrows(() => RunStreakStatus.From(0, -1), "From rejects a negative loss streak");
 
 var defeatedByAllies = (afterPlace with { Round = 2 }).StartCombat(1337).ResolveCombatTick(1, allAlliesDefeated: true);
 Require(defeatedByAllies.Phase == RunPhase.Defeat, "all allies defeated resolves combat defeat");

@@ -23,7 +23,9 @@ namespace RuneChess.Core
         bool RoundHeroClaimed = false,
         bool RoundEventResolved = false,
         string PendingFactionBoostId = "",
-        string OfferedEventId = ""
+        string OfferedEventId = "",
+        int WinStreak = 0,
+        int LossStreak = 0
     )
     {
         private const int MergeCopiesRequired = HeroEconomy.CopiesPerStarUpgrade;
@@ -64,6 +66,14 @@ namespace RuneChess.Core
 
         /// <summary>True when the current round is a roguelite event round.</summary>
         public bool IsEventRound => CurrentRoundDefinition.Type == PveRoundType.Event;
+
+        /// <summary>
+        /// The run's active win/loss streak (GDD "серия побед/поражений") collapsed into a single
+        /// HUD-ready status. A round win increments <see cref="WinStreak"/> and clears
+        /// <see cref="LossStreak"/>; a combat loss does the reverse, so only one counter is ever
+        /// non-zero. Surfaced on the combat HUD streak indicator.
+        /// </summary>
+        public RunStreakStatus Streak => RunStreakStatus.From(WinStreak, LossStreak);
 
         public bool IsFinalRound => Round >= PveRunSchedule.FinalRound;
         public bool IsRunWon => Phase == RunPhase.Victory;
@@ -634,7 +644,9 @@ namespace RuneChess.Core
                     DefeatReason = null,
                     RoundArtifactClaimed = false,
                     RoundHeroClaimed = false,
-                    PendingFactionBoostId = ""
+                    PendingFactionBoostId = "",
+                    WinStreak = 0,
+                    LossStreak = LossStreak + 1
                 };
             }
 
@@ -643,7 +655,9 @@ namespace RuneChess.Core
                 Phase = RunPhase.Defeat,
                 Combat = null,
                 DefeatReason = defeatReason,
-                PendingFactionBoostId = ""
+                PendingFactionBoostId = "",
+                WinStreak = 0,
+                LossStreak = LossStreak + 1
             };
         }
 
@@ -674,7 +688,9 @@ namespace RuneChess.Core
                 DefeatReason = null,
                 RoundArtifactClaimed = false,
                 RoundHeroClaimed = false,
-                PendingFactionBoostId = ""
+                PendingFactionBoostId = "",
+                WinStreak = WinStreak + 1,
+                LossStreak = 0
             };
         }
 

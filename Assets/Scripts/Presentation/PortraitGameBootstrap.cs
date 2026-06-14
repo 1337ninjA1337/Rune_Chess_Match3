@@ -1851,6 +1851,14 @@ namespace RuneChess.Presentation
             CreateStat(stats.transform, "HP", runState.RunHealth.ToString(), GameColors.Heal);
             CreateStat(stats.transform, "G", runState.Gold.ToString(), GameColors.Gold);
             CreateStat(stats.transform, "LV", runState.PlayerLevel.ToString(), GameColors.Mana);
+
+            // Win/loss streak indicator (GDD "серия побед/поражений"): only one direction is ever
+            // active, so a single tile shows "W3"/"L2" tinted by direction (или "—" when none).
+            var streak = runState.Streak;
+            var streakColor = streak.IsWinning
+                ? GameColors.Heal
+                : streak.IsLosing ? GameColors.Health : GameColors.Muted;
+            CreateStat(stats.transform, "STREAK", streak.Label, streakColor);
         }
 
         /// <summary>
