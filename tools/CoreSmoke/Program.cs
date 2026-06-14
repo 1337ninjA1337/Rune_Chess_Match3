@@ -2012,6 +2012,22 @@ Require(hudWithUnits.KeyUnits.Count == 2 && hudWithUnits.KeyUnits[0].IsPlayer, "
 Require(Math.Abs(hudWithUnits.KeyUnits[1].HealthBar - 1.0) < 1e-9 && Math.Abs(hudWithUnits.KeyUnits[1].ManaBar - 0.0) < 1e-9, "combat HUD clamps key-unit health/mana bars to 0..1");
 RequireThrows(() => CombatHudModel.Build(null!), "combat HUD rejects a null combat state");
 
+// Run-level HUD vitals (GDD "полоса и число HP забега", "уровень игрока и XP-бар до следующего
+// уровня"): health and XP both surface as a 0..1 bar fraction and a "current / max" label.
+var freshVitals = RunVitalsModel.Build(RunState.NewRun());
+Require(freshVitals.RunHealth == 20 && freshVitals.MaxRunHealth == 20, "run vitals read the run health against the configured max");
+Require(Math.Abs(freshVitals.HealthBar - 1.0) < 1e-9 && freshVitals.HealthLabel == "20 / 20", "a fresh run shows a full run-health bar and label");
+Require(freshVitals.PlayerLevel == 1 && freshVitals.LevelLabel == "LV 1" && !freshVitals.IsMaxLevel, "run vitals show the player level and that level 1 is not the cap");
+Require(freshVitals.XpForNextLevel == 4 && Math.Abs(freshVitals.XpBar - 0.0) < 1e-9 && freshVitals.XpLabel == "0 / 4", "a fresh run shows an empty XP bar toward the next level");
+var midHealthVitals = RunVitalsModel.Build(RunState.NewRun() with { RunHealth = 5, Xp = 2 });
+Require(Math.Abs(midHealthVitals.HealthBar - 0.25) < 1e-9 && midHealthVitals.HealthLabel == "5 / 20", "run vitals scale the health bar to the remaining run health");
+Require(Math.Abs(midHealthVitals.XpBar - 0.5) < 1e-9 && midHealthVitals.XpLabel == "2 / 4", "run vitals scale the XP bar to progress toward the next level");
+var damagedVitals = RunVitalsModel.Build(RunState.NewRun() with { RunHealth = 0 });
+Require(Math.Abs(damagedVitals.HealthBar - 0.0) < 1e-9 && damagedVitals.HealthLabel == "0 / 20", "run vitals show an empty health bar at zero run health");
+var maxLevelVitals = RunVitalsModel.Build(RunState.NewRun() with { PlayerLevel = EconomyConfig.Default.MaxPlayerLevel, Xp = 7 });
+Require(maxLevelVitals.IsMaxLevel && maxLevelVitals.XpForNextLevel == 0 && Math.Abs(maxLevelVitals.XpBar - 1.0) < 1e-9 && maxLevelVitals.XpLabel == "MAX", "run vitals show a full XP bar labelled MAX at the level cap");
+RequireThrows(() => RunVitalsModel.Build(null!), "run vitals reject a null run state");
+
 // Combat screen view-model (battlefield with heroes/enemies, HP/mana bars, 7x7 rune
 // board, active rune effects, round timer and pause).
 var screenBattle = BattleState.Create(new[]

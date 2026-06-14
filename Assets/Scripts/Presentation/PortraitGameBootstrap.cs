@@ -1821,26 +1821,37 @@ namespace RuneChess.Presentation
         {
             var combat = runState.Combat ?? CombatState.Start(runeSeed);
             var hud = CombatHudModel.Build(combat, BuildKeyHudUnits());
+            var vitals = RunVitalsModel.Build(runState);
 
             var panel = CreatePanel("Combat HUD", parent, GameColors.Panel);
-            AddLayoutElement(panel, 52);
+            AddLayoutElement(panel, 92);
             AddOutline(panel, GameColors.Border);
 
-            var row = panel.AddComponent<HorizontalLayoutGroup>();
-            row.padding = new RectOffset((int)UiTheme.SpacingSm, (int)UiTheme.SpacingSm, (int)UiTheme.SpacingXs, (int)UiTheme.SpacingXs);
+            var stack = panel.AddComponent<VerticalLayoutGroup>();
+            stack.padding = new RectOffset((int)UiTheme.SpacingSm, (int)UiTheme.SpacingSm, (int)UiTheme.SpacingXs, (int)UiTheme.SpacingXs);
+            stack.spacing = UiTheme.SpacingXs;
+            stack.childAlignment = TextAnchor.UpperCenter;
+            stack.childControlWidth = true;
+            stack.childForceExpandWidth = true;
+            stack.childForceExpandHeight = false;
+
+            // Header row: round/phase title on the left, compact stat tiles on the right.
+            var header = CreatePanel("HUD Header", panel.transform, Color.clear);
+            AddLayoutElement(header, 48);
+            var row = header.AddComponent<HorizontalLayoutGroup>();
             row.spacing = UiTheme.SpacingSm;
             row.childAlignment = TextAnchor.MiddleCenter;
             row.childControlWidth = true;
             row.childForceExpandWidth = true;
 
-            var title = CreatePanel("HUD Title", panel.transform, Color.clear);
+            var title = CreatePanel("HUD Title", header.transform, Color.clear);
             var titleLayout = title.AddComponent<VerticalLayoutGroup>();
             titleLayout.childAlignment = TextAnchor.MiddleLeft;
             titleLayout.childForceExpandHeight = false;
             CreateText($"ROUND {runState.Round}", title.transform, 16, GameColors.Text, TextAnchor.MiddleLeft);
             CreateText($"BATTLE  ·  NEXT {runState.NextEnemyId}", title.transform, 9, GameColors.Muted, TextAnchor.MiddleLeft);
 
-            var stats = CreatePanel("HUD Stats", panel.transform, Color.clear);
+            var stats = CreatePanel("HUD Stats", header.transform, Color.clear);
             var statsLayout = stats.AddComponent<HorizontalLayoutGroup>();
             statsLayout.spacing = 5;
             statsLayout.childAlignment = TextAnchor.MiddleRight;
@@ -1848,9 +1859,7 @@ namespace RuneChess.Presentation
             statsLayout.childForceExpandWidth = false;
 
             CreateStat(stats.transform, "TIME", hud.TimerLabel, GameColors.Health);
-            CreateStat(stats.transform, "HP", runState.RunHealth.ToString(), GameColors.Heal);
-            CreateStat(stats.transform, "G", runState.Gold.ToString(), GameColors.Gold);
-            CreateStat(stats.transform, "LV", runState.PlayerLevel.ToString(), GameColors.Mana);
+            CreateStat(stats.transform, "G", vitals.Gold.ToString(), GameColors.Gold);
 
             // Win/loss streak indicator (GDD "серия побед/поражений"): only one direction is ever
             // active, so a single tile shows "W3"/"L2" tinted by direction (или "—" when none).
@@ -1859,6 +1868,44 @@ namespace RuneChess.Presentation
                 ? GameColors.Heal
                 : streak.IsLosing ? GameColors.Health : GameColors.Muted;
             CreateStat(stats.transform, "STREAK", streak.Label, streakColor);
+
+            // Run HP bar with its number (GDD "полоса и число HP забега") and the player level + XP
+            // bar toward the next level (GDD "уровень игрока и XP-бар до следующего уровня"). Both
+            // read their fractions and labels from RunVitalsModel so the bars stay rule-free.
+            AddHudVitalBar(panel.transform, "HP", vitals.HealthLabel, (float)vitals.HealthBar, GameColors.Heal);
+            AddHudVitalBar(panel.transform, vitals.LevelLabel, vitals.XpLabel, (float)vitals.XpBar, GameColors.Mana);
+        }
+
+        /// <summary>
+        /// A labelled horizontal HUD bar: a leading caption, a filled track scaled to
+        /// <paramref name="fraction"/> (clamped 0..1) and the value text overlaid on the track.
+        /// Shared by the run HP bar and the player XP bar so both read consistently.
+        /// </summary>
+        private void AddHudVitalBar(Transform parent, string caption, string value, float fraction, Color fillColor)
+        {
+            var line = CreatePanel($"HUD Bar {caption}", parent, Color.clear);
+            AddLayoutElement(line, 16);
+            var layout = line.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = UiTheme.SpacingXs;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childForceExpandWidth = false;
+
+            var captionText = CreateText(caption, line.transform, 9, fillColor, TextAnchor.MiddleLeft);
+            SetLayoutWidth(captionText.gameObject, 34, 0f);
+
+            var track = CreatePanel($"{caption} Track", line.transform, GameColors.BarTrack);
+            SetLayoutWidth(track, 0f, 1f);
+            AddOutline(track, GameColors.WithAlpha(fillColor, 0.6f));
+
+            var fill = CreatePanel($"{caption} Fill", track.transform, fillColor);
+            var rect = fill.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = new Vector2(Mathf.Clamp01(fraction), 1f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            CreateOverlayText(value, track.transform, 9, GameColors.Text, TextAnchor.MiddleCenter);
         }
 
         /// <summary>
