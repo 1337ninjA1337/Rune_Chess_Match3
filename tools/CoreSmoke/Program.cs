@@ -3624,6 +3624,26 @@ Require(UiTheme.SpacingScale.Count > 0 && IsStrictlyAscendingPositive(UiTheme.Sp
 Require(UiTheme.TypeScale.Count > 0 && IsStrictlyAscendingPositive(UiTheme.TypeScale), "the type scale is strictly ascending and positive");
 Require(UiTheme.RedChannel(0xC94B4Bu) == 0xC9 && UiTheme.GreenChannel(0xC94B4Bu) == 0x4B && UiTheme.BlueChannel(0xC94B4Bu) == 0x4B, "colour channel helpers unpack packed RGB");
 
+// Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
+// плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
+// Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
+// but the contract — full coverage, unique keys, token-tied colours — is verified here.
+Require(PlaceholderAssetCatalog.RuneIcons.Count == RuneTypes.All.Count, "the placeholder manifest has one icon per rune colour");
+Require(PlaceholderAssetCatalog.RarityFrames.Count == HeroRarities.All.Count, "the placeholder manifest has one card frame per rarity");
+Require(PlaceholderAssetCatalog.FactionIcons.Count == FactionCatalog.All.Count, "the placeholder manifest has one icon per faction");
+Require(PlaceholderAssetCatalog.ClassIcons.Count == ClassCatalog.All.Count, "the placeholder manifest has one icon per class");
+Require(PlaceholderAssetCatalog.ArenaBackgrounds.Count == 3, "the placeholder manifest ships the three battle arena backgrounds");
+Require(PlaceholderAssetCatalog.All.Select(spec => spec.Key).Distinct(StringComparer.Ordinal).Count() == PlaceholderAssetCatalog.All.Count, "every placeholder asset key is unique");
+Require(RuneTypes.All.All(rune => PlaceholderAssetCatalog.RuneIcon(rune).TokenColor == UiTheme.RuneColor(rune)), "rune placeholder icons tint to the UiTheme rune palette");
+Require(HeroRarities.All.All(rarity => PlaceholderAssetCatalog.RarityFrame(rarity).TokenColor == UiTheme.RarityColor(rarity)), "rarity placeholder frames tint to the UiTheme rarity colour");
+Require(PlaceholderAssetCatalog.FactionIcons.All(spec => !spec.HasTokenColor), "faction placeholder icons carry no fixed token colour (tinted by synergy tier at runtime)");
+Require(PlaceholderAssetCatalog.ArenaBackgroundFor(PveRoundType.Tutorial).Key == "arena.field", "tutorial rounds use the field arena background");
+Require(PlaceholderAssetCatalog.ArenaBackgroundFor(PveRoundType.FinalBoss).Key == "arena.throne", "the final boss uses the throne arena background");
+RequireThrows(() => PlaceholderAssetCatalog.ArenaBackgroundFor(PveRoundType.EnhancedShop), "non-combat rounds have no arena background");
+Require(PlaceholderAssetCatalog.TryGet("rune.red", out var redRuneAsset) && redRuneAsset.Kind == PlaceholderAssetKind.RuneIcon, "placeholder assets are addressable by their stable key");
+Require(!PlaceholderAssetCatalog.TryGet("unknown.key", out _), "placeholder lookup rejects unknown keys");
+RequireThrows(() => new PlaceholderAssetSpec(" ", PlaceholderAssetKind.RuneIcon, "Name", null, "Desc"), "placeholder spec rejects a blank key");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)

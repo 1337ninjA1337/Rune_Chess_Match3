@@ -94,6 +94,18 @@ the placeholder sprite set is a Unity-side task and is **not** covered by the
 headless `Core Smoke` suite (documented verification gap — no Unity/.NET SDK in
 the automation environment).
 
+The *required* asset set is described as data by `PlaceholderAssetCatalog`
+(`Packages/com.runechess.core/Runtime/PlaceholderAssetCatalog.cs`): the single
+source of truth the Unity import/generation pipeline and tooling enumerate so the
+placeholder set stays complete. It lists a neutral facing unit sprite, one card
+frame per rarity (tinted by `UiTheme.RarityColor`), the six rune icons (tinted by
+`UiTheme.RuneColor`), one icon per faction and per class (synergy-tier tinted at
+runtime), and the battle arena backgrounds (`field`/`elite`/`throne`, mapped from
+`PveRoundType` via `ArenaBackgroundFor`). Each entry carries a stable `Key`; real
+sprites later bind to the same key. The catalog *contract* — full category
+coverage, unique keys, token-tied colours, arena mapping — is verified headless by
+`tools/CoreSmoke`; the sprites themselves remain the documented Unity-only gap.
+
 ## Verification
 
 `UiTheme` tokens are covered by `tools/CoreSmoke` (distinct rarity/rune/synergy
