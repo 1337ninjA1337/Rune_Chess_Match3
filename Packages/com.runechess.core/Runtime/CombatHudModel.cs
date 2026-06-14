@@ -70,6 +70,13 @@ namespace RuneChess.Core
         int LastMatchPower,
         IReadOnlyList<CombatHudUnit> KeyUnits)
     {
+        /// <summary>
+        /// Stable placeholder-asset key for the HUD menu/pause button icon (GDD "HUD: кнопка
+        /// меню/паузы"). The Unity layer draws the placeholder primitive — and later the real
+        /// glyph — behind this key (see <see cref="PlaceholderAssetCatalog.MenuHudIcon"/>).
+        /// </summary>
+        public string MenuIconKey => PlaceholderAssetCatalog.MenuHudIcon.Key;
+
         /// <summary>Format a whole-second duration as a <c>m:ss</c> countdown label.</summary>
         public static string FormatTimer(int totalSeconds)
         {

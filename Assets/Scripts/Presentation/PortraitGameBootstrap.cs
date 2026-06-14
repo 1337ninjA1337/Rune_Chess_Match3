@@ -1844,6 +1844,11 @@ namespace RuneChess.Presentation
             row.childControlWidth = true;
             row.childForceExpandWidth = true;
 
+            // Menu/pause button (GDD "HUD: кнопка меню/паузы"): a compact icon button in the
+            // top-left of the HUD that opens the menu (which pauses run progression). Its icon is
+            // the catalog placeholder keyed by CombatHudModel.MenuIconKey.
+            AddHudMenuButton(header.transform, hud.MenuIconKey, ShowMainMenu);
+
             var title = CreatePanel("HUD Title", header.transform, Color.clear);
             var titleLayout = title.AddComponent<VerticalLayoutGroup>();
             titleLayout.childAlignment = TextAnchor.MiddleLeft;
@@ -3238,6 +3243,38 @@ namespace RuneChess.Presentation
             }
 
             CreateOverlayText(label, buttonObject.transform, 11, label == "FIGHT" ? GameColors.Background : GameColors.Text, TextAnchor.MiddleCenter);
+        }
+
+        /// <summary>
+        /// A compact HUD menu/pause icon button (GDD "HUD: кнопка меню/паузы"). The icon is a
+        /// pause glyph placeholder keyed to <see cref="PlaceholderAssetCatalog.MenuHudIcon"/>; the
+        /// real glyph later drops in behind the same key without changing this button.
+        /// </summary>
+        private void AddHudMenuButton(Transform parent, string iconKey, Action onClick)
+        {
+            var buttonObject = CreatePanel($"HUD Menu Button {iconKey}", parent, GameColors.Button);
+            AddOutline(buttonObject, GameColors.WithAlpha(GameColors.Text, 0.25f));
+
+            var layoutElement = buttonObject.AddComponent<LayoutElement>();
+            layoutElement.preferredWidth = 40;
+            layoutElement.preferredHeight = 40;
+            layoutElement.flexibleWidth = 0f;
+
+            var image = buttonObject.GetComponent<Image>();
+            image.raycastTarget = onClick != null;
+            if (onClick != null)
+            {
+                var button = buttonObject.AddComponent<Button>();
+                button.targetGraphic = image;
+                button.onClick.AddListener(() => onClick());
+            }
+
+            // Pause glyph "II" stands in for the menu/pause icon until real art exists. A catalog
+            // spec with a token colour tints from it; otherwise it uses the HUD text accent.
+            var iconTint = PlaceholderAssetCatalog.TryGet(iconKey, out var iconSpec) && iconSpec.HasTokenColor
+                ? GameColors.PlaceholderTint(iconSpec)
+                : GameColors.Text;
+            CreateOverlayText("II", buttonObject.transform, 16, iconTint, TextAnchor.MiddleCenter);
         }
 
         private Canvas CreateCanvas()

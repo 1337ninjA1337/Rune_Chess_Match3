@@ -145,10 +145,19 @@ namespace RuneChess.Core
             TokenColor: UiTheme.GoldColor,
             Description: "Иконка-монета рядом с числом золота в HUD. Тинт берётся из UiTheme.GoldColor (единый источник правды для золотого акцента).");
 
-        /// <summary>Top-bar HUD icons (gold). Colour-fixed to their UiTheme accent token.</summary>
+        /// <summary>Menu/pause icon for the combat HUD button (colour decided at runtime by the button accent).</summary>
+        public static PlaceholderAssetSpec MenuHudIcon { get; } = new(
+            Key: "hud.menu",
+            Kind: PlaceholderAssetKind.HudIcon,
+            DisplayName: "Иконка: меню/пауза",
+            TokenColor: null,
+            Description: "Иконка кнопки меню/паузы в боевом HUD. Тинт берётся из акцента кнопки в рантайме (без фиксированного токена).");
+
+        /// <summary>Top-bar HUD icons (gold readout, menu/pause button).</summary>
         public static IReadOnlyList<PlaceholderAssetSpec> HudIcons { get; } = Array.AsReadOnly(new[]
         {
-            GoldHudIcon
+            GoldHudIcon,
+            MenuHudIcon
         });
 
         /// <summary>Every placeholder asset across all categories.</summary>

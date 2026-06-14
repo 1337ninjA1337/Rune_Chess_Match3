@@ -3638,10 +3638,13 @@ Require(PlaceholderAssetCatalog.All.Select(spec => spec.Key).Distinct(StringComp
 Require(RuneTypes.All.All(rune => PlaceholderAssetCatalog.RuneIcon(rune).TokenColor == UiTheme.RuneColor(rune)), "rune placeholder icons tint to the UiTheme rune palette");
 Require(HeroRarities.All.All(rarity => PlaceholderAssetCatalog.RarityFrame(rarity).TokenColor == UiTheme.RarityColor(rarity)), "rarity placeholder frames tint to the UiTheme rarity colour");
 Require(PlaceholderAssetCatalog.FactionIcons.All(spec => !spec.HasTokenColor), "faction placeholder icons carry no fixed token colour (tinted by synergy tier at runtime)");
-Require(PlaceholderAssetCatalog.HudIcons.Count == 1 && PlaceholderAssetCatalog.HudIcons.All(spec => spec.Kind == PlaceholderAssetKind.HudIcon), "the placeholder manifest ships the HUD icon set");
+Require(PlaceholderAssetCatalog.HudIcons.Count == 2 && PlaceholderAssetCatalog.HudIcons.All(spec => spec.Kind == PlaceholderAssetKind.HudIcon), "the placeholder manifest ships the HUD icon set");
 Require(PlaceholderAssetCatalog.GoldHudIcon.Key == "hud.gold" && PlaceholderAssetCatalog.GoldHudIcon.TokenColor == UiTheme.GoldColor, "the gold HUD icon tints to the UiTheme gold token");
-Require(PlaceholderAssetCatalog.All.Contains(PlaceholderAssetCatalog.GoldHudIcon), "the gold HUD icon is part of the full placeholder manifest");
+Require(PlaceholderAssetCatalog.MenuHudIcon.Key == "hud.menu" && !PlaceholderAssetCatalog.MenuHudIcon.HasTokenColor, "the menu/pause HUD icon carries no fixed token colour (tinted by the button accent at runtime)");
+Require(PlaceholderAssetCatalog.All.Contains(PlaceholderAssetCatalog.GoldHudIcon) && PlaceholderAssetCatalog.All.Contains(PlaceholderAssetCatalog.MenuHudIcon), "the HUD icons are part of the full placeholder manifest");
 Require(PlaceholderAssetCatalog.TryGet("hud.gold", out var goldHudAsset) && goldHudAsset.Kind == PlaceholderAssetKind.HudIcon, "the gold HUD icon is addressable by its stable key");
+Require(PlaceholderAssetCatalog.TryGet("hud.menu", out var menuHudAsset) && menuHudAsset.Kind == PlaceholderAssetKind.HudIcon, "the menu/pause HUD icon is addressable by its stable key");
+Require(CombatHudModel.Build(CombatState.Start(1)).MenuIconKey == "hud.menu" && PlaceholderAssetCatalog.TryGet(CombatHudModel.Build(CombatState.Start(1)).MenuIconKey, out _), "the combat HUD model exposes the menu/pause icon key resolvable in the placeholder catalog");
 Require(PlaceholderAssetCatalog.ArenaBackgroundFor(PveRoundType.Tutorial).Key == "arena.field", "tutorial rounds use the field arena background");
 Require(PlaceholderAssetCatalog.ArenaBackgroundFor(PveRoundType.FinalBoss).Key == "arena.throne", "the final boss uses the throne arena background");
 RequireThrows(() => PlaceholderAssetCatalog.ArenaBackgroundFor(PveRoundType.EnhancedShop), "non-combat rounds have no arena background");
