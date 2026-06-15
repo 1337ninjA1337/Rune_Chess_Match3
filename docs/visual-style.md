@@ -136,6 +136,13 @@ button, pause).
   into one ordered, uniformly-rendered `SettingsRow` list (control, label, readable Russian value
   text, row kind — toggle/option/action, and an on-flag), and ties an enabled toggle to the green
   rune token — so the Unity settings screen renders every control the same way from one source.
+- **Run summary** (GDD UI screen «Итог забега»): result headline, round progress, final roster,
+  best hero and the meta rewards/unlocks (drives off `RunSummaryModel`). The presentation glue is
+  `RunSummaryPresentation` (`Packages/com.runechess.core/Runtime/RunSummaryPresentation.cs`): each
+  roster card borrows the shared rarity-tier border (`UiTheme.RarityColor` /
+  `PlaceholderAssetCatalog.RarityFrame`), the best hero takes the warm `UiTheme.GoldColor`
+  spotlight, and the result headline takes a win/loss rune-palette accent (green cleared / red
+  lost) — so the Unity summary renders the roster and outcome from the same token sources.
 
 ## Placeholder asset pipeline (planned)
 

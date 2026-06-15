@@ -2283,6 +2283,20 @@ var emptyTeamSummary = RunSummaryModel.Build(RunState.NewRun());
 Require(emptyTeamSummary.Team.Count == 0 && emptyTeamSummary.BestHero is null, "an empty team yields no best hero");
 RequireThrows(() => RunSummaryModel.Build(null!), "run summary rejects a null run");
 
+// Run summary presentation (RunSummaryPresentation): rarity-tier borders for the roster cards,
+// a gold spotlight for the best hero, and a win/loss result accent. Rendering is Unity-only
+// (documented gap); the contract is verified here.
+Require(RunSummaryPresentation.BestHeroAccentColor == UiTheme.GoldColor, "the best-hero spotlight reuses the shared warm gold token");
+Require(RunSummaryPresentation.OutcomeAccentColor(true) == UiTheme.RuneColor(RuneType.Green) && RunSummaryPresentation.OutcomeAccentColor(false) == UiTheme.RuneColor(RuneType.Red), "the result accent reads green on victory and red on loss");
+Require(RunSummaryPresentation.OutcomeAccentColor(true) != RunSummaryPresentation.OutcomeAccentColor(false), "the victory and loss accents are distinct");
+Require(midRunSummary.Team.All(hero => RunSummaryPresentation.HeroFrameColor(hero) == UiTheme.RarityColor(hero.Rarity)), "each roster card borrows its rarity-tier border colour");
+Require(midRunSummary.Team.All(hero => RunSummaryPresentation.HeroFrame(hero).Kind == PlaceholderAssetKind.RarityFrame && PlaceholderAssetCatalog.TryGet(RunSummaryPresentation.HeroFrame(hero).Key, out _)), "each roster card resolves the shared rarity-frame placeholder");
+Require(midRunSummary.Team.Count(hero => RunSummaryPresentation.IsBestHero(midRunSummary, hero)) == 1, "exactly one roster card is flagged as the best hero");
+Require(RunSummaryPresentation.IsBestHero(midRunSummary, midRunSummary.BestHero!), "the best-hero flag matches the model's best hero");
+Require(!RunSummaryPresentation.IsBestHero(emptyTeamSummary, midRunSummary.Team[0]), "an empty-team summary flags no best hero");
+RequireThrows(() => RunSummaryPresentation.HeroFrameColor(null!), "the run summary presentation rejects a null hero");
+RequireThrows(() => RunSummaryPresentation.IsBestHero(null!, midRunSummary.BestHero!), "the run summary presentation rejects a null model");
+
 // Account progress meta model (GDD "Метапрогрессия" / main screen "прогресс аккаунта").
 var startingAccount = AccountProgress.Starting;
 Require(startingAccount.AccountLevel == 1 && startingAccount.AccountXp == 0 && startingAccount.SoftCurrency == 0, "a fresh account starts at level one with no XP or currency");
