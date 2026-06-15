@@ -3818,6 +3818,26 @@ RequireThrows(() => PhaseTransitionStyle.EnemyPreviewUnitRevealStartAt(-1), "the
 RequireThrows(() => PhaseTransitionStyle.EnemyPreviewRevealSeconds(-1), "the preview reveal rejects a negative unit count");
 RequireThrows(() => PhaseTransitionStyle.EnemyPreviewUnitOpacityAt(-0.1), "the preview opacity rejects negative time");
 
+// Adaptive layout — safe area (AdaptiveLayoutStyle, iOS portrait). Content stays clear of the
+// notch/rounded corners/home indicator; applying the rect is Unity-only (gap), the math verified here.
+var notchInsets = new SafeAreaInsets(Top: 0.06, Bottom: 0.03, Left: 0.0, Right: 0.0);
+Require(AdaptiveLayoutStyle.ContentTopFraction(notchInsets) > notchInsets.Top, "content begins below the top safe inset plus a margin");
+Require(AdaptiveLayoutStyle.ContentBottomFraction(notchInsets) > notchInsets.Bottom, "content ends above the bottom safe inset plus a margin");
+Require(AdaptiveLayoutStyle.UsableHeightFraction(notchInsets) > 0.0 && AdaptiveLayoutStyle.UsableHeightFraction(notchInsets) < 1.0, "the safe-area usable height is a valid sub-region of the screen");
+Require(AdaptiveLayoutStyle.UsableHeightFraction(SafeAreaInsets.None) > AdaptiveLayoutStyle.UsableHeightFraction(notchInsets), "a notched screen has less usable height than a flat one");
+Require(AdaptiveLayoutStyle.UsableWidthFraction(SafeAreaInsets.None) < 1.0, "content keeps a margin from the screen edges even without side insets");
+RequireThrows(() => AdaptiveLayoutStyle.ContentTopFraction(new SafeAreaInsets(Top: -0.1, Bottom: 0.0, Left: 0.0, Right: 0.0)), "the safe-area layout rejects a negative inset");
+RequireThrows(() => AdaptiveLayoutStyle.UsableHeightFraction(new SafeAreaInsets(Top: 0.6, Bottom: 0.6, Left: 0.0, Right: 0.0)), "the safe-area layout rejects insets that consume the screen");
+
+// Adaptive layout — aspect-driven scale (AdaptiveLayoutStyle). The board/match-3 stay readable
+// across screen aspects via a clamped layout scale; applying the scale is Unity-only (gap).
+Require(Math.Abs(AdaptiveLayoutStyle.LayoutScaleForAspect(AdaptiveLayoutStyle.ReferenceAspect) - 1.0) < 1e-9, "the layout scale is identity at the reference aspect");
+Require(Math.Abs(AdaptiveLayoutStyle.LayoutScaleForAspect(AdaptiveLayoutStyle.ReferenceAspect * 0.5) - AdaptiveLayoutStyle.MinLayoutScale) < 1e-9, "a very tall/narrow screen clamps to the minimum readable scale");
+Require(Math.Abs(AdaptiveLayoutStyle.LayoutScaleForAspect(AdaptiveLayoutStyle.ReferenceAspect * 2.0) - AdaptiveLayoutStyle.MaxLayoutScale) < 1e-9, "a wide screen clamps to the maximum scale");
+Require(AdaptiveLayoutStyle.LayoutScaleForAspect(AdaptiveLayoutStyle.ReferenceAspect * 1.05) > AdaptiveLayoutStyle.LayoutScaleForAspect(AdaptiveLayoutStyle.ReferenceAspect * 0.95), "the layout scale grows with screen width relative to the reference");
+Require(AdaptiveLayoutStyle.MinLayoutScale > 0.0 && AdaptiveLayoutStyle.MinLayoutScale < AdaptiveLayoutStyle.MaxLayoutScale, "the layout scale clamp range is valid");
+RequireThrows(() => AdaptiveLayoutStyle.LayoutScaleForAspect(0.0), "the layout scale rejects a non-positive aspect");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
