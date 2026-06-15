@@ -3781,6 +3781,18 @@ Require(Math.Abs(BattleFeedbackStyle.OverloadVignetteOpacityFor(extremeOverload)
 Require(BattleFeedbackStyle.MaxOverloadVignetteOpacity > 0.0 && BattleFeedbackStyle.MaxOverloadVignetteOpacity <= 1.0, "the overload vignette ceiling is a valid opacity");
 RequireThrows(() => BattleFeedbackStyle.OverloadVignetteOpacityFor(null!), "the overload vignette rejects a null cue list");
 
+// Phase-transition battle banner (PhaseTransitionStyle, prep→combat "Бой!" flourish). Original
+// wording/timing; the banner render is Unity-only (gap), but the fade-in/hold/fade-out ramp is here.
+Require(PhaseTransitionStyle.BattleStartBannerText.Length > 0, "the battle-start banner has caption text");
+Require(PhaseTransitionStyle.BattleBannerFadeSeconds > 0.0 && PhaseTransitionStyle.BattleBannerHoldSeconds > 0.0, "the battle banner fades and holds for positive times");
+Require(Math.Abs(PhaseTransitionStyle.BattleBannerTotalSeconds - ((PhaseTransitionStyle.BattleBannerFadeSeconds * 2.0) + PhaseTransitionStyle.BattleBannerHoldSeconds)) < 1e-9, "the banner lifetime is fade-in + hold + fade-out");
+Require(Math.Abs(PhaseTransitionStyle.BattleBannerOpacityAt(0.0)) < 1e-9, "the banner starts fully transparent");
+Require(Math.Abs(PhaseTransitionStyle.BattleBannerOpacityAt(PhaseTransitionStyle.BattleBannerFadeSeconds) - 1.0) < 1e-9, "the banner reaches full opacity at the end of the fade-in");
+Require(Math.Abs(PhaseTransitionStyle.BattleBannerOpacityAt(PhaseTransitionStyle.BattleBannerFadeSeconds + PhaseTransitionStyle.BattleBannerHoldSeconds) - 1.0) < 1e-9, "the banner holds full opacity through the hold window");
+Require(Math.Abs(PhaseTransitionStyle.BattleBannerOpacityAt(PhaseTransitionStyle.BattleBannerTotalSeconds)) < 1e-9, "the banner is fully transparent once its lifetime ends");
+Require(PhaseTransitionStyle.BattleBannerOpacityAt(PhaseTransitionStyle.BattleBannerTotalSeconds * 2.0) == 0.0, "the banner stays gone after its lifetime");
+RequireThrows(() => PhaseTransitionStyle.BattleBannerOpacityAt(-0.1), "the banner opacity rejects negative time");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
