@@ -14,12 +14,20 @@ namespace RuneChess.Presentation
         public static readonly Color Text = ColorFromHex(0xF5F0E6);
         public static readonly Color Muted = ColorFromHex(0xB8B0A3);
 
-        public static readonly Color EnemyCell = ColorFromHex(0x342638);
-        public static readonly Color PlayerCell = ColorFromHex(0x20352F);
-        public static readonly Color CellAvailable = ColorFromHex(0x2F5C46);
-        public static readonly Color CellUnavailable = ColorFromHex(0x25282E);
-        public static readonly Color AllyCellOccupied = ColorFromHex(0x255B4B);
-        public static readonly Color EnemyCellOccupied = ColorFromHex(0x5B2C36);
+        // Tactical-board cell palette comes from the engine-agnostic TacticalBoardStyle
+        // token set (single source of truth) so the board, its restyle and the smoke
+        // checks never drift from the Unity layer.
+        public static readonly Color EnemyCell = ColorFromPacked(TacticalBoardStyle.EnemyHalfColor);
+        public static readonly Color PlayerCell = ColorFromPacked(TacticalBoardStyle.PlayerHalfColor);
+        public static readonly Color CellAvailable = ColorFromPacked(TacticalBoardStyle.PlacementAvailableColor);
+        public static readonly Color CellUnavailable = ColorFromPacked(TacticalBoardStyle.UnavailableColor);
+        public static readonly Color AllyCellOccupied = ColorFromPacked(TacticalBoardStyle.AllyOccupiedColor);
+        public static readonly Color EnemyCellOccupied = ColorFromPacked(TacticalBoardStyle.EnemyOccupiedColor);
+
+        // Tactical-board restyle tokens: mid-line divider and the hover/selection overlay.
+        public static readonly Color BoardMidLine = ColorFromPacked(TacticalBoardStyle.MidLineColor);
+        public static readonly Color BoardCellBorder = ColorFromPacked(TacticalBoardStyle.CellBorderColor);
+        public static readonly Color BoardPlacementBorder = ColorFromPacked(TacticalBoardStyle.PlacementBorderColor);
 
         public static readonly Color Gold = ColorFromPacked(UiTheme.GoldColor);
         public static readonly Color Health = ColorFromHex(0xD85F57);
@@ -33,21 +41,24 @@ namespace RuneChess.Presentation
 
         public static Color TacticalCellColor(TacticalCellState state)
         {
-            switch (state)
-            {
-                case TacticalCellState.Free:
-                    return PlayerCell;
-                case TacticalCellState.OccupiedAlly:
-                    return AllyCellOccupied;
-                case TacticalCellState.OccupiedEnemy:
-                    return EnemyCellOccupied;
-                case TacticalCellState.AvailableForPlacement:
-                    return CellAvailable;
-                case TacticalCellState.Unavailable:
-                    return CellUnavailable;
-                default:
-                    return PanelRaised;
-            }
+            return ColorFromPacked(TacticalBoardStyle.CellFillColor(state));
+        }
+
+        /// <summary>Outline colour for a tactical-board cell (placement targets glow brighter).</summary>
+        public static Color TacticalCellBorderColor(TacticalCellState state)
+        {
+            return ColorFromPacked(TacticalBoardStyle.CellBorderColorFor(state));
+        }
+
+        /// <summary>
+        /// Translucent hover/selection veil for a board cell, ready to lay over its fill. Idle
+        /// cells return a fully transparent overlay so the caller can blit unconditionally.
+        /// </summary>
+        public static Color TacticalCellOverlay(TacticalCellInteraction interaction)
+        {
+            return WithAlpha(
+                ColorFromPacked(TacticalBoardStyle.InteractionOverlayColor),
+                TacticalBoardStyle.InteractionOverlayOpacity(interaction));
         }
 
         // Rune and tier colours come from the engine-agnostic UiTheme token set

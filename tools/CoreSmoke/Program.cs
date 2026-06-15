@@ -3652,6 +3652,41 @@ Require(PlaceholderAssetCatalog.TryGet("rune.red", out var redRuneAsset) && redR
 Require(!PlaceholderAssetCatalog.TryGet("unknown.key", out _), "placeholder lookup rejects unknown keys");
 RequireThrows(() => new PlaceholderAssetSpec(" ", PlaceholderAssetKind.RuneIcon, "Name", null, "Desc"), "placeholder spec rejects a blank key");
 
+// Tactical-board restyle (TacticalBoardStyle): single source of truth for the board
+// presentation overhaul. Rendering is Unity-only (documented gap); the contract is
+// verified headless here.
+var boardStateValues = (TacticalCellState[])Enum.GetValues(typeof(TacticalCellState));
+Require(boardStateValues.Select(TacticalBoardStyle.CellFillColor).Distinct().Count() == boardStateValues.Length, "every tactical cell state resolves to a distinct fill colour");
+Require(TacticalBoardStyle.CellFillColor(TacticalCellState.AvailableForPlacement) == TacticalBoardStyle.PlacementAvailableColor, "the placement-target fill uses the placement token");
+Require(TacticalBoardStyle.CellFillColor(TacticalCellState.OccupiedAlly) == TacticalBoardStyle.AllyOccupiedColor, "the ally-occupied fill uses the ally token");
+Require(TacticalBoardStyle.CellFillColor(TacticalCellState.OccupiedEnemy) == TacticalBoardStyle.EnemyOccupiedColor, "the enemy-occupied fill uses the enemy token");
+RequireThrows(() => TacticalBoardStyle.CellFillColor((TacticalCellState)999), "cell fill rejects an unknown state");
+Require(TacticalBoardStyle.CellBorderColorFor(TacticalCellState.AvailableForPlacement) == TacticalBoardStyle.PlacementBorderColor, "a placement target glows with the bright accent border");
+Require(TacticalBoardStyle.CellBorderColorFor(TacticalCellState.Free) == TacticalBoardStyle.CellBorderColor, "an idle cell uses the quiet outline border");
+Require(TacticalBoardStyle.CellBorderThicknessFor(TacticalCellState.AvailableForPlacement) > TacticalBoardStyle.CellBorderThicknessFor(TacticalCellState.Free), "a placement target draws a heavier outline than an idle cell");
+RequireThrows(() => TacticalBoardStyle.CellBorderColorFor((TacticalCellState)999), "cell border rejects an unknown state");
+Require(TacticalBoardStyle.MidLineThickness > 0f && TacticalBoardStyle.MidLineColor != TacticalBoardStyle.PlayerHalfColor && TacticalBoardStyle.MidLineColor != TacticalBoardStyle.EnemyHalfColor, "the mid-line divider is a positive, distinct accent");
+Require(TacticalBoardStyle.EnemyHalfColor != TacticalBoardStyle.PlayerHalfColor, "the player and enemy halves read as different colours");
+Require(TacticalBoardStyle.InteractionOverlayOpacity(TacticalCellInteraction.None) == 0f, "an idle cell shows no interaction overlay");
+Require(TacticalBoardStyle.InteractionOverlayOpacity(TacticalCellInteraction.Selected) > TacticalBoardStyle.InteractionOverlayOpacity(TacticalCellInteraction.Hovered), "selection reads stronger than a passing hover");
+Require(TacticalBoardStyle.InteractionOverlayOpacity(TacticalCellInteraction.Hovered) > 0f && TacticalBoardStyle.InteractionOverlayOpacity(TacticalCellInteraction.Selected) <= 1f, "interaction overlay opacities stay within (0,1]");
+RequireThrows(() => TacticalBoardStyle.InteractionOverlayOpacity((TacticalCellInteraction)999), "interaction overlay rejects an unknown state");
+Require(Math.Abs(TacticalBoardStyle.RowDepthScale(0, 1) - TacticalBoardStyle.NearRowScale) < 1e-6f, "a single-row board renders at near scale");
+Require(TacticalBoardStyle.RowDepthScale(TacticalField.MvpRows - 1, TacticalField.MvpRows) > TacticalBoardStyle.RowDepthScale(0, TacticalField.MvpRows), "the near player row renders larger than the far enemy row");
+Require(Math.Abs(TacticalBoardStyle.RowDepthScale(TacticalField.MvpRows - 1, TacticalField.MvpRows) - TacticalBoardStyle.NearRowScale) < 1e-6f, "the nearest row is at full near scale");
+Require(Math.Abs(TacticalBoardStyle.RowDepthScale(0, TacticalField.MvpRows) - TacticalBoardStyle.FarRowScale) < 1e-6f, "the farthest row is at far scale");
+var depthScales = Enumerable.Range(0, TacticalField.MvpRows).Select(row => TacticalBoardStyle.RowDepthScale(row, TacticalField.MvpRows)).ToList();
+Require(depthScales.All(scale => scale > 0f && scale <= TacticalBoardStyle.NearRowScale), "every row depth scale stays within (0, near]");
+Require(depthScales.Zip(depthScales.Skip(1), (a, b) => b > a).All(increasing => increasing), "row depth scale grows monotonically from the far to the near edge");
+Require(TacticalBoardStyle.RowHorizontalInset(0, TacticalField.MvpRows) > TacticalBoardStyle.RowHorizontalInset(TacticalField.MvpRows - 1, TacticalField.MvpRows), "the far row insets more than the near row to form the trapezoid");
+Require(Math.Abs(TacticalBoardStyle.RowHorizontalInset(TacticalField.MvpRows - 1, TacticalField.MvpRows)) < 1e-6f, "the nearest row has no horizontal inset");
+RequireThrows(() => TacticalBoardStyle.RowDepthScale(0, 0), "row depth scale rejects a board with no rows");
+RequireThrows(() => TacticalBoardStyle.RowDepthScale(5, TacticalField.MvpRows), "row depth scale rejects a row outside the board");
+Require(TacticalBoardStyle.ArenaBackground(PveRoundType.Tutorial).Key == PlaceholderAssetCatalog.ArenaBackgroundFor(PveRoundType.Tutorial).Key, "the board shares its arena background mapping with the asset catalog");
+RequireThrows(() => TacticalBoardStyle.ArenaBackground(PveRoundType.Event), "the board has no arena background for non-combat rounds");
+var resolvedPlacementCell = TacticalBoardStyle.ResolveCell(TacticalCellState.AvailableForPlacement, TacticalField.MvpRows - 1, TacticalField.MvpRows);
+Require(resolvedPlacementCell.FillColor == TacticalBoardStyle.PlacementAvailableColor && resolvedPlacementCell.BorderColor == TacticalBoardStyle.PlacementBorderColor && Math.Abs(resolvedPlacementCell.RowScale - TacticalBoardStyle.NearRowScale) < 1e-6f, "a resolved cell combines its state fill/border with the row depth scale");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)

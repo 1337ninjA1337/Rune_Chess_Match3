@@ -63,6 +63,13 @@ Stacked top-to-bottom to suit a single thumb on a tall screen:
    streak, phase timer, menu.
 2. **Tactical arena** — stylised 6x4 / 7x4 grid with a clear mid-line splitting
    the player half (lower) from the enemy half (upper); units face each other.
+   A flat-perspective (pseudo-3D) tilt shrinks and insets the far enemy rows
+   while the near player rows render full-size. The cell-state palette, mid-line
+   divider, hover/selection overlay and depth projection are the single source of
+   truth in `TacticalBoardStyle`
+   (`Packages/com.runechess.core/Runtime/TacticalBoardStyle.cs`); `GameColors`
+   delegates to it. The arena background comes from `PlaceholderAssetCatalog`
+   (`field`/`elite`/`throne` by round archetype).
 3. **Match-3 board** — the 7x7 rune board directly under the arena, the player's
    primary input surface in the thumb zone.
 4. **Bottom panel** — phase-specific controls. This project has **no shop and no
@@ -111,5 +118,8 @@ coverage, unique keys, token-tied colours, arena mapping — is verified headles
 `UiTheme` tokens are covered by `tools/CoreSmoke` (distinct rarity/rune/synergy
 colours, strictly-ascending positive scales, channel unpack, unknown-enum
 guards), which the `Core Smoke` GitHub Actions workflow runs on every push/PR.
+`TacticalBoardStyle` is covered there too (distinct per-state fills, brighter
+placement border, distinct positive mid-line, ordered hover/selection overlay,
+monotonic far→near depth scale, arena-mapping parity with the asset catalog).
 Rendering itself is Unity-only and remains a documented verification gap in this
 environment.
