@@ -3242,6 +3242,18 @@ Require(BattleReadabilityModel.SelectVisibleEffects(allReadEffects, cap: 0).Coun
 RequireThrows(() => BattleReadabilityModel.SelectVisibleEffects(allReadEffects, cap: -1), "the effect selector rejects a negative cap");
 RequireThrows(() => BattleReadabilityModel.SalienceOf((RuneEffect)null!), "salience scoring rejects a null effect");
 
+// Effect-budget styling (BattleEffectBudgetStyle, ties to BattleReadabilityModel). Beats past the
+// on-screen cap batch into one quiet "+N" overflow badge instead of vanishing; the badge render is
+// Unity-only (documented gap), but the cap/visible-set/overflow contract is verified here.
+Require(BattleEffectBudgetStyle.MaxSimultaneousEffects == BattleReadabilityModel.MaxSimultaneousEffects, "the effect-budget style mirrors the readability cap");
+Require(BattleEffectBudgetStyle.VisibleEffects(allReadEffects).Count == BattleReadabilityModel.MaxSimultaneousEffects, "the budget style shows at most the readability cap");
+Require(BattleEffectBudgetStyle.OverflowCount(allReadEffects) == allReadEffects.Count - BattleReadabilityModel.MaxSimultaneousEffects, "the overflow count is every effect past the cap");
+Require(BattleEffectBudgetStyle.HasOverflow(allReadEffects), "a wall of beats overflows the on-screen budget");
+Require(BattleEffectBudgetStyle.OverflowLabel(allReadEffects) == "+" + (allReadEffects.Count - BattleReadabilityModel.MaxSimultaneousEffects), "the overflow badge counts the batched beats");
+Require(!BattleEffectBudgetStyle.HasOverflow(new List<RuneEffect> { minorEffect }) && BattleEffectBudgetStyle.OverflowLabel(new List<RuneEffect> { minorEffect }) == string.Empty, "a set within budget needs no overflow badge");
+Require(BattleEffectBudgetStyle.OverflowBadgeOpacity > 0.0 && BattleEffectBudgetStyle.OverflowBadgeOpacity <= 1.0, "the overflow badge uses a valid opacity");
+RequireThrows(() => BattleEffectBudgetStyle.OverflowCount(null!), "the effect-budget style rejects a null effect list");
+
 // Cross-zone attention (codex: "Сделать бой визуально читаемым при одновременном автобое и match-3").
 // Coordinating the auto battler and match-3 when both fire at once: focus, shared budget, dimming.
 var match3MinorCue = BattleCue.FromRuneEffect(minorEffect);
