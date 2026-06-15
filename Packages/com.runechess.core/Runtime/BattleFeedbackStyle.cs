@@ -38,5 +38,32 @@ namespace RuneChess.Core
 
             return state.IsCombatSlowed ? SlowdownVignetteOpacity : 0.0;
         }
+
+        // --- Focus-zone dim (task: highlight the focus zone, dim the other — ties to
+        // BattleAttentionModel.PrimaryFocus / ShouldDimOffFocusZone). ---
+
+        /// <summary>How strongly the off-focus zone is dimmed when one zone owns a clutch beat.</summary>
+        public const double OffFocusDimOpacity = 0.45;
+
+        /// <summary>
+        /// The dim overlay opacity for a zone given the current cues: the styled dim only when the
+        /// attention model says to dim the off-focus zone AND this zone is not the primary focus;
+        /// zero otherwise. Ties the visual directly to <see cref="BattleAttentionModel"/> so the focus
+        /// highlight can never disagree with the arbitration.
+        /// </summary>
+        public static double DimOpacityForZone(IReadOnlyList<BattleCue> cues, BattleZone zone)
+        {
+            if (cues is null)
+            {
+                throw new ArgumentNullException(nameof(cues));
+            }
+
+            if (!BattleAttentionModel.ShouldDimOffFocusZone(cues))
+            {
+                return 0.0;
+            }
+
+            return BattleAttentionModel.PrimaryFocus(cues) == zone ? 0.0 : OffFocusDimOpacity;
+        }
     }
 }

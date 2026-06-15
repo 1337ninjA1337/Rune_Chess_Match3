@@ -3736,6 +3736,16 @@ Require(Math.Abs(BattleFeedbackStyle.SlowdownVignetteOpacityFor(comboScoredComba
 Require(Math.Abs(BattleFeedbackStyle.SlowdownVignetteOpacityFor(normalSpeedCombat)) < 1e-9, "the slow-mo vignette is hidden at normal combat speed");
 RequireThrows(() => BattleFeedbackStyle.SlowdownVignetteOpacityFor(null!), "the slow-mo vignette rejects a null combat state");
 
+// Focus-zone dim (BattleFeedbackStyle, ties to BattleAttentionModel). The off-focus zone dims only
+// when a clutch beat owns the focus. Rendering is Unity-only (documented gap); contract verified.
+Require(BattleFeedbackStyle.OffFocusDimOpacity > 0.0 && BattleFeedbackStyle.OffFocusDimOpacity < 1.0, "the off-focus dim uses a valid partial opacity");
+var dimCues = new[] { autoCriticalCue, match3MajorCue }; // focus = AutoBattle, dims the off-focus zone
+Require(Math.Abs(BattleFeedbackStyle.DimOpacityForZone(dimCues, BattleZone.Match3) - BattleFeedbackStyle.OffFocusDimOpacity) < 1e-9, "the off-focus zone dims when another zone owns a clutch beat");
+Require(Math.Abs(BattleFeedbackStyle.DimOpacityForZone(dimCues, BattleZone.AutoBattle)) < 1e-9, "the primary focus zone is never dimmed");
+Require(Math.Abs(BattleFeedbackStyle.DimOpacityForZone(new[] { autoMinorCue, match3MinorCue }, BattleZone.Match3)) < 1e-9, "no zone dims when both zones are minor");
+Require(Math.Abs(BattleFeedbackStyle.DimOpacityForZone(Array.Empty<BattleCue>(), BattleZone.Match3)) < 1e-9, "an empty screen dims nothing");
+RequireThrows(() => BattleFeedbackStyle.DimOpacityForZone(null!, BattleZone.Match3), "the focus dim rejects a null cue list");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
