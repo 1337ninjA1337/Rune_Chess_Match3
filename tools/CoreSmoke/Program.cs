@@ -2283,6 +2283,20 @@ var emptyTeamSummary = RunSummaryModel.Build(RunState.NewRun());
 Require(emptyTeamSummary.Team.Count == 0 && emptyTeamSummary.BestHero is null, "an empty team yields no best hero");
 RequireThrows(() => RunSummaryModel.Build(null!), "run summary rejects a null run");
 
+// Run summary presentation (RunSummaryPresentation): rarity-tier borders for the roster cards,
+// a gold spotlight for the best hero, and a win/loss result accent. Rendering is Unity-only
+// (documented gap); the contract is verified here.
+Require(RunSummaryPresentation.BestHeroAccentColor == UiTheme.GoldColor, "the best-hero spotlight reuses the shared warm gold token");
+Require(RunSummaryPresentation.OutcomeAccentColor(true) == UiTheme.RuneColor(RuneType.Green) && RunSummaryPresentation.OutcomeAccentColor(false) == UiTheme.RuneColor(RuneType.Red), "the result accent reads green on victory and red on loss");
+Require(RunSummaryPresentation.OutcomeAccentColor(true) != RunSummaryPresentation.OutcomeAccentColor(false), "the victory and loss accents are distinct");
+Require(midRunSummary.Team.All(hero => RunSummaryPresentation.HeroFrameColor(hero) == UiTheme.RarityColor(hero.Rarity)), "each roster card borrows its rarity-tier border colour");
+Require(midRunSummary.Team.All(hero => RunSummaryPresentation.HeroFrame(hero).Kind == PlaceholderAssetKind.RarityFrame && PlaceholderAssetCatalog.TryGet(RunSummaryPresentation.HeroFrame(hero).Key, out _)), "each roster card resolves the shared rarity-frame placeholder");
+Require(midRunSummary.Team.Count(hero => RunSummaryPresentation.IsBestHero(midRunSummary, hero)) == 1, "exactly one roster card is flagged as the best hero");
+Require(RunSummaryPresentation.IsBestHero(midRunSummary, midRunSummary.BestHero!), "the best-hero flag matches the model's best hero");
+Require(!RunSummaryPresentation.IsBestHero(emptyTeamSummary, midRunSummary.Team[0]), "an empty-team summary flags no best hero");
+RequireThrows(() => RunSummaryPresentation.HeroFrameColor(null!), "the run summary presentation rejects a null hero");
+RequireThrows(() => RunSummaryPresentation.IsBestHero(null!, midRunSummary.BestHero!), "the run summary presentation rejects a null model");
+
 // Account progress meta model (GDD "Метапрогрессия" / main screen "прогресс аккаунта").
 var startingAccount = AccountProgress.Starting;
 Require(startingAccount.AccountLevel == 1 && startingAccount.AccountXp == 0 && startingAccount.SoftCurrency == 0, "a fresh account starts at level one with no XP or currency");
@@ -2359,6 +2373,40 @@ ongoingRun = ongoingRun with { Round = 3 };
 Require(MainMenuModel.Build(ongoingRun, AccountProgress.Starting).StartRunLabel == "Продолжить забег", "the main menu offers to continue a run already in progress");
 RequireThrows(() => MainMenuModel.Build(null!, AccountProgress.Starting), "the main menu rejects a null run");
 RequireThrows(() => MainMenuModel.Build(RunState.NewRun(), null!), "the main menu rejects null account progress");
+
+// Main menu presentation (MainMenuPresentation): turns the menu model into the ordered
+// entry tiles the new portrait menu draws (run hero tile + commander/collection/cosmetics/
+// settings shortcuts) with titles, meta lines and navigation icons. Rendering is Unity-only
+// (documented gap); the contract is verified here.
+var menuTiles = MainMenuPresentation.Tiles(freshMenu);
+Require(menuTiles.Count == 5, "the main menu presents the five GDD entry points");
+Require(menuTiles.Select(tile => tile.Destination).SequenceEqual(new[]
+{
+    MainMenuDestination.StartRun,
+    MainMenuDestination.Commander,
+    MainMenuDestination.Collection,
+    MainMenuDestination.CosmeticShop,
+    MainMenuDestination.Settings
+}), "the main menu tiles are ordered run, commander, collection, cosmetics, settings");
+var runTile = menuTiles[0];
+Require(runTile.IsPrimary && menuTiles.Skip(1).All(tile => !tile.IsPrimary), "exactly the run tile is the primary call-to-action");
+Require(runTile.AccentColor == UiTheme.GoldColor && menuTiles.Skip(1).All(tile => tile.AccentColor is null), "the run tile carries the warm gold CTA accent while the shortcuts stay neutral");
+Require(runTile.Title == freshMenu.StartRunLabel && runTile.Meta == freshMenu.StartRunMeta, "the run tile reads its label and round meta from the menu model");
+Require(MainMenuPresentation.Tiles(MainMenuModel.Build(ongoingRun, AccountProgress.Starting))[0].Title == "Продолжить забег", "the run tile flips to continue when a run is already in progress");
+Require(menuTiles[1].Meta == freshMenu.CommanderName, "the commander tile shows the selected commander name");
+Require(menuTiles[2].Meta == freshMenu.CollectionLabel, "the collection tile shows the unlocked/total hero count");
+Require(menuTiles[3].Title == freshMenu.CosmeticShopLabel && menuTiles[3].Meta == freshMenu.CosmeticShopMeta, "the cosmetics-shop tile shows its label and unlocked/total meta");
+Require(menuTiles.All(tile => tile.IconKey == MainMenuPresentation.IconKey(tile.Destination)), "every menu tile carries its destination's navigation icon key");
+Require(menuTiles.All(tile => PlaceholderAssetCatalog.TryGet(tile.IconKey, out var spec) && spec.Kind == PlaceholderAssetKind.NavIcon), "every menu tile navigation icon resolves to a nav placeholder in the catalog");
+Require(menuTiles.Select(tile => tile.IconKey).Distinct().Count() == menuTiles.Count, "the menu tiles use distinct navigation icons");
+RequireThrows(() => MainMenuPresentation.Tiles(null!), "the main menu presentation rejects a null model");
+RequireThrows(() => MainMenuPresentation.IconKey((MainMenuDestination)999), "the main menu icon key rejects an unknown destination");
+
+// Navigation placeholder icons (PlaceholderAssetCatalog.NavIcons): one per main-menu entry point.
+Require(PlaceholderAssetCatalog.NavIcons.Count == 5, "the catalog ships one navigation icon per main-menu entry point");
+Require(PlaceholderAssetCatalog.NavIcons.All(spec => spec.Kind == PlaceholderAssetKind.NavIcon && !spec.HasTokenColor), "navigation icons are nav-kind with a runtime accent (no fixed token colour)");
+Require(PlaceholderAssetCatalog.NavIcons.All(spec => PlaceholderAssetCatalog.All.Contains(spec)), "every navigation icon is part of the full placeholder manifest");
+Require(((MainMenuDestination[])Enum.GetValues(typeof(MainMenuDestination))).All(dest => PlaceholderAssetCatalog.TryGet(MainMenuPresentation.IconKey(dest), out _)), "every main-menu destination resolves to a registered navigation icon");
 
 // Commander selection view-model (GDD UI screen 2 "Выбор командира").
 var commanderSelect = CommanderSelectModel.Build("warlord");
@@ -2510,6 +2558,24 @@ Require(ironGuardEntry.Faction == "Империя" && ironGuardEntry.Cost == 1, 
 Require(ironGuardEntry.StatsLabel.Contains("HP") && ironGuardEntry.StatsLabel.Contains("ATK"), "a collection entry summarizes hero stats");
 Require(!string.IsNullOrWhiteSpace(ironGuardEntry.Ability) && !string.IsNullOrWhiteSpace(ironGuardEntry.Passive), "a collection entry carries ability and passive text");
 
+// Hero detail presentation (HeroDetailPresentation): large portrait rarity frame, preferred-rune
+// highlight, and per-star stat rows reusing the on-board star pip colours. Rendering is Unity-only
+// (documented gap); the contract is verified here.
+var ironGuardDef = HeroCatalog.Get("iron_guard");
+Require(HeroDetailPresentation.Portrait.Kind == PlaceholderAssetKind.UnitSprite, "the hero detail portrait uses the unit sprite placeholder");
+Require(HeroDetailPresentation.PortraitFrameColor(ironGuardDef) == UiTheme.RarityColor(ironGuardDef.Rarity), "the portrait card borrows the hero's rarity-tier border colour");
+Require(HeroDetailPresentation.PortraitFrame(ironGuardDef).Kind == PlaceholderAssetKind.RarityFrame && PlaceholderAssetCatalog.TryGet(HeroDetailPresentation.PortraitFrame(ironGuardDef).Key, out _), "the portrait card resolves the shared rarity-frame placeholder");
+Require(HeroDetailPresentation.RuneAffinityColor(ironGuardDef) == UiTheme.RuneColor(ironGuardDef.RuneAffinity), "the rune-affinity highlight uses the hero's preferred rune token");
+var ironGuardStarStats = HeroDetailPresentation.StarStats(ironGuardDef);
+Require(ironGuardStarStats.Count == UnitBoardPresentation.MaxStars - UnitBoardPresentation.MinStars + 1, "the detail screen lists one stat row per supported star tier");
+Require(ironGuardStarStats.Select(line => line.Stars).SequenceEqual(new[] { 1, 2, 3 }), "the per-star stat rows run 1★ through 3★ in order");
+Require(ironGuardStarStats.All(line => line.PipColor == UnitBoardPresentation.StarTierColor(line.Stars)), "each star row reuses the on-board tier pip colour");
+Require(ironGuardStarStats[2].Stats.BaseHealth > ironGuardStarStats[0].Stats.BaseHealth && ironGuardStarStats[2].Stats.Attack > ironGuardStarStats[0].Stats.Attack, "a three-star hero out-scales its one-star stats in health and attack");
+Require(ironGuardStarStats.All(line => line.StatsLabel.Contains("HP") && line.StatsLabel.Contains("ATK")), "each star row carries a readable stat summary");
+RequireThrows(() => HeroDetailPresentation.StarStats(null!), "the hero detail presentation rejects a null hero");
+RequireThrows(() => HeroDetailPresentation.PortraitFrameColor(null!), "the hero detail portrait colour rejects a null hero");
+RequireThrows(() => HeroDetailPresentation.FormatStats(null!), "the hero detail stat formatter rejects null stats");
+
 // Settings model (GDD UI screen 10 "Настройки").
 var defaultSettings = SettingsModel.Default;
 Require(defaultSettings.SoundEnabled && defaultSettings.MusicEnabled && defaultSettings.VibrationEnabled, "default settings enable sound, music and vibration");
@@ -2527,6 +2593,33 @@ Require(!BattleSpeedOptions.IsSpedUp(BattleSpeed.Normal) && BattleSpeedOptions.I
 Require(Math.Abs(defaultSettings.BattleSpeedMultiplier - BattleSpeedOptions.Multiplier(defaultSettings.BattleSpeed)) < 1e-9, "settings and the shared options agree on the multiplier");
 RequireThrows(() => BattleSpeedOptions.Multiplier((BattleSpeed)999), "battle-speed options reject an unknown speed");
 Require(defaultSettings.CompleteTutorial().ResetTutorial().TutorialCompleted == false, "resetting the tutorial clears the completed flag");
+
+// Settings presentation (SettingsPresentation): flattens the seven controls into one ordered,
+// uniformly-rendered row list with readable value text + an on-toggle accent. Rendering is
+// Unity-only (documented gap); the contract is verified here.
+var settingsRows = SettingsPresentation.Rows(defaultSettings);
+Require(settingsRows.Select(row => row.Control).SequenceEqual(new[]
+{
+    SettingsControl.Sound,
+    SettingsControl.Music,
+    SettingsControl.Vibration,
+    SettingsControl.Language,
+    SettingsControl.GraphicsQuality,
+    SettingsControl.BattleSpeed,
+    SettingsControl.ResetTutorial
+}), "the settings rows cover the seven controls in reading order");
+Require(settingsRows.Take(3).All(row => row.Kind == SettingsRowKind.Toggle), "the audio/haptic controls render as toggles");
+Require(settingsRows.Skip(3).Take(3).All(row => row.Kind == SettingsRowKind.Option), "the language, graphics and battle-speed controls render as options");
+Require(settingsRows[6].Kind == SettingsRowKind.Action, "the reset-tutorial control renders as an action");
+Require(settingsRows.Take(3).All(row => row.IsOn && row.ValueLabel == "Вкл"), "default audio/haptic toggles read on");
+Require(SettingsPresentation.Rows(defaultSettings.ToggleSound())[0] is { IsOn: false, ValueLabel: "Выкл" }, "toggling sound off flips the row to выкл");
+Require(settingsRows[3].ValueLabel == "Русский" && SettingsPresentation.Rows(defaultSettings.CycleLanguage())[3].ValueLabel == "English", "the language row shows the readable language and follows the cycle");
+Require(settingsRows[4].ValueLabel == "Среднее" && settingsRows[5].ValueLabel == "x1.0", "the graphics and battle-speed rows show readable default values");
+Require(SettingsPresentation.Rows(defaultSettings.CompleteTutorial())[6].ValueLabel == "Пройдено", "the reset-tutorial row reflects a completed tutorial");
+Require(SettingsPresentation.ToggleOnColor == UiTheme.RuneColor(RuneType.Green), "the on-toggle accent reuses the green rune token");
+RequireThrows(() => SettingsPresentation.Rows(null!), "the settings presentation rejects a null model");
+RequireThrows(() => SettingsPresentation.LanguageLabel((SettingsLanguage)999), "the settings language label rejects an unknown language");
+RequireThrows(() => SettingsPresentation.GraphicsQualityLabel((GraphicsQuality)999), "the settings graphics label rejects an unknown quality");
 
 // Collection screen navigation (GDD main-menu access to the hero collection).
 Require(AppNavigationState.AtMainMenu.CanNavigateTo(AppScreen.Collection), "the main menu can open the hero collection");
@@ -2594,6 +2687,18 @@ RequireThrows(() => RewardScreenModel.Build((PveRoundDefinition)null!, true, 0),
 RequireThrows(() => RewardScreenModel.Build(heroChoiceRound, true, -1), "the reward screen rejects negative base gold");
 RequireThrows(() => RewardScreenModel.Build(heroChoiceRound, true, 0, -1), "the reward screen rejects negative bonus gold");
 RequireThrows(() => RewardScreenModel.Build((RunState)null!), "the reward screen rejects a null run");
+
+// Reward screen presentation (RewardScreenPresentation): rarity-tier borders for the artifact
+// choice cards + the warm gold accent for the gold total / continue CTA. Rendering is Unity-only
+// (documented gap); the contract is verified here.
+Require(RewardScreenPresentation.AccentColor == UiTheme.GoldColor, "the reward screen accent reuses the shared warm gold token");
+Require(((ArtifactRarity[])Enum.GetValues(typeof(ArtifactRarity))).All(rarity => (int)RewardScreenPresentation.FrameRarity(rarity) == (int)rarity), "each artifact rarity maps to the matching hero rarity tier");
+Require(artifactReward.ArtifactOptions.All(option => RewardScreenPresentation.OptionFrameColor(option) == UiTheme.RarityColor(RewardScreenPresentation.FrameRarity(ArtifactCatalog.Get(option.Id).Rarity))), "a common-pool artifact card borrows its rarity-tier border colour");
+Require(artifactReward.ArtifactOptions.All(option => RewardScreenPresentation.OptionFrameColor(option) == UiTheme.CommonColor), "every elite-round artifact card uses the common rarity-tier border colour");
+Require(bossReward.ArtifactOptions.All(option => RewardScreenPresentation.OptionFrameColor(option) != UiTheme.CommonColor), "every boss-round rare artifact card uses a non-common rarity-tier border colour");
+Require(artifactReward.ArtifactOptions.All(option => RewardScreenPresentation.OptionFrame(option).Kind == PlaceholderAssetKind.RarityFrame && PlaceholderAssetCatalog.TryGet(RewardScreenPresentation.OptionFrame(option).Key, out _)), "every artifact card resolves the shared rarity-frame placeholder");
+RequireThrows(() => RewardScreenPresentation.OptionRarity(null!), "the reward presentation rejects a null artifact option");
+RequireThrows(() => RewardScreenPresentation.FrameRarity((ArtifactRarity)999), "the reward presentation rejects an unknown artifact rarity");
 
 // Claiming one of the three offered artifacts (GDD "выбор одного из трёх артефактов после подходящих раундов").
 var artifactRewardRun = RunState.NewRun() with { Round = 5, Phase = RunPhase.Reward };
@@ -2915,6 +3020,21 @@ RequireThrows(() => EventScreenModel.Build(PveRunSchedule.GetRound(2)), "the eve
 RequireThrows(() => EventScreenModel.Build((PveRoundDefinition)null!), "the event screen rejects a null round");
 RequireThrows(() => EventScreenModel.Build((RunState)null!), "the event screen rejects a null run");
 RequireThrows(() => EventScreenModel.ForEvent(null!, 4, "Тест", "Цель"), "the event screen rejects a null choice");
+
+// Event screen presentation (EventScreenPresentation): ties the risk/reward contrast to the
+// shared palette (red cost / green gain) and the accept CTA to the warm gold accent, with a
+// no-downside flag. Rendering is Unity-only (documented gap); the contract is verified here.
+Require(EventScreenPresentation.AcceptAccentColor == UiTheme.GoldColor, "the event accept CTA reuses the shared warm gold token");
+Require(EventScreenPresentation.RiskAccentColor == UiTheme.RuneColor(RuneType.Red), "the event risk accent uses the red rune token");
+Require(EventScreenPresentation.RewardAccentColor == UiTheme.RuneColor(RuneType.Green), "the event reward accent uses the green rune token");
+Require(EventScreenPresentation.RiskAccentColor != EventScreenPresentation.RewardAccentColor && EventScreenPresentation.RiskAccentColor != EventScreenPresentation.AcceptAccentColor && EventScreenPresentation.RewardAccentColor != EventScreenPresentation.AcceptAccentColor, "the event risk, reward and accept accents are mutually distinct");
+Require(EventScreenPresentation.HasRisk(EventCatalog.TradeHealthForGold), "a health-for-gold trade reads as a risky event");
+Require(EventScreenPresentation.HasRisk(EventCatalog.CursedFreeHero), "a cursed free hero reads as a risky event");
+Require(EventScreenPresentation.HasRisk(EventCatalog.SacrificeHeroForArtifact), "sacrificing a hero reads as a risky event");
+Require(!EventScreenPresentation.HasRisk(EventCatalog.GoldWindfall), "a no-cost windfall reads as a pure gain (no risk accent)");
+Require(EventScreenPresentation.HasRisk(EventScreenModel.ForEvent(EventCatalog.TradeHealthForGold, 4, "Тест", "Цель")), "the event-screen risk overload reads through to the offered choice");
+RequireThrows(() => EventScreenPresentation.HasRisk((EventOption)null!), "the event presentation rejects a null choice");
+RequireThrows(() => EventScreenPresentation.HasRisk((EventScreenModel)null!), "the event presentation rejects a null model");
 
 // Event resolution: entering an event round and applying/declining the offered outcome.
 var eventRunBase = RunState.NewRun() with { Round = 4 };

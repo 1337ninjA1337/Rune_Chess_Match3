@@ -104,6 +104,53 @@ button, pause).
   faction/class placeholder icon key, the `UiTheme.SynergyTierColor` tier colour,
   the `current/threshold` label, the expand/tooltip effect text and the beginner
   spotlight flag — so the Unity panel renders without re-deriving synergy maths.
+- **Main menu** (GDD UI screen 1 «Главный экран»): five ordered entry tiles — the
+  start-run hero tile (primary call-to-action, warm `UiTheme.GoldColor` accent) plus
+  the commander, collection, cosmetics-shop and settings shortcuts (neutral). The
+  presentation glue is `MainMenuPresentation`
+  (`Packages/com.runechess.core/Runtime/MainMenuPresentation.cs`): the tile order, each
+  tile's title and meta line (read from `MainMenuModel`, so the run tile flips to
+  «Продолжить забег» mid-run), the primary-CTA flag and the per-destination navigation
+  placeholder icon (`nav.*`) — so the Unity menu lays out the tiles without re-deriving
+  any labels.
+- **Reward screen** (GDD UI screen «Экран награды»): gold breakdown, three artifact choice
+  cards, hero reward and the continue control (drives off `RewardScreenModel`). The
+  presentation glue is `RewardScreenPresentation`
+  (`Packages/com.runechess.core/Runtime/RewardScreenPresentation.cs`): each artifact card
+  borrows the shared rarity-tier border (`UiTheme.RarityColor` /
+  `PlaceholderAssetCatalog.RarityFrame`, resolved from the artifact's full rarity via
+  `ArtifactCatalog`), and the gold total / continue CTA reuse the one warm
+  `UiTheme.GoldColor` accent — so the Unity reward screen renders cards and the CTA from
+  the same token sources as the rest of the overhaul.
+- **Event screen** (GDD UI screen «Экран события»): a single roguelite encounter card with
+  risk/reward copy and accept/decline controls (drives off `EventScreenModel`). The
+  presentation glue is `EventScreenPresentation`
+  (`Packages/com.runechess.core/Runtime/EventScreenPresentation.cs`): it ties the defining
+  risk-vs-reward contrast to the shared rune palette (red token for the cost/downside, green
+  token for the gain) and the accept CTA to the warm `UiTheme.GoldColor` accent, with a
+  `HasRisk` flag so a no-downside windfall drops the risk accent and reads as a pure gain.
+- **Settings screen** (GDD UI screen 10 «Настройки»): sound/music/vibration toggles, language,
+  graphics and battle-speed options, and the reset-tutorial action (drives off `SettingsModel`).
+  The presentation glue is `SettingsPresentation`
+  (`Packages/com.runechess.core/Runtime/SettingsPresentation.cs`): it flattens the seven controls
+  into one ordered, uniformly-rendered `SettingsRow` list (control, label, readable Russian value
+  text, row kind — toggle/option/action, and an on-flag), and ties an enabled toggle to the green
+  rune token — so the Unity settings screen renders every control the same way from one source.
+- **Run summary** (GDD UI screen «Итог забега»): result headline, round progress, final roster,
+  best hero and the meta rewards/unlocks (drives off `RunSummaryModel`). The presentation glue is
+  `RunSummaryPresentation` (`Packages/com.runechess.core/Runtime/RunSummaryPresentation.cs`): each
+  roster card borrows the shared rarity-tier border (`UiTheme.RarityColor` /
+  `PlaceholderAssetCatalog.RarityFrame`), the best hero takes the warm `UiTheme.GoldColor`
+  spotlight, and the result headline takes a win/loss rune-palette accent (green cleared / red
+  lost) — so the Unity summary renders the roster and outcome from the same token sources.
+- **Hero detail** (GDD UI screen 7 «Экран деталей героя»: large portrait, stats per star,
+  ability/passive). The presentation glue is `HeroDetailPresentation`
+  (`Packages/com.runechess.core/Runtime/HeroDetailPresentation.cs`): the large portrait card
+  borrows the shared rarity-tier frame (`UiTheme.RarityColor` /
+  `PlaceholderAssetCatalog.RarityFrame`), the preferred-rune highlight takes the matching
+  `UiTheme.RuneColor` token, and the per-star stat rows (1★→3★) reuse the on-board star pip
+  colours from `UnitBoardPresentation` — so a hero's growth reads with the same star language as
+  the battlefield.
 
 ## Placeholder asset pipeline (planned)
 
@@ -120,8 +167,9 @@ source of truth the Unity import/generation pipeline and tooling enumerate so th
 placeholder set stays complete. It lists a neutral facing unit sprite, one card
 frame per rarity (tinted by `UiTheme.RarityColor`), the six rune icons (tinted by
 `UiTheme.RuneColor`), one icon per faction and per class (synergy-tier tinted at
-runtime), and the battle arena backgrounds (`field`/`elite`/`throne`, mapped from
-`PveRoundType` via `ArenaBackgroundFor`). Each entry carries a stable `Key`; real
+runtime), the battle arena backgrounds (`field`/`elite`/`throne`, mapped from
+`PveRoundType` via `ArenaBackgroundFor`), and the main-menu navigation icons (`nav.*`,
+one per entry point, runtime tinted). Each entry carries a stable `Key`; real
 sprites later bind to the same key. The catalog *contract* — full category
 coverage, unique keys, token-tied colours, arena mapping — is verified headless by
 `tools/CoreSmoke`; the sprites themselves remain the documented Unity-only gap.

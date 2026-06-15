@@ -14,7 +14,8 @@ namespace RuneChess.Core
         ClassIcon,
         ArenaBackground,
         HudIcon,
-        StatusIcon
+        StatusIcon,
+        NavIcon
     }
 
     /// <summary>
@@ -172,6 +173,45 @@ namespace RuneChess.Core
                     Description: "Иконка статус-индикатора над юнитом (щит/бафф/дебафф/оглушение/анти-хил/призыв). Тинт по типу статуса накладывается в рантайме."))
                 .ToArray());
 
+        /// <summary>
+        /// Main-menu navigation icons, one per entry point (GDD UI screen 1 «Главный экран»: run,
+        /// commander, collection, cosmetics shop, settings). Colour is decided at runtime by the
+        /// menu accent (primary CTA vs neutral tile), so there is no fixed token colour here.
+        /// </summary>
+        public static IReadOnlyList<PlaceholderAssetSpec> NavIcons { get; } = Array.AsReadOnly(new[]
+        {
+            new PlaceholderAssetSpec(
+                Key: "nav.run",
+                Kind: PlaceholderAssetKind.NavIcon,
+                DisplayName: "Меню: забег",
+                TokenColor: null,
+                Description: "Иконка главной точки входа «забег» в главном меню. Тинт акцента CTA накладывается в рантайме."),
+            new PlaceholderAssetSpec(
+                Key: "nav.commander",
+                Kind: PlaceholderAssetKind.NavIcon,
+                DisplayName: "Меню: командир",
+                TokenColor: null,
+                Description: "Иконка точки входа «командир» в главном меню. Тинт нейтральной плитки накладывается в рантайме."),
+            new PlaceholderAssetSpec(
+                Key: "nav.collection",
+                Kind: PlaceholderAssetKind.NavIcon,
+                DisplayName: "Меню: коллекция",
+                TokenColor: null,
+                Description: "Иконка точки входа «коллекция» в главном меню. Тинт нейтральной плитки накладывается в рантайме."),
+            new PlaceholderAssetSpec(
+                Key: "nav.cosmetics",
+                Kind: PlaceholderAssetKind.NavIcon,
+                DisplayName: "Меню: магазин косметики",
+                TokenColor: null,
+                Description: "Иконка точки входа «магазин косметики» в главном меню. Тинт нейтральной плитки накладывается в рантайме."),
+            new PlaceholderAssetSpec(
+                Key: "nav.settings",
+                Kind: PlaceholderAssetKind.NavIcon,
+                DisplayName: "Меню: настройки",
+                TokenColor: null,
+                Description: "Иконка точки входа «настройки» в главном меню. Тинт нейтральной плитки накладывается в рантайме.")
+        });
+
         /// <summary>Every placeholder asset across all categories.</summary>
         public static IReadOnlyList<PlaceholderAssetSpec> All { get; } = Array.AsReadOnly(
             new[] { UnitSprite }
@@ -182,6 +222,7 @@ namespace RuneChess.Core
                 .Concat(ArenaBackgrounds)
                 .Concat(HudIcons)
                 .Concat(StatusIcons)
+                .Concat(NavIcons)
                 .ToArray());
 
         private static IReadOnlyDictionary<string, PlaceholderAssetSpec> ByKey { get; } =
