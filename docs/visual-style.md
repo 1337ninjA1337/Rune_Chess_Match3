@@ -85,7 +85,15 @@ button, pause).
 ## Component anatomy
 
 - **Unit on board**: facing sprite, star pips (tier-coloured) above, thin HP bar
-  and mana bar below (`UnitBarHeight`), rarity frame, status icons.
+  and mana bar below (`UnitBarHeight`), rarity frame, status icons. These are the
+  single source of truth in `UnitBoardPresentation`
+  (`Packages/com.runechess.core/Runtime/UnitBoardPresentation.cs`): sprite facing
+  per side, bronze/silver/gold star-tier pip colours, clamped HP/mana bar
+  fractions, the rarity frame (shared `UiTheme.RarityColor` /
+  `PlaceholderAssetCatalog.RarityFrame`), the status-badge set
+  (`status.*` placeholder icons) derived from a live `BattleUnit`, and ordered
+  positive animation-cue durations (attack / damage flash / ability burst / death
+  fade). `GameColors` delegates star and status tints.
 - **Hero card** (acquisition/placement surface, TBD mechanic): portrait, name,
   rarity-coloured border, faction/class icons. The rarity frame still uses
   `GameColors.RarityColor` regardless of how heroes are obtained.
@@ -121,5 +129,8 @@ guards), which the `Core Smoke` GitHub Actions workflow runs on every push/PR.
 `TacticalBoardStyle` is covered there too (distinct per-state fills, brighter
 placement border, distinct positive mid-line, ordered hover/selection overlay,
 monotonic far→near depth scale, arena-mapping parity with the asset catalog).
+`UnitBoardPresentation` likewise (per-side facing, distinct star-tier colours,
+clamped bar fractions, shared rarity frame, one status icon per kind with unique
+keys, status derivation from a live unit, positive/ordered animation durations).
 Rendering itself is Unity-only and remains a documented verification gap in this
 environment.

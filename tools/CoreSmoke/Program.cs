@@ -3687,6 +3687,36 @@ RequireThrows(() => TacticalBoardStyle.ArenaBackground(PveRoundType.Event), "the
 var resolvedPlacementCell = TacticalBoardStyle.ResolveCell(TacticalCellState.AvailableForPlacement, TacticalField.MvpRows - 1, TacticalField.MvpRows);
 Require(resolvedPlacementCell.FillColor == TacticalBoardStyle.PlacementAvailableColor && resolvedPlacementCell.BorderColor == TacticalBoardStyle.PlacementBorderColor && Math.Abs(resolvedPlacementCell.RowScale - TacticalBoardStyle.NearRowScale) < 1e-6f, "a resolved cell combines its state fill/border with the row depth scale");
 
+// On-board unit visuals (UnitBoardPresentation): single source of truth for sprite
+// facing, star pips, HP/mana bars, rarity frame, status badges and animation cues.
+// Rendering/animation are Unity-only (documented gap); contract verified here.
+Require(UnitBoardPresentation.FacingFor(TacticalSide.Player) == UnitFacing.Up && UnitBoardPresentation.FacingFor(TacticalSide.Enemy) == UnitFacing.Down, "allied units face up the board and enemies face down so they look at each other");
+var starTierColors = Enumerable.Range(UnitBoardPresentation.MinStars, UnitBoardPresentation.MaxStars - UnitBoardPresentation.MinStars + 1).Select(UnitBoardPresentation.StarTierColor).ToList();
+Require(starTierColors.Distinct().Count() == starTierColors.Count, "every star tier has a distinct pip colour");
+RequireThrows(() => UnitBoardPresentation.StarTierColor(0), "star tier colour rejects below the minimum tier");
+RequireThrows(() => UnitBoardPresentation.StarTierColor(4), "star tier colour rejects above the maximum tier");
+Require(Math.Abs(UnitBoardPresentation.ClampFraction(1.4) - 1.0) < 1e-9 && Math.Abs(UnitBoardPresentation.ClampFraction(-0.2)) < 1e-9, "bar fractions clamp into the renderable [0,1] range");
+Require(UnitBoardPresentation.BarHeight == UiTheme.UnitBarHeight, "unit bars use the shared UiTheme bar-height token");
+Require(UnitBoardPresentation.RarityFrameColor(HeroRarity.Legendary) == UiTheme.RarityColor(HeroRarity.Legendary), "the unit rarity frame uses the shared rarity colour token");
+Require(UnitBoardPresentation.RarityFrame(HeroRarity.Epic).Key == PlaceholderAssetCatalog.RarityFrame(HeroRarity.Epic).Key, "the unit rarity frame resolves the shared placeholder frame asset");
+Require(PlaceholderAssetCatalog.StatusIcons.Count == UnitStatuses.All.Count && PlaceholderAssetCatalog.StatusIcons.All(spec => spec.Kind == PlaceholderAssetKind.StatusIcon), "the placeholder manifest ships one status icon per status kind");
+Require(UnitStatuses.All.All(kind => UnitBoardPresentation.StatusIcon(kind).Key == $"status.{UnitStatuses.GetId(kind)}"), "each status badge resolves its stable placeholder key");
+Require(PlaceholderAssetCatalog.StatusIcons.All(spec => !spec.HasTokenColor), "status placeholder icons carry no fixed token colour (tinted by kind at runtime)");
+Require(PlaceholderAssetCatalog.All.Select(spec => spec.Key).Distinct(StringComparer.Ordinal).Count() == PlaceholderAssetCatalog.All.Count, "the status icons keep every placeholder asset key unique");
+Require(PlaceholderAssetCatalog.TryGet("status.stun", out var stunIcon) && stunIcon.Kind == PlaceholderAssetKind.StatusIcon, "the stun status icon is addressable by its stable key");
+var shieldedUnit = MakeUnit("snapshot_ally", TacticalSide.Player, new TacticalPosition(2, 0), 30.0, 10.0, 10.0, 1.0, 0.5) with { Shield = 12.0, CurrentMana = 25.0 };
+var shieldedSnapshot = UnitBoardPresentation.Resolve(shieldedUnit);
+Require(shieldedSnapshot.Statuses.Contains(UnitStatusKind.Shield), "a shielded unit surfaces the shield status badge");
+Require(Math.Abs(shieldedSnapshot.HealthFraction - (10.0 / 30.0)) < 1e-9 && Math.Abs(shieldedSnapshot.ManaFraction - 0.25) < 1e-9, "the unit snapshot reports clamped HP and mana fractions");
+Require(shieldedSnapshot.Facing == UnitFacing.Up && shieldedSnapshot.IsAlive, "the unit snapshot carries facing and alive state");
+var plainUnit = MakeUnit("snapshot_enemy", TacticalSide.Enemy, new TacticalPosition(1, 0), 20.0, 20.0, 5.0, 1.0, 0.5, manaMax: 0.0);
+Require(UnitBoardPresentation.Resolve(plainUnit).Statuses.Count == 0 && Math.Abs(UnitBoardPresentation.Resolve(plainUnit).ManaFraction) < 1e-9, "a plain unit shows no status badges and zero mana when it has no mana pool");
+RequireThrows(() => UnitBoardPresentation.Resolve(null!), "unit resolution rejects a null unit");
+var cueDurations = ((UnitAnimationCue[])Enum.GetValues(typeof(UnitAnimationCue))).Select(UnitBoardPresentation.CueDurationSeconds).ToList();
+Require(cueDurations.All(seconds => seconds > 0.0), "every unit animation cue has a positive duration");
+Require(UnitBoardPresentation.CueDurationSeconds(UnitAnimationCue.DamageFlash) < UnitBoardPresentation.CueDurationSeconds(UnitAnimationCue.Death), "a quick damage flash never outlasts the death fade");
+RequireThrows(() => UnitBoardPresentation.CueDurationSeconds((UnitAnimationCue)999), "the animation cue duration rejects an unknown cue");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)

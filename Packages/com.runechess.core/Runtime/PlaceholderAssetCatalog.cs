@@ -13,7 +13,8 @@ namespace RuneChess.Core
         FactionIcon,
         ClassIcon,
         ArenaBackground,
-        HudIcon
+        HudIcon,
+        StatusIcon
     }
 
     /// <summary>
@@ -160,6 +161,17 @@ namespace RuneChess.Core
             MenuHudIcon
         });
 
+        /// <summary>Status badge icons shown over a unit (colour decided at runtime by status kind).</summary>
+        public static IReadOnlyList<PlaceholderAssetSpec> StatusIcons { get; } = Array.AsReadOnly(
+            UnitStatuses.All
+                .Select(status => new PlaceholderAssetSpec(
+                    Key: $"status.{UnitStatuses.GetId(status)}",
+                    Kind: PlaceholderAssetKind.StatusIcon,
+                    DisplayName: $"Статус: {UnitStatuses.GetId(status)}",
+                    TokenColor: null,
+                    Description: "Иконка статус-индикатора над юнитом (щит/бафф/дебафф/оглушение/анти-хил/призыв). Тинт по типу статуса накладывается в рантайме."))
+                .ToArray());
+
         /// <summary>Every placeholder asset across all categories.</summary>
         public static IReadOnlyList<PlaceholderAssetSpec> All { get; } = Array.AsReadOnly(
             new[] { UnitSprite }
@@ -169,6 +181,7 @@ namespace RuneChess.Core
                 .Concat(ClassIcons)
                 .Concat(ArenaBackgrounds)
                 .Concat(HudIcons)
+                .Concat(StatusIcons)
                 .ToArray());
 
         private static IReadOnlyDictionary<string, PlaceholderAssetSpec> ByKey { get; } =
@@ -179,6 +192,9 @@ namespace RuneChess.Core
 
         /// <summary>The placeholder spec for a rarity card frame.</summary>
         public static PlaceholderAssetSpec RarityFrame(HeroRarity rarity) => RarityFrames[(int)rarity];
+
+        /// <summary>The placeholder spec for a unit status badge icon.</summary>
+        public static PlaceholderAssetSpec StatusIcon(UnitStatusKind kind) => StatusIcons[(int)kind];
 
         /// <summary>
         /// The arena background for a battle round archetype. Tutorial/Combat share the field arena,

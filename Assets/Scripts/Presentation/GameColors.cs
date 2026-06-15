@@ -81,6 +81,34 @@ namespace RuneChess.Presentation
             return ColorFromPacked(UiTheme.SynergyTierColor(strength));
         }
 
+        /// <summary>Star pip colour for a unit's star tier (bronze/silver/gold).</summary>
+        public static Color StarTierColor(int stars)
+        {
+            return ColorFromPacked(UnitBoardPresentation.StarTierColor(stars));
+        }
+
+        /// <summary>Runtime tint for a unit status badge (shield/buff/debuff/stun/anti-heal/summon).</summary>
+        public static Color UnitStatusColor(UnitStatusKind kind)
+        {
+            switch (kind)
+            {
+                case UnitStatusKind.Shield:
+                    return Shield;
+                case UnitStatusKind.Buff:
+                    return Heal;
+                case UnitStatusKind.Debuff:
+                    return Commander;
+                case UnitStatusKind.Stun:
+                    return ButtonPrimary;
+                case UnitStatusKind.AntiHeal:
+                    return Health;
+                case UnitStatusKind.Summon:
+                    return Mana;
+                default:
+                    return Muted;
+            }
+        }
+
         public static Color WithAlpha(Color color, float alpha)
         {
             return new Color(color.r, color.g, color.b, alpha);
