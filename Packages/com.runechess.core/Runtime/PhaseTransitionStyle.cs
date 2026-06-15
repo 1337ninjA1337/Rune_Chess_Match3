@@ -123,5 +123,64 @@ namespace RuneChess.Core
         /// <summary>Total time to reveal every reward-summary line for a breakdown.</summary>
         public static double RewardSummaryRevealSeconds(RoundRewardBreakdown breakdown)
             => RewardSummaryLineCount(breakdown) * RewardSummaryLineStaggerSeconds;
+
+        // --- Next-enemy preview reveal on the preparation screen (task: появление превью следующего
+        // врага на экране подготовки). The upcoming roster reveals unit by unit so the player reads
+        // who they will face before committing their board. Drives PreparationScreenModel.EnemyPreview. ---
+
+        /// <summary>Stagger between each previewed enemy unit appearing on the preparation screen.</summary>
+        public const double EnemyPreviewUnitStaggerSeconds = 0.12;
+
+        /// <summary>How long each previewed enemy unit takes to fade/slide in once it begins revealing.</summary>
+        public const double EnemyPreviewUnitRevealSeconds = 0.2;
+
+        /// <summary>When the previewed enemy unit at <paramref name="unitIndex"/> begins revealing.</summary>
+        public static double EnemyPreviewUnitRevealStartAt(int unitIndex)
+        {
+            if (unitIndex < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(unitIndex), "Preview unit index cannot be negative.");
+            }
+
+            return unitIndex * EnemyPreviewUnitStaggerSeconds;
+        }
+
+        /// <summary>Total time to reveal the whole previewed roster of <paramref name="unitCount"/> units.</summary>
+        public static double EnemyPreviewRevealSeconds(int unitCount)
+        {
+            if (unitCount < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(unitCount), "Preview unit count cannot be negative.");
+            }
+
+            if (unitCount == 0)
+            {
+                return 0.0;
+            }
+
+            return EnemyPreviewUnitRevealStartAt(unitCount - 1) + EnemyPreviewUnitRevealSeconds;
+        }
+
+        /// <summary>
+        /// Reveal opacity (0→1) for a single previewed unit at <paramref name="secondsIntoReveal"/>
+        /// into its own reveal, holding fully visible once revealed.
+        /// </summary>
+        public static double EnemyPreviewUnitOpacityAt(double secondsIntoReveal)
+        {
+            if (secondsIntoReveal < 0.0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(secondsIntoReveal), "Time into the reveal cannot be negative.");
+            }
+
+            if (secondsIntoReveal >= EnemyPreviewUnitRevealSeconds)
+            {
+                return 1.0;
+            }
+
+            return secondsIntoReveal / EnemyPreviewUnitRevealSeconds;
+        }
     }
 }

@@ -3806,6 +3806,18 @@ Require(Math.Abs(PhaseTransitionStyle.RewardSummaryRevealSeconds(rewardSummaryBr
 RequireThrows(() => PhaseTransitionStyle.RewardSummaryLineRevealSecondsAt(-1), "the reward line reveal rejects a negative index");
 RequireThrows(() => PhaseTransitionStyle.RewardSummaryLineCount(null!), "the reward tally rejects a null breakdown");
 
+// Next-enemy preview reveal (PhaseTransitionStyle, prep-screen flourish). The upcoming roster
+// reveals unit by unit; render is Unity-only (gap), the stagger/opacity contract verified here.
+Require(PhaseTransitionStyle.EnemyPreviewUnitStaggerSeconds > 0.0 && PhaseTransitionStyle.EnemyPreviewUnitRevealSeconds > 0.0, "the enemy preview staggers and reveals over positive times");
+Require(Math.Abs(PhaseTransitionStyle.EnemyPreviewUnitRevealStartAt(0)) < 1e-9 && Math.Abs(PhaseTransitionStyle.EnemyPreviewUnitRevealStartAt(3) - (3 * PhaseTransitionStyle.EnemyPreviewUnitStaggerSeconds)) < 1e-9, "each preview unit starts one stagger step after the previous");
+Require(Math.Abs(PhaseTransitionStyle.EnemyPreviewRevealSeconds(0)) < 1e-9, "an empty roster reveals instantly");
+Require(Math.Abs(PhaseTransitionStyle.EnemyPreviewRevealSeconds(4) - (PhaseTransitionStyle.EnemyPreviewUnitRevealStartAt(3) + PhaseTransitionStyle.EnemyPreviewUnitRevealSeconds)) < 1e-9, "the full preview reveal spans the last unit's reveal");
+Require(Math.Abs(PhaseTransitionStyle.EnemyPreviewUnitOpacityAt(0.0)) < 1e-9 && Math.Abs(PhaseTransitionStyle.EnemyPreviewUnitOpacityAt(PhaseTransitionStyle.EnemyPreviewUnitRevealSeconds) - 1.0) < 1e-9, "a preview unit fades from transparent to opaque over its reveal");
+Require(PhaseTransitionStyle.EnemyPreviewUnitOpacityAt(PhaseTransitionStyle.EnemyPreviewUnitRevealSeconds * 2.0) == 1.0, "a revealed preview unit stays fully visible");
+RequireThrows(() => PhaseTransitionStyle.EnemyPreviewUnitRevealStartAt(-1), "the preview reveal rejects a negative unit index");
+RequireThrows(() => PhaseTransitionStyle.EnemyPreviewRevealSeconds(-1), "the preview reveal rejects a negative unit count");
+RequireThrows(() => PhaseTransitionStyle.EnemyPreviewUnitOpacityAt(-0.1), "the preview opacity rejects negative time");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
