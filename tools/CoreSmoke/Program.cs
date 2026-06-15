@@ -3642,6 +3642,17 @@ RequireThrows(() => RuneVisualStyle.ShapeFor((RuneType)999), "rune shape rejects
 RequireThrows(() => RuneVisualStyle.GlyphFor((RuneType)999), "rune glyph rejects an unknown rune");
 RequireThrows(() => RuneVisualStyle.For((RuneType)999), "rune visual resolution rejects an unknown rune");
 
+// Match-3 board animation timings (Match3AnimationStyle): engine-agnostic source of truth for how
+// swap/clear/fall/chain animations feel; the Unity layer plays them (rendering is Unity-only —
+// documented gap). Contract: every cue is positive and the swap fits inside the global cooldown.
+var match3Cues = (Match3AnimationCue[])Enum.GetValues(typeof(Match3AnimationCue));
+Require(match3Cues.All(cue => Match3AnimationStyle.CueDurationSeconds(cue) > 0.0), "every match-3 animation cue has a positive duration");
+Require(Match3AnimationStyle.SwapSeconds <= Match3AnimationStyle.SwapCooldownSeconds, "the swap animation fits inside the global swap cooldown so input never lags");
+Require(Math.Abs(Match3AnimationStyle.SwapCooldownSeconds - CombatState.SwapGlobalCooldownMilliseconds / 1000.0) < 1e-9, "the swap cooldown in seconds mirrors the CombatState cooldown constant");
+Require(Math.Abs(Match3AnimationStyle.CueDurationSeconds(Match3AnimationCue.Swap) - Match3AnimationStyle.SwapSeconds) < 1e-9, "the swap cue resolves the swap duration token");
+Require(Match3AnimationStyle.CueDurationSeconds(Match3AnimationCue.Chain) < Match3AnimationStyle.CueDurationSeconds(Match3AnimationCue.Clear), "the chain settle beat is shorter than a clear pop so chains stay snappy");
+RequireThrows(() => Match3AnimationStyle.CueDurationSeconds((Match3AnimationCue)999), "the match-3 animation cue duration rejects an unknown cue");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
