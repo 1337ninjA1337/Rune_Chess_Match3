@@ -113,6 +113,15 @@ button, pause).
   «Продолжить забег» mid-run), the primary-CTA flag and the per-destination navigation
   placeholder icon (`nav.*`) — so the Unity menu lays out the tiles without re-deriving
   any labels.
+- **Reward screen** (GDD UI screen «Экран награды»): gold breakdown, three artifact choice
+  cards, hero reward and the continue control (drives off `RewardScreenModel`). The
+  presentation glue is `RewardScreenPresentation`
+  (`Packages/com.runechess.core/Runtime/RewardScreenPresentation.cs`): each artifact card
+  borrows the shared rarity-tier border (`UiTheme.RarityColor` /
+  `PlaceholderAssetCatalog.RarityFrame`, resolved from the artifact's full rarity via
+  `ArtifactCatalog`), and the gold total / continue CTA reuse the one warm
+  `UiTheme.GoldColor` accent — so the Unity reward screen renders cards and the CTA from
+  the same token sources as the rest of the overhaul.
 
 ## Placeholder asset pipeline (planned)
 

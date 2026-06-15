@@ -2629,6 +2629,18 @@ RequireThrows(() => RewardScreenModel.Build(heroChoiceRound, true, -1), "the rew
 RequireThrows(() => RewardScreenModel.Build(heroChoiceRound, true, 0, -1), "the reward screen rejects negative bonus gold");
 RequireThrows(() => RewardScreenModel.Build((RunState)null!), "the reward screen rejects a null run");
 
+// Reward screen presentation (RewardScreenPresentation): rarity-tier borders for the artifact
+// choice cards + the warm gold accent for the gold total / continue CTA. Rendering is Unity-only
+// (documented gap); the contract is verified here.
+Require(RewardScreenPresentation.AccentColor == UiTheme.GoldColor, "the reward screen accent reuses the shared warm gold token");
+Require(((ArtifactRarity[])Enum.GetValues(typeof(ArtifactRarity))).All(rarity => (int)RewardScreenPresentation.FrameRarity(rarity) == (int)rarity), "each artifact rarity maps to the matching hero rarity tier");
+Require(artifactReward.ArtifactOptions.All(option => RewardScreenPresentation.OptionFrameColor(option) == UiTheme.RarityColor(RewardScreenPresentation.FrameRarity(ArtifactCatalog.Get(option.Id).Rarity))), "a common-pool artifact card borrows its rarity-tier border colour");
+Require(artifactReward.ArtifactOptions.All(option => RewardScreenPresentation.OptionFrameColor(option) == UiTheme.CommonColor), "every elite-round artifact card uses the common rarity-tier border colour");
+Require(bossReward.ArtifactOptions.All(option => RewardScreenPresentation.OptionFrameColor(option) != UiTheme.CommonColor), "every boss-round rare artifact card uses a non-common rarity-tier border colour");
+Require(artifactReward.ArtifactOptions.All(option => RewardScreenPresentation.OptionFrame(option).Kind == PlaceholderAssetKind.RarityFrame && PlaceholderAssetCatalog.TryGet(RewardScreenPresentation.OptionFrame(option).Key, out _)), "every artifact card resolves the shared rarity-frame placeholder");
+RequireThrows(() => RewardScreenPresentation.OptionRarity(null!), "the reward presentation rejects a null artifact option");
+RequireThrows(() => RewardScreenPresentation.FrameRarity((ArtifactRarity)999), "the reward presentation rejects an unknown artifact rarity");
+
 // Claiming one of the three offered artifacts (GDD "выбор одного из трёх артефактов после подходящих раундов").
 var artifactRewardRun = RunState.NewRun() with { Round = 5, Phase = RunPhase.Reward };
 var offeredArtifacts = artifactRewardRun.RewardArtifactOptions();
