@@ -2962,6 +2962,21 @@ RequireThrows(() => EventScreenModel.Build((PveRoundDefinition)null!), "the even
 RequireThrows(() => EventScreenModel.Build((RunState)null!), "the event screen rejects a null run");
 RequireThrows(() => EventScreenModel.ForEvent(null!, 4, "Тест", "Цель"), "the event screen rejects a null choice");
 
+// Event screen presentation (EventScreenPresentation): ties the risk/reward contrast to the
+// shared palette (red cost / green gain) and the accept CTA to the warm gold accent, with a
+// no-downside flag. Rendering is Unity-only (documented gap); the contract is verified here.
+Require(EventScreenPresentation.AcceptAccentColor == UiTheme.GoldColor, "the event accept CTA reuses the shared warm gold token");
+Require(EventScreenPresentation.RiskAccentColor == UiTheme.RuneColor(RuneType.Red), "the event risk accent uses the red rune token");
+Require(EventScreenPresentation.RewardAccentColor == UiTheme.RuneColor(RuneType.Green), "the event reward accent uses the green rune token");
+Require(EventScreenPresentation.RiskAccentColor != EventScreenPresentation.RewardAccentColor && EventScreenPresentation.RiskAccentColor != EventScreenPresentation.AcceptAccentColor && EventScreenPresentation.RewardAccentColor != EventScreenPresentation.AcceptAccentColor, "the event risk, reward and accept accents are mutually distinct");
+Require(EventScreenPresentation.HasRisk(EventCatalog.TradeHealthForGold), "a health-for-gold trade reads as a risky event");
+Require(EventScreenPresentation.HasRisk(EventCatalog.CursedFreeHero), "a cursed free hero reads as a risky event");
+Require(EventScreenPresentation.HasRisk(EventCatalog.SacrificeHeroForArtifact), "sacrificing a hero reads as a risky event");
+Require(!EventScreenPresentation.HasRisk(EventCatalog.GoldWindfall), "a no-cost windfall reads as a pure gain (no risk accent)");
+Require(EventScreenPresentation.HasRisk(EventScreenModel.ForEvent(EventCatalog.TradeHealthForGold, 4, "Тест", "Цель")), "the event-screen risk overload reads through to the offered choice");
+RequireThrows(() => EventScreenPresentation.HasRisk((EventOption)null!), "the event presentation rejects a null choice");
+RequireThrows(() => EventScreenPresentation.HasRisk((EventScreenModel)null!), "the event presentation rejects a null model");
+
 // Event resolution: entering an event round and applying/declining the offered outcome.
 var eventRunBase = RunState.NewRun() with { Round = 4 };
 RequireThrows(() => (RunState.NewRun() with { Round = 2 }).EnterEvent(), "only event rounds offer an event encounter");

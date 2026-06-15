@@ -122,6 +122,13 @@ button, pause).
   `ArtifactCatalog`), and the gold total / continue CTA reuse the one warm
   `UiTheme.GoldColor` accent — so the Unity reward screen renders cards and the CTA from
   the same token sources as the rest of the overhaul.
+- **Event screen** (GDD UI screen «Экран события»): a single roguelite encounter card with
+  risk/reward copy and accept/decline controls (drives off `EventScreenModel`). The
+  presentation glue is `EventScreenPresentation`
+  (`Packages/com.runechess.core/Runtime/EventScreenPresentation.cs`): it ties the defining
+  risk-vs-reward contrast to the shared rune palette (red token for the cost/downside, green
+  token for the gain) and the accept CTA to the warm `UiTheme.GoldColor` accent, with a
+  `HasRisk` flag so a no-downside windfall drops the risk accent and reads as a pure gain.
 
 ## Placeholder asset pipeline (planned)
 
