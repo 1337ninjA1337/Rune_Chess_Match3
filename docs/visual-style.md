@@ -104,6 +104,15 @@ button, pause).
   faction/class placeholder icon key, the `UiTheme.SynergyTierColor` tier colour,
   the `current/threshold` label, the expand/tooltip effect text and the beginner
   spotlight flag — so the Unity panel renders without re-deriving synergy maths.
+- **Main menu** (GDD UI screen 1 «Главный экран»): five ordered entry tiles — the
+  start-run hero tile (primary call-to-action, warm `UiTheme.GoldColor` accent) plus
+  the commander, collection, cosmetics-shop and settings shortcuts (neutral). The
+  presentation glue is `MainMenuPresentation`
+  (`Packages/com.runechess.core/Runtime/MainMenuPresentation.cs`): the tile order, each
+  tile's title and meta line (read from `MainMenuModel`, so the run tile flips to
+  «Продолжить забег» mid-run), the primary-CTA flag and the per-destination navigation
+  placeholder icon (`nav.*`) — so the Unity menu lays out the tiles without re-deriving
+  any labels.
 
 ## Placeholder asset pipeline (planned)
 
@@ -120,8 +129,9 @@ source of truth the Unity import/generation pipeline and tooling enumerate so th
 placeholder set stays complete. It lists a neutral facing unit sprite, one card
 frame per rarity (tinted by `UiTheme.RarityColor`), the six rune icons (tinted by
 `UiTheme.RuneColor`), one icon per faction and per class (synergy-tier tinted at
-runtime), and the battle arena backgrounds (`field`/`elite`/`throne`, mapped from
-`PveRoundType` via `ArenaBackgroundFor`). Each entry carries a stable `Key`; real
+runtime), the battle arena backgrounds (`field`/`elite`/`throne`, mapped from
+`PveRoundType` via `ArenaBackgroundFor`), and the main-menu navigation icons (`nav.*`,
+one per entry point, runtime tinted). Each entry carries a stable `Key`; real
 sprites later bind to the same key. The catalog *contract* — full category
 coverage, unique keys, token-tied colours, arena mapping — is verified headless by
 `tools/CoreSmoke`; the sprites themselves remain the documented Unity-only gap.

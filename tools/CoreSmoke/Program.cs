@@ -2360,6 +2360,40 @@ Require(MainMenuModel.Build(ongoingRun, AccountProgress.Starting).StartRunLabel 
 RequireThrows(() => MainMenuModel.Build(null!, AccountProgress.Starting), "the main menu rejects a null run");
 RequireThrows(() => MainMenuModel.Build(RunState.NewRun(), null!), "the main menu rejects null account progress");
 
+// Main menu presentation (MainMenuPresentation): turns the menu model into the ordered
+// entry tiles the new portrait menu draws (run hero tile + commander/collection/cosmetics/
+// settings shortcuts) with titles, meta lines and navigation icons. Rendering is Unity-only
+// (documented gap); the contract is verified here.
+var menuTiles = MainMenuPresentation.Tiles(freshMenu);
+Require(menuTiles.Count == 5, "the main menu presents the five GDD entry points");
+Require(menuTiles.Select(tile => tile.Destination).SequenceEqual(new[]
+{
+    MainMenuDestination.StartRun,
+    MainMenuDestination.Commander,
+    MainMenuDestination.Collection,
+    MainMenuDestination.CosmeticShop,
+    MainMenuDestination.Settings
+}), "the main menu tiles are ordered run, commander, collection, cosmetics, settings");
+var runTile = menuTiles[0];
+Require(runTile.IsPrimary && menuTiles.Skip(1).All(tile => !tile.IsPrimary), "exactly the run tile is the primary call-to-action");
+Require(runTile.AccentColor == UiTheme.GoldColor && menuTiles.Skip(1).All(tile => tile.AccentColor is null), "the run tile carries the warm gold CTA accent while the shortcuts stay neutral");
+Require(runTile.Title == freshMenu.StartRunLabel && runTile.Meta == freshMenu.StartRunMeta, "the run tile reads its label and round meta from the menu model");
+Require(MainMenuPresentation.Tiles(MainMenuModel.Build(ongoingRun, AccountProgress.Starting))[0].Title == "Продолжить забег", "the run tile flips to continue when a run is already in progress");
+Require(menuTiles[1].Meta == freshMenu.CommanderName, "the commander tile shows the selected commander name");
+Require(menuTiles[2].Meta == freshMenu.CollectionLabel, "the collection tile shows the unlocked/total hero count");
+Require(menuTiles[3].Title == freshMenu.CosmeticShopLabel && menuTiles[3].Meta == freshMenu.CosmeticShopMeta, "the cosmetics-shop tile shows its label and unlocked/total meta");
+Require(menuTiles.All(tile => tile.IconKey == MainMenuPresentation.IconKey(tile.Destination)), "every menu tile carries its destination's navigation icon key");
+Require(menuTiles.All(tile => PlaceholderAssetCatalog.TryGet(tile.IconKey, out var spec) && spec.Kind == PlaceholderAssetKind.NavIcon), "every menu tile navigation icon resolves to a nav placeholder in the catalog");
+Require(menuTiles.Select(tile => tile.IconKey).Distinct().Count() == menuTiles.Count, "the menu tiles use distinct navigation icons");
+RequireThrows(() => MainMenuPresentation.Tiles(null!), "the main menu presentation rejects a null model");
+RequireThrows(() => MainMenuPresentation.IconKey((MainMenuDestination)999), "the main menu icon key rejects an unknown destination");
+
+// Navigation placeholder icons (PlaceholderAssetCatalog.NavIcons): one per main-menu entry point.
+Require(PlaceholderAssetCatalog.NavIcons.Count == 5, "the catalog ships one navigation icon per main-menu entry point");
+Require(PlaceholderAssetCatalog.NavIcons.All(spec => spec.Kind == PlaceholderAssetKind.NavIcon && !spec.HasTokenColor), "navigation icons are nav-kind with a runtime accent (no fixed token colour)");
+Require(PlaceholderAssetCatalog.NavIcons.All(spec => PlaceholderAssetCatalog.All.Contains(spec)), "every navigation icon is part of the full placeholder manifest");
+Require(((MainMenuDestination[])Enum.GetValues(typeof(MainMenuDestination))).All(dest => PlaceholderAssetCatalog.TryGet(MainMenuPresentation.IconKey(dest), out _)), "every main-menu destination resolves to a registered navigation icon");
+
 // Commander selection view-model (GDD UI screen 2 "Выбор командира").
 var commanderSelect = CommanderSelectModel.Build("warlord");
 Require(commanderSelect.Commanders.Count == CommanderCatalog.All.Count, "commander select lists every commander");
