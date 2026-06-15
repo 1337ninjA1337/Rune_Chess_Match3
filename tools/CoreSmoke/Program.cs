@@ -3706,6 +3706,20 @@ RequireThrows(() => RuneEffectFlightStyle.TargetFor((RuneEffectKind)999), "fligh
 RequireThrows(() => RuneEffectFlightStyle.ProgressAt(-0.1), "flight progress rejects negative time");
 RequireThrows(() => RuneEffectFlightStyle.ArcOffsetAt(1.5), "the flight arc rejects progress outside [0,1]");
 
+// Floating combat numbers (FloatingCombatNumberStyle): damage/heal/absorbed-shield popups over a
+// unit. Colours reuse the rune palette; rendering is Unity-only (documented gap). Contract here.
+var floatingKinds = (FloatingNumberKind[])Enum.GetValues(typeof(FloatingNumberKind));
+Require(floatingKinds.Select(FloatingCombatNumberStyle.ColorFor).Distinct().Count() == floatingKinds.Length, "every floating number kind has a distinct colour");
+Require(FloatingCombatNumberStyle.ColorFor(FloatingNumberKind.PhysicalDamage) == UiTheme.RuneColor(RuneType.Red) && FloatingCombatNumberStyle.ColorFor(FloatingNumberKind.Heal) == UiTheme.RuneColor(RuneType.Green), "floating number colours reuse the rune palette by element");
+Require(FloatingCombatNumberStyle.Format(FloatingNumberKind.PhysicalDamage, 12) == "−12" && FloatingCombatNumberStyle.Format(FloatingNumberKind.Heal, 34) == "+34" && FloatingCombatNumberStyle.Format(FloatingNumberKind.ShieldAbsorbed, 5) == "−5", "floating number labels carry the right sign per kind");
+Require(FloatingCombatNumberStyle.RiseSeconds > 0.0 && FloatingCombatNumberStyle.RiseDistance > 0.0, "the floating number rises over a positive time and distance");
+Require(Math.Abs(FloatingCombatNumberStyle.OffsetAt(0.0)) < 1e-9 && Math.Abs(FloatingCombatNumberStyle.OffsetAt(FloatingCombatNumberStyle.RiseSeconds) - FloatingCombatNumberStyle.RiseDistance) < 1e-9, "the rise offset runs from zero to the full rise distance");
+Require(FloatingCombatNumberStyle.OffsetAt(FloatingCombatNumberStyle.RiseSeconds * 2.0) == FloatingCombatNumberStyle.RiseDistance, "the rise offset clamps at the full distance");
+Require(Math.Abs(FloatingCombatNumberStyle.OpacityAt(0.0) - 1.0) < 1e-9 && Math.Abs(FloatingCombatNumberStyle.OpacityAt(FloatingCombatNumberStyle.RiseSeconds)) < 1e-9, "the floating number fades from opaque to transparent over its rise");
+RequireThrows(() => FloatingCombatNumberStyle.ColorFor((FloatingNumberKind)999), "floating number colour rejects an unknown kind");
+RequireThrows(() => FloatingCombatNumberStyle.Format(FloatingNumberKind.Heal, -1), "floating number format rejects a negative amount");
+RequireThrows(() => FloatingCombatNumberStyle.OffsetAt(-0.1), "the rise offset rejects negative time");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
