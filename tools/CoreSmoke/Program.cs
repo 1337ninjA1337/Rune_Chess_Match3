@@ -3717,6 +3717,36 @@ Require(cueDurations.All(seconds => seconds > 0.0), "every unit animation cue ha
 Require(UnitBoardPresentation.CueDurationSeconds(UnitAnimationCue.DamageFlash) < UnitBoardPresentation.CueDurationSeconds(UnitAnimationCue.Death), "a quick damage flash never outlasts the death fade");
 RequireThrows(() => UnitBoardPresentation.CueDurationSeconds((UnitAnimationCue)999), "the animation cue duration rejects an unknown cue");
 
+// Synergy panel presentation (SynergyPanelPresentation): glue that turns a panel entry
+// into icon key / tier colour / threshold label / tooltip / beginner flag for the Unity
+// alliance panel. Rendering is Unity-only (documented gap); contract verified here.
+var presentationTeam = new List<BoardHero>
+{
+    new(new HeroInstance("pres_ig", "iron_guard", 1), new TacticalPosition(2, 0)),
+    new(new HeroInstance("pres_bc", "bulwark_captain", 1), new TacticalPosition(2, 1))
+};
+var presentationPanel = SynergyPanelModel.Build(presentationTeam);
+var presentationEmpire = presentationPanel.ActiveFactions.Single(entry => entry.Id == "empire");
+var presentationDefender = presentationPanel.ActiveClasses.Single(entry => entry.Id == "defender");
+Require(SynergyPanelPresentation.IconKey(presentationEmpire) == "faction.empire" && SynergyPanelPresentation.IconKey(presentationDefender) == "class.defender", "synergy entries map to their faction/class placeholder icon keys");
+Require(presentationPanel.Entries.All(entry => PlaceholderAssetCatalog.TryGet(SynergyPanelPresentation.IconKey(entry), out _)), "every synergy entry's icon key resolves in the placeholder catalog");
+Require(presentationPanel.Entries.All(entry => SynergyPanelPresentation.Icon(entry).Kind == (entry.Kind == SynergyKind.Faction ? PlaceholderAssetKind.FactionIcon : PlaceholderAssetKind.ClassIcon)), "the resolved synergy icon matches the entry's faction/class category");
+Require(SynergyPanelPresentation.TierColor(presentationEmpire) == UiTheme.SynergyTierColor(SynergyStrength.Active), "an active synergy uses the active strength-tier colour");
+Require(SynergyPanelPresentation.ThresholdLabel(presentationEmpire) == "2/4", "the threshold label reads held/required while a breakpoint is ahead");
+Require(SynergyPanelPresentation.IsBeginnerSpotlight(presentationPanel, presentationPanel.BeginnerHighlight!), "the beginner spotlight flag matches the panel's beginner highlight");
+Require(presentationPanel.Entries.Count(entry => SynergyPanelPresentation.IsBeginnerSpotlight(presentationPanel, entry)) == 1, "exactly one synergy entry is flagged as the beginner spotlight");
+var empireTooltip = SynergyPanelPresentation.TooltipText(presentationEmpire);
+Require(empireTooltip.Contains(presentationEmpire.Name) && empireTooltip.Contains(presentationEmpire.Focus) && empireTooltip.Contains(presentationEmpire.NextTier!.Effect), "the synergy tooltip describes the synergy focus and its next breakpoint effect");
+var soloPresentationPanel = SynergyPanelModel.Build(new List<BoardHero>
+{
+    new(new HeroInstance("solo_pres", "iron_guard", 1), new TacticalPosition(2, 0))
+});
+var soloEmpireEntry = soloPresentationPanel.Entries.Single(entry => entry.Id == "empire");
+Require(SynergyPanelPresentation.TierColor(soloEmpireEntry) == UiTheme.SynergyTierColor(SynergyStrength.Building), "a building synergy uses the building strength-tier colour");
+Require(SynergyPanelPresentation.ThresholdLabel(soloEmpireEntry) == "1/2", "a building synergy's threshold label counts toward its first tier");
+RequireThrows(() => SynergyPanelPresentation.IconKey(null!), "synergy icon key rejects a null entry");
+RequireThrows(() => SynergyPanelPresentation.IsBeginnerSpotlight(null!, presentationEmpire), "the beginner spotlight check rejects a null model");
+
 Console.WriteLine("Core smoke checks passed.");
 
 static void Require(bool condition, string message)

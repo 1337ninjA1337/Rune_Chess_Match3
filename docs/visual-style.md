@@ -98,7 +98,12 @@ button, pause).
   rarity-coloured border, faction/class icons. The rarity frame still uses
   `GameColors.RarityColor` regardless of how heroes are obtained.
 - **Alliance row**: icon + `current/threshold` count, tier colour, next-threshold
-  hint and the heroes that would complete it (drives off `SynergyPanelModel`).
+  hint and the heroes that would complete it (drives off `SynergyPanelModel`). The
+  presentation glue is `SynergyPanelPresentation`
+  (`Packages/com.runechess.core/Runtime/SynergyPanelPresentation.cs`): the
+  faction/class placeholder icon key, the `UiTheme.SynergyTierColor` tier colour,
+  the `current/threshold` label, the expand/tooltip effect text and the beginner
+  spotlight flag — so the Unity panel renders without re-deriving synergy maths.
 
 ## Placeholder asset pipeline (planned)
 
@@ -132,5 +137,8 @@ monotonic far→near depth scale, arena-mapping parity with the asset catalog).
 `UnitBoardPresentation` likewise (per-side facing, distinct star-tier colours,
 clamped bar fractions, shared rarity frame, one status icon per kind with unique
 keys, status derivation from a live unit, positive/ordered animation durations).
+`SynergyPanelPresentation` too (icon keys that resolve in the catalog, tier colour
+by strength, `current/threshold` label, tooltip that names the focus and next
+breakpoint effect, a single beginner spotlight flag matching the model).
 Rendering itself is Unity-only and remains a documented verification gap in this
 environment.
