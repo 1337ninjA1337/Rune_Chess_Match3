@@ -3758,6 +3758,18 @@ Require(Math.Abs(BattleFeedbackStyle.DimOpacityForZone(new[] { autoMinorCue, mat
 Require(Math.Abs(BattleFeedbackStyle.DimOpacityForZone(Array.Empty<BattleCue>(), BattleZone.Match3)) < 1e-9, "an empty screen dims nothing");
 RequireThrows(() => BattleFeedbackStyle.DimOpacityForZone(null!, BattleZone.Match3), "the focus dim rejects a null cue list");
 
+// Adaptive attention-overload signal (BattleFeedbackStyle, ties to BattlePacingModel). A warm
+// vignette and eased clock engage only when the player is falling behind a beat pileup, distinct
+// from the cool big-combo slow-mo; rendering is Unity-only (gap), contract verified here.
+Require(BattleFeedbackStyle.AdaptiveSpeedPercent(withinBudget) == BattlePacingModel.RecommendedSpeedPercent(withinBudget) && BattleFeedbackStyle.AdaptiveSpeedPercent(heavyOverload) == BattlePacingModel.RecommendedSpeedPercent(heavyOverload), "the adaptive speed signal passes through the pacing-model recommendation");
+Require(BattleFeedbackStyle.OverloadVignetteColor != BattleFeedbackStyle.SlowdownVignetteColor, "the overload vignette is a distinct colour from the big-combo slow-mo vignette");
+Require(Math.Abs(BattleFeedbackStyle.OverloadVignetteOpacityFor(withinBudget)) < 1e-9, "the overload vignette is hidden while the beat load is within budget");
+Require(Math.Abs(BattleFeedbackStyle.OverloadVignetteOpacityFor(mildOverload) - BattleFeedbackStyle.OverloadVignetteBaseOpacity) < 1e-9, "mild overload shows the base overload vignette opacity");
+Require(BattleFeedbackStyle.OverloadVignetteOpacityFor(heavyOverload) > BattleFeedbackStyle.OverloadVignetteOpacityFor(mildOverload), "a heavier pileup deepens the overload vignette");
+Require(Math.Abs(BattleFeedbackStyle.OverloadVignetteOpacityFor(extremeOverload) - BattleFeedbackStyle.MaxOverloadVignetteOpacity) < 1e-9, "the overload vignette opacity caps at its ceiling");
+Require(BattleFeedbackStyle.MaxOverloadVignetteOpacity > 0.0 && BattleFeedbackStyle.MaxOverloadVignetteOpacity <= 1.0, "the overload vignette ceiling is a valid opacity");
+RequireThrows(() => BattleFeedbackStyle.OverloadVignetteOpacityFor(null!), "the overload vignette rejects a null cue list");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),

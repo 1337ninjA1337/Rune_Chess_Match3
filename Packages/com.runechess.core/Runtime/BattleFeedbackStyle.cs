@@ -65,5 +65,59 @@ namespace RuneChess.Core
 
             return BattleAttentionModel.PrimaryFocus(cues) == zone ? 0.0 : OffFocusDimOpacity;
         }
+
+        // --- Adaptive attention-overload signal (task: apply adaptive speed on attention overload —
+        // ties to BattlePacingModel.RecommendedSpeedPercent / AttentionExcess). Distinct from the
+        // fixed big-combo slow-mo above: that reacts to one large combo's size, this reacts to a wall
+        // of simultaneous must-watch beats the player can't track, easing the clock so the overflow
+        // reads sequentially. ---
+
+        /// <summary>
+        /// Warm tint laid over the screen while the player is falling behind a beat pileup, kept
+        /// deliberately distinct from the cool big-combo slow-mo vignette so the two "time is easing"
+        /// signals never read as the same event.
+        /// </summary>
+        public const uint OverloadVignetteColor = 0xC8924Au;
+
+        /// <summary>Opacity of the overload vignette at the mildest overload (one beat over budget).</summary>
+        public const double OverloadVignetteBaseOpacity = 0.18;
+
+        /// <summary>Extra opacity per must-watch beat over budget, so a heavier pileup reads stronger.</summary>
+        public const double OverloadVignetteOpacityPerExcess = 0.06;
+
+        /// <summary>Ceiling on the overload vignette opacity so it never blacks the screen out.</summary>
+        public const double MaxOverloadVignetteOpacity = 0.40;
+
+        /// <summary>
+        /// The adaptive combat speed (percent of normal) for the current beat load — a passthrough to
+        /// <see cref="BattlePacingModel.RecommendedSpeedPercent"/> so the visual signal and the pacing
+        /// decision are read from one source and can never disagree.
+        /// </summary>
+        public static int AdaptiveSpeedPercent(IReadOnlyList<BattleCue> cues)
+            => BattlePacingModel.RecommendedSpeedPercent(cues);
+
+        /// <summary>
+        /// The overload vignette opacity for the current beat load: zero within budget, otherwise the
+        /// base opacity plus a step per beat over budget, capped at <see cref="MaxOverloadVignetteOpacity"/>.
+        /// Ties the visual directly to <see cref="BattlePacingModel.AttentionExcess"/> so the signal
+        /// only shows exactly when the pacing model eases the clock, and scales with how far behind the
+        /// player has fallen.
+        /// </summary>
+        public static double OverloadVignetteOpacityFor(IReadOnlyList<BattleCue> cues)
+        {
+            if (cues is null)
+            {
+                throw new ArgumentNullException(nameof(cues));
+            }
+
+            var excess = BattlePacingModel.AttentionExcess(cues);
+            if (excess <= 0)
+            {
+                return 0.0;
+            }
+
+            var opacity = OverloadVignetteBaseOpacity + (excess - 1) * OverloadVignetteOpacityPerExcess;
+            return Math.Min(MaxOverloadVignetteOpacity, opacity);
+        }
     }
 }
