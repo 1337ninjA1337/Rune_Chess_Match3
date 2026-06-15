@@ -1999,6 +1999,17 @@ Require(combatHud.SpeedButton.Label == "x1.0" && combatHud.SpeedButton.NextLabel
 var fastHud = CombatHudModel.Build(hudCombat, battleSpeed: BattleSpeed.Fast);
 Require(fastHud.SpeedButton.Current == BattleSpeed.Fast && fastHud.SpeedButton.IsSpedUp, "the speed button reports the sped-up state when fast is chosen");
 Require(fastHud.SpeedButton.Next == BattleSpeed.Normal && Math.Abs(fastHud.SpeedButton.Multiplier - 1.5) < 1e-9 && fastHud.SpeedButton.Label == "x1.5", "fast battle speed applies a 1.5x tick multiplier and toggles back to normal");
+
+// In-combat speed-up button styling (BattleSpeedButtonStyle, ties to BattleSpeedButtonModel). The
+// button warms and glows while sped up so fast-forward reads at a glance; render is Unity-only (gap).
+var idleSpeedButton = BattleSpeedButtonModel.For(BattleSpeed.Normal);
+var engagedSpeedButton = BattleSpeedButtonModel.For(BattleSpeed.Fast);
+Require(BattleSpeedButtonStyle.TintFor(engagedSpeedButton) == BattleSpeedButtonStyle.EngagedTint && BattleSpeedButtonStyle.TintFor(idleSpeedButton) == BattleSpeedButtonStyle.IdleTint, "the speed button warms to the engaged tint only while sped up");
+Require(BattleSpeedButtonStyle.IdleTint != BattleSpeedButtonStyle.EngagedTint, "the engaged speed-button tint is distinct from the idle tint");
+Require(Math.Abs(BattleSpeedButtonStyle.GlowOpacityFor(engagedSpeedButton) - BattleSpeedButtonStyle.EngagedGlowOpacity) < 1e-9 && Math.Abs(BattleSpeedButtonStyle.GlowOpacityFor(idleSpeedButton)) < 1e-9, "the speed button glows only while sped up");
+Require(BattleSpeedButtonStyle.EngagedGlowOpacity > 0.0 && BattleSpeedButtonStyle.EngagedGlowOpacity <= 1.0, "the engaged glow uses a valid opacity");
+Require(BattleSpeedButtonStyle.FaceLabel(engagedSpeedButton) == engagedSpeedButton.Label && BattleSpeedButtonStyle.ToggleHint(engagedSpeedButton) == "→ " + engagedSpeedButton.NextLabel, "the speed button face shows the current speed and the toggle hint previews the next");
+RequireThrows(() => BattleSpeedButtonStyle.TintFor(null!), "the speed-button style rejects a null model");
 Require(CombatHudModel.FormatTimer(75) == "1:15" && CombatHudModel.FormatTimer(5) == "0:05", "combat HUD formats minutes and zero-padded seconds");
 Require(CombatHudModel.FormatTimer(-10) == "0:00", "combat HUD clamps negative durations to zero");
 var expiredHud = CombatHudModel.Build(CombatState.Start(7, 30).AdvanceTimer(30));
