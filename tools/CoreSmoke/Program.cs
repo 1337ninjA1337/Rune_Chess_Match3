@@ -2562,6 +2562,33 @@ Require(Math.Abs(defaultSettings.BattleSpeedMultiplier - BattleSpeedOptions.Mult
 RequireThrows(() => BattleSpeedOptions.Multiplier((BattleSpeed)999), "battle-speed options reject an unknown speed");
 Require(defaultSettings.CompleteTutorial().ResetTutorial().TutorialCompleted == false, "resetting the tutorial clears the completed flag");
 
+// Settings presentation (SettingsPresentation): flattens the seven controls into one ordered,
+// uniformly-rendered row list with readable value text + an on-toggle accent. Rendering is
+// Unity-only (documented gap); the contract is verified here.
+var settingsRows = SettingsPresentation.Rows(defaultSettings);
+Require(settingsRows.Select(row => row.Control).SequenceEqual(new[]
+{
+    SettingsControl.Sound,
+    SettingsControl.Music,
+    SettingsControl.Vibration,
+    SettingsControl.Language,
+    SettingsControl.GraphicsQuality,
+    SettingsControl.BattleSpeed,
+    SettingsControl.ResetTutorial
+}), "the settings rows cover the seven controls in reading order");
+Require(settingsRows.Take(3).All(row => row.Kind == SettingsRowKind.Toggle), "the audio/haptic controls render as toggles");
+Require(settingsRows.Skip(3).Take(3).All(row => row.Kind == SettingsRowKind.Option), "the language, graphics and battle-speed controls render as options");
+Require(settingsRows[6].Kind == SettingsRowKind.Action, "the reset-tutorial control renders as an action");
+Require(settingsRows.Take(3).All(row => row.IsOn && row.ValueLabel == "Вкл"), "default audio/haptic toggles read on");
+Require(SettingsPresentation.Rows(defaultSettings.ToggleSound())[0] is { IsOn: false, ValueLabel: "Выкл" }, "toggling sound off flips the row to выкл");
+Require(settingsRows[3].ValueLabel == "Русский" && SettingsPresentation.Rows(defaultSettings.CycleLanguage())[3].ValueLabel == "English", "the language row shows the readable language and follows the cycle");
+Require(settingsRows[4].ValueLabel == "Среднее" && settingsRows[5].ValueLabel == "x1.0", "the graphics and battle-speed rows show readable default values");
+Require(SettingsPresentation.Rows(defaultSettings.CompleteTutorial())[6].ValueLabel == "Пройдено", "the reset-tutorial row reflects a completed tutorial");
+Require(SettingsPresentation.ToggleOnColor == UiTheme.RuneColor(RuneType.Green), "the on-toggle accent reuses the green rune token");
+RequireThrows(() => SettingsPresentation.Rows(null!), "the settings presentation rejects a null model");
+RequireThrows(() => SettingsPresentation.LanguageLabel((SettingsLanguage)999), "the settings language label rejects an unknown language");
+RequireThrows(() => SettingsPresentation.GraphicsQualityLabel((GraphicsQuality)999), "the settings graphics label rejects an unknown quality");
+
 // Collection screen navigation (GDD main-menu access to the hero collection).
 Require(AppNavigationState.AtMainMenu.CanNavigateTo(AppScreen.Collection), "the main menu can open the hero collection");
 Require(AppNavigationState.AtMainMenu.NavigateTo(AppScreen.Collection).CanNavigateTo(AppScreen.MainMenu), "the collection screen can return to the main menu");

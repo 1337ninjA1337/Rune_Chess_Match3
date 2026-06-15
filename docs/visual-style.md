@@ -129,6 +129,13 @@ button, pause).
   risk-vs-reward contrast to the shared rune palette (red token for the cost/downside, green
   token for the gain) and the accept CTA to the warm `UiTheme.GoldColor` accent, with a
   `HasRisk` flag so a no-downside windfall drops the risk accent and reads as a pure gain.
+- **Settings screen** (GDD UI screen 10 «Настройки»): sound/music/vibration toggles, language,
+  graphics and battle-speed options, and the reset-tutorial action (drives off `SettingsModel`).
+  The presentation glue is `SettingsPresentation`
+  (`Packages/com.runechess.core/Runtime/SettingsPresentation.cs`): it flattens the seven controls
+  into one ordered, uniformly-rendered `SettingsRow` list (control, label, readable Russian value
+  text, row kind — toggle/option/action, and an on-flag), and ties an enabled toggle to the green
+  rune token — so the Unity settings screen renders every control the same way from one source.
 
 ## Placeholder asset pipeline (planned)
 
