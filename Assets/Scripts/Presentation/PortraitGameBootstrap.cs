@@ -1269,24 +1269,13 @@ namespace RuneChess.Presentation
                 return;
             }
 
-            // Portrait auto-battler combat skeleton (docs/visual-style.md "Portrait combat
-            // layout"): a top HUD bar, the enemy arena, the match-3 board as the primary input
-            // surface in the thumb zone, and a bottom combat-status panel, then the footer nav.
+            // Per user request: the combat screen shows only the match-3 board (the field where
+            // the 3-in-a-row game happens). The top HUD bar, enemy arena, combat-status row and
+            // footer navigation are intentionally omitted so nothing competes with the board.
             SetNavigationForScreen(AppScreen.Combat);
             ClearChildren(contentRoot);
             ResetMatch3Board();
-            AddCombatHud(contentRoot);
-            AddEnemyStagePanel(contentRoot);
             AddRunePanel(contentRoot);
-            AddCombatStatusRow(contentRoot);
-            AddScreenNavigationRow(
-                contentRoot,
-                "Меню",
-                "MENU",
-                ShowMainMenu,
-                "Завершить",
-                "REWARD",
-                ShowRewardScreen);
         }
 
         private void ShowRewardScreen()
