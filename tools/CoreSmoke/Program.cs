@@ -3676,6 +3676,18 @@ var greatRedVisual = GreatRuneStyle.For(RuneType.Red);
 Require(greatRedVisual.Color == RuneVisualStyle.Color(RuneType.Red) && greatRedVisual.BaseGlyph == RuneVisualStyle.GlyphFor(RuneType.Red) && greatRedVisual.Glyph == GreatRuneStyle.GreatGlyph, "a great rune reuses its colour's base visual and overlays the burst glyph");
 RequireThrows(() => GreatRuneStyle.For((RuneType)999), "great rune resolution rejects an unknown rune");
 
+// T/L combo mass-effect restyle (MassEffectStyle): an expanding shockwave in the combo colour plus
+// the T/L bonus labels. Rendering is Unity-only (documented gap); the contract is verified here.
+Require(MassEffectStyle.ShockwaveSeconds > 0.0 && MassEffectStyle.StartScale < MassEffectStyle.EndScale, "the mass-effect shockwave expands over a positive duration");
+Require(Math.Abs(MassEffectStyle.ScaleAt(0.0) - MassEffectStyle.StartScale) < 1e-9, "the shockwave starts at its start scale");
+Require(Math.Abs(MassEffectStyle.ScaleAt(MassEffectStyle.ShockwaveSeconds) - MassEffectStyle.EndScale) < 1e-9, "the shockwave reaches its end scale at full duration");
+Require(MassEffectStyle.ScaleAt(MassEffectStyle.ShockwaveSeconds * 2.0) == MassEffectStyle.EndScale, "the shockwave clamps at its end scale after the sweep");
+Require(MassEffectStyle.ScaleAt(MassEffectStyle.ShockwaveSeconds / 2.0) > MassEffectStyle.StartScale && MassEffectStyle.ScaleAt(MassEffectStyle.ShockwaveSeconds / 2.0) < MassEffectStyle.EndScale, "the shockwave grows monotonically through its sweep");
+Require(MassEffectStyle.MatchPowerBonus == RuneEffects.TShapeMatchPowerBonus && MassEffectStyle.CommanderEnergyBonus == RuneEffects.TShapeCommanderEnergy, "the mass-effect bonus labels mirror the T/L combat rules");
+Require(MassEffectStyle.BonusLabel.Contains("+2") && MassEffectStyle.BonusLabel.Contains("+10"), "the T/L bonus label surfaces both bonuses");
+Require(RuneTypes.All.All(rune => MassEffectStyle.RingColorFor(rune) == UiTheme.RuneColor(rune)), "the shockwave ring inherits the combo's rune colour");
+RequireThrows(() => MassEffectStyle.ScaleAt(-0.1), "the shockwave rejects negative time");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
