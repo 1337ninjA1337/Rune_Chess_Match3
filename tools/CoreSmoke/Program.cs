@@ -3728,6 +3728,14 @@ Require(floatingKinds.All(kind => FloatingCombatNumberStyle.CritColor != Floatin
 Require(Math.Abs(FloatingCombatNumberStyle.ScaleFor(true) - FloatingCombatNumberStyle.CritScale) < 1e-9 && Math.Abs(FloatingCombatNumberStyle.ScaleFor(false) - 1.0) < 1e-9, "crit numbers scale up while normal numbers stay at unit scale");
 Require(FloatingCombatNumberStyle.Format(FloatingNumberKind.PhysicalDamage, 18, isCrit: true) == "−18!" && FloatingCombatNumberStyle.Format(FloatingNumberKind.PhysicalDamage, 18, isCrit: false) == "−18", "a crit number appends an exclamation while a normal number does not");
 
+// Big-combo slow-motion signal (BattleFeedbackStyle, ties to CombatState.IsCombatSlowed). The
+// vignette only shows while slowed. Rendering is Unity-only (documented gap); contract verified here.
+Require(BattleFeedbackStyle.SlowdownSpeedPercent == CombatState.LargeComboCombatSpeedPercent && BattleFeedbackStyle.SlowdownSpeedPercent == 70, "the slow-mo signal mirrors the combat slowdown speed (70 percent)");
+Require(BattleFeedbackStyle.SlowdownVignetteOpacity > 0.0 && BattleFeedbackStyle.SlowdownVignetteOpacity <= 1.0, "the slow-mo vignette uses a valid opacity");
+Require(Math.Abs(BattleFeedbackStyle.SlowdownVignetteOpacityFor(comboScoredCombat) - BattleFeedbackStyle.SlowdownVignetteOpacity) < 1e-9, "the slow-mo vignette shows while combat is slowed");
+Require(Math.Abs(BattleFeedbackStyle.SlowdownVignetteOpacityFor(normalSpeedCombat)) < 1e-9, "the slow-mo vignette is hidden at normal combat speed");
+RequireThrows(() => BattleFeedbackStyle.SlowdownVignetteOpacityFor(null!), "the slow-mo vignette rejects a null combat state");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
