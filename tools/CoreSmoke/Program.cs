@@ -2558,6 +2558,24 @@ Require(ironGuardEntry.Faction == "Империя" && ironGuardEntry.Cost == 1, 
 Require(ironGuardEntry.StatsLabel.Contains("HP") && ironGuardEntry.StatsLabel.Contains("ATK"), "a collection entry summarizes hero stats");
 Require(!string.IsNullOrWhiteSpace(ironGuardEntry.Ability) && !string.IsNullOrWhiteSpace(ironGuardEntry.Passive), "a collection entry carries ability and passive text");
 
+// Hero detail presentation (HeroDetailPresentation): large portrait rarity frame, preferred-rune
+// highlight, and per-star stat rows reusing the on-board star pip colours. Rendering is Unity-only
+// (documented gap); the contract is verified here.
+var ironGuardDef = HeroCatalog.Get("iron_guard");
+Require(HeroDetailPresentation.Portrait.Kind == PlaceholderAssetKind.UnitSprite, "the hero detail portrait uses the unit sprite placeholder");
+Require(HeroDetailPresentation.PortraitFrameColor(ironGuardDef) == UiTheme.RarityColor(ironGuardDef.Rarity), "the portrait card borrows the hero's rarity-tier border colour");
+Require(HeroDetailPresentation.PortraitFrame(ironGuardDef).Kind == PlaceholderAssetKind.RarityFrame && PlaceholderAssetCatalog.TryGet(HeroDetailPresentation.PortraitFrame(ironGuardDef).Key, out _), "the portrait card resolves the shared rarity-frame placeholder");
+Require(HeroDetailPresentation.RuneAffinityColor(ironGuardDef) == UiTheme.RuneColor(ironGuardDef.RuneAffinity), "the rune-affinity highlight uses the hero's preferred rune token");
+var ironGuardStarStats = HeroDetailPresentation.StarStats(ironGuardDef);
+Require(ironGuardStarStats.Count == UnitBoardPresentation.MaxStars - UnitBoardPresentation.MinStars + 1, "the detail screen lists one stat row per supported star tier");
+Require(ironGuardStarStats.Select(line => line.Stars).SequenceEqual(new[] { 1, 2, 3 }), "the per-star stat rows run 1★ through 3★ in order");
+Require(ironGuardStarStats.All(line => line.PipColor == UnitBoardPresentation.StarTierColor(line.Stars)), "each star row reuses the on-board tier pip colour");
+Require(ironGuardStarStats[2].Stats.BaseHealth > ironGuardStarStats[0].Stats.BaseHealth && ironGuardStarStats[2].Stats.Attack > ironGuardStarStats[0].Stats.Attack, "a three-star hero out-scales its one-star stats in health and attack");
+Require(ironGuardStarStats.All(line => line.StatsLabel.Contains("HP") && line.StatsLabel.Contains("ATK")), "each star row carries a readable stat summary");
+RequireThrows(() => HeroDetailPresentation.StarStats(null!), "the hero detail presentation rejects a null hero");
+RequireThrows(() => HeroDetailPresentation.PortraitFrameColor(null!), "the hero detail portrait colour rejects a null hero");
+RequireThrows(() => HeroDetailPresentation.FormatStats(null!), "the hero detail stat formatter rejects null stats");
+
 // Settings model (GDD UI screen 10 "Настройки").
 var defaultSettings = SettingsModel.Default;
 Require(defaultSettings.SoundEnabled && defaultSettings.MusicEnabled && defaultSettings.VibrationEnabled, "default settings enable sound, music and vibration");

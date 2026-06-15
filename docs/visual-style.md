@@ -143,6 +143,14 @@ button, pause).
   `PlaceholderAssetCatalog.RarityFrame`), the best hero takes the warm `UiTheme.GoldColor`
   spotlight, and the result headline takes a win/loss rune-palette accent (green cleared / red
   lost) — so the Unity summary renders the roster and outcome from the same token sources.
+- **Hero detail** (GDD UI screen 7 «Экран деталей героя»: large portrait, stats per star,
+  ability/passive). The presentation glue is `HeroDetailPresentation`
+  (`Packages/com.runechess.core/Runtime/HeroDetailPresentation.cs`): the large portrait card
+  borrows the shared rarity-tier frame (`UiTheme.RarityColor` /
+  `PlaceholderAssetCatalog.RarityFrame`), the preferred-rune highlight takes the matching
+  `UiTheme.RuneColor` token, and the per-star stat rows (1★→3★) reuse the on-board star pip
+  colours from `UnitBoardPresentation` — so a hero's growth reads with the same star language as
+  the battlefield.
 
 ## Placeholder asset pipeline (planned)
 
