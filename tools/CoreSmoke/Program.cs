@@ -3720,6 +3720,14 @@ RequireThrows(() => FloatingCombatNumberStyle.ColorFor((FloatingNumberKind)999),
 RequireThrows(() => FloatingCombatNumberStyle.Format(FloatingNumberKind.Heal, -1), "floating number format rejects a negative amount");
 RequireThrows(() => FloatingCombatNumberStyle.OffsetAt(-0.1), "the rise offset rejects negative time");
 
+// Crit emphasis on floating numbers (FloatingCombatNumberStyle crit tokens). A crit reads bigger,
+// brighter and gets a "!". Rendering is Unity-only (documented gap); the contract is verified here.
+Require(FloatingCombatNumberStyle.CritScale > 1.0 && FloatingCombatNumberStyle.CritFlashSeconds > 0.0, "a crit number is drawn larger and flashes for a positive time");
+Require(Math.Abs(FloatingCombatNumberStyle.CritMultiplier - CombatFormulas.BaseCritMultiplier) < 1e-9, "the crit emphasis mirrors the combat crit multiplier");
+Require(floatingKinds.All(kind => FloatingCombatNumberStyle.CritColor != FloatingCombatNumberStyle.ColorFor(kind)), "the crit flash colour is distinct from every kind colour");
+Require(Math.Abs(FloatingCombatNumberStyle.ScaleFor(true) - FloatingCombatNumberStyle.CritScale) < 1e-9 && Math.Abs(FloatingCombatNumberStyle.ScaleFor(false) - 1.0) < 1e-9, "crit numbers scale up while normal numbers stay at unit scale");
+Require(FloatingCombatNumberStyle.Format(FloatingNumberKind.PhysicalDamage, 18, isCrit: true) == "−18!" && FloatingCombatNumberStyle.Format(FloatingNumberKind.PhysicalDamage, 18, isCrit: false) == "−18", "a crit number appends an exclamation while a normal number does not");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),

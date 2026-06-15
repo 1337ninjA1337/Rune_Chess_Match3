@@ -57,15 +57,40 @@ namespace RuneChess.Core
             };
         }
 
+        // --- Critical strike emphasis. A crit reads bigger, brighter and gets a "!" so the
+        // clutch-moment payoff lands. The multiplier mirrors CombatFormulas.BaseCritMultiplier. ---
+
+        /// <summary>How much larger a crit number is drawn than a normal hit.</summary>
+        public const double CritScale = 1.5;
+
+        /// <summary>Bright flash colour overlaid on a crit number (distinct from the kind colours).</summary>
+        public const uint CritColor = 0xFFD56Bu;
+
+        /// <summary>How long the crit flash plays.</summary>
+        public const double CritFlashSeconds = 0.18;
+
+        /// <summary>The crit damage multiplier the emphasis represents (mirrors <see cref="CombatFormulas.BaseCritMultiplier"/>).</summary>
+        public static double CritMultiplier => CombatFormulas.BaseCritMultiplier;
+
+        /// <summary>The on-screen scale a number should be drawn at (crits are larger).</summary>
+        public static double ScaleFor(bool isCrit) => isCrit ? CritScale : 1.0;
+
         /// <summary>The player-facing label for an amount of a given kind, e.g. "−12" or "+34".</summary>
-        public static string Format(FloatingNumberKind kind, int amount)
+        public static string Format(FloatingNumberKind kind, int amount) => Format(kind, amount, isCrit: false);
+
+        /// <summary>
+        /// The player-facing label for an amount of a given kind, appending "!" on a crit so the big
+        /// hit reads as special, e.g. "−18!".
+        /// </summary>
+        public static string Format(FloatingNumberKind kind, int amount, bool isCrit)
         {
             if (amount < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(amount), "A combat number amount cannot be negative.");
             }
 
-            return SignFor(kind) + amount.ToString(CultureInfo.InvariantCulture);
+            var label = SignFor(kind) + amount.ToString(CultureInfo.InvariantCulture);
+            return isCrit ? label + "!" : label;
         }
 
         /// <summary>Vertical rise offset at a point in time (ease-out), clamped at <see cref="RiseDistance"/>.</summary>
