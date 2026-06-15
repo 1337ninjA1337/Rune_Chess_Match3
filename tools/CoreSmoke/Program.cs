@@ -3625,6 +3625,23 @@ Require(UiTheme.SpacingScale.Count > 0 && IsStrictlyAscendingPositive(UiTheme.Sp
 Require(UiTheme.TypeScale.Count > 0 && IsStrictlyAscendingPositive(UiTheme.TypeScale), "the type scale is strictly ascending and positive");
 Require(UiTheme.RedChannel(0xC94B4Bu) == 0xC9 && UiTheme.GreenChannel(0xC94B4Bu) == 0x4B && UiTheme.BlueChannel(0xC94B4Bu) == 0x4B, "colour channel helpers unpack packed RGB");
 
+// Rune visual restyle (RuneVisualStyle): the six runes get an original silhouette and glyph so
+// they read by shape, not colour alone. Single source of truth for the restyled match-3 board;
+// the Unity layer draws the shape/glyph and swaps the real sprite behind the same icon key
+// (rendering is a Unity-only step — documented gap). Contract verified here.
+Require(RuneVisualStyle.All.Count == RuneTypes.All.Count, "the rune visual style resolves one visual per rune");
+Require(RuneTypes.All.Select(RuneVisualStyle.ShapeFor).Distinct().Count() == RuneTypes.All.Count, "every rune has a distinct silhouette so colour-blind players can tell them apart");
+Require(RuneTypes.All.Select(RuneVisualStyle.GlyphFor).Distinct(StringComparer.Ordinal).Count() == RuneTypes.All.Count, "every rune has a distinct placeholder glyph");
+Require(RuneTypes.All.All(rune => !string.IsNullOrWhiteSpace(RuneVisualStyle.GlyphFor(rune))), "no rune ships a blank glyph");
+Require(RuneTypes.All.All(rune => RuneVisualStyle.Color(rune) == UiTheme.RuneColor(rune)), "rune visuals reuse the UiTheme rune palette as the single colour source of truth");
+Require(RuneTypes.All.All(rune => RuneVisualStyle.IconKey(rune) == PlaceholderAssetCatalog.RuneIcon(rune).Key), "rune visuals resolve the shared placeholder icon key the real sprite drops in behind");
+Require(RuneTypes.All.All(rune => PlaceholderAssetCatalog.TryGet(RuneVisualStyle.IconKey(rune), out var icon) && icon.Kind == PlaceholderAssetKind.RuneIcon), "every rune visual icon key resolves to a rune icon in the placeholder catalog");
+var redRuneVisual = RuneVisualStyle.For(RuneType.Red);
+Require(redRuneVisual.Shape == RuneShape.Blade && redRuneVisual.Color == UiTheme.RuneColor(RuneType.Red) && redRuneVisual.IconKey == "rune.red", "the red rune resolves its blade silhouette, palette colour and icon key together");
+RequireThrows(() => RuneVisualStyle.ShapeFor((RuneType)999), "rune shape rejects an unknown rune");
+RequireThrows(() => RuneVisualStyle.GlyphFor((RuneType)999), "rune glyph rejects an unknown rune");
+RequireThrows(() => RuneVisualStyle.For((RuneType)999), "rune visual resolution rejects an unknown rune");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
