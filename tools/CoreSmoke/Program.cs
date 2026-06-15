@@ -3664,6 +3664,18 @@ Require(Math.Abs(Match3HintStyle.PulseOpacityAt(0.0) - Match3HintStyle.PulseOpac
 Require(Enumerable.Range(0, 20).Select(i => Match3HintStyle.PulseOpacityAt(i * 0.05)).All(o => o >= Match3HintStyle.MinPulseOpacity - 1e-9 && o <= Match3HintStyle.MaxPulseOpacity + 1e-9), "the hint pulse always stays within its opacity band");
 RequireThrows(() => Match3HintStyle.PulseOpacityAt(-0.1), "the hint pulse rejects negative time");
 
+// Great rune restyle (GreatRuneStyle): the match-5 stored rune and its activation. Reuses the
+// colour's base visual, overlays a burst glyph + aura, and carries the x2.5 multiplier label.
+// Rendering is Unity-only (documented gap); the contract is verified here.
+Require(Math.Abs(GreatRuneStyle.Multiplier - RuneEffects.GreatRuneMultiplier) < 1e-9 && Math.Abs(GreatRuneStyle.Multiplier - 2.5) < 1e-9, "the great rune multiplier mirrors the combat rule (x2.5)");
+Require(GreatRuneStyle.MultiplierLabel == "x2.5", "the great rune multiplier label reads x2.5");
+Require(RuneTypes.All.All(rune => GreatRuneStyle.AuraColor != UiTheme.RuneColor(rune)), "the great rune aura reads distinctly over every rune colour");
+Require(RuneTypes.All.All(rune => !string.Equals(GreatRuneStyle.GreatGlyph, RuneVisualStyle.GlyphFor(rune), StringComparison.Ordinal)), "the great rune burst glyph is distinct from every base rune glyph");
+Require(GreatRuneStyle.ActivationFlashSeconds > 0.0, "the great rune activation flash has a positive duration");
+var greatRedVisual = GreatRuneStyle.For(RuneType.Red);
+Require(greatRedVisual.Color == RuneVisualStyle.Color(RuneType.Red) && greatRedVisual.BaseGlyph == RuneVisualStyle.GlyphFor(RuneType.Red) && greatRedVisual.Glyph == GreatRuneStyle.GreatGlyph, "a great rune reuses its colour's base visual and overlays the burst glyph");
+RequireThrows(() => GreatRuneStyle.For((RuneType)999), "great rune resolution rejects an unknown rune");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
