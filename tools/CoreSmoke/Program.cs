@@ -3688,6 +3688,24 @@ Require(MassEffectStyle.BonusLabel.Contains("+2") && MassEffectStyle.BonusLabel.
 Require(RuneTypes.All.All(rune => MassEffectStyle.RingColorFor(rune) == UiTheme.RuneColor(rune)), "the shockwave ring inherits the combo's rune colour");
 RequireThrows(() => MassEffectStyle.ScaleAt(-0.1), "the shockwave rejects negative time");
 
+// Rune-effect flight restyle (RuneEffectFlightStyle): the icon/number that flies from a triggered
+// rune to the unit (or commander) the effect lands on. Rendering is Unity-only (documented gap);
+// the contract is verified here.
+var runeEffectKinds = (RuneEffectKind[])Enum.GetValues(typeof(RuneEffectKind));
+Require(runeEffectKinds.All(kind => Enum.IsDefined(typeof(RuneEffectFlightTarget), RuneEffectFlightStyle.TargetFor(kind))), "every rune effect kind maps to a flight destination");
+Require(RuneEffectFlightStyle.TargetFor(RuneEffectKind.PhysicalDamage) == RuneEffectFlightTarget.EnemyUnit && RuneEffectFlightStyle.TargetFor(RuneEffectKind.MagicDamage) == RuneEffectFlightTarget.EnemyUnit, "damage effects fly to an enemy unit");
+Require(RuneEffectFlightStyle.TargetFor(RuneEffectKind.Healing) == RuneEffectFlightTarget.AllyUnit && RuneEffectFlightStyle.TargetFor(RuneEffectKind.Shield) == RuneEffectFlightTarget.AllyUnit && RuneEffectFlightStyle.TargetFor(RuneEffectKind.Mana) == RuneEffectFlightTarget.AllyUnit, "supportive effects fly to an allied unit");
+Require(RuneEffectFlightStyle.TargetFor(RuneEffectKind.CommanderEnergy) == RuneEffectFlightTarget.Commander, "commander energy flies to the commander bar");
+Require(RuneEffectFlightStyle.TargetForRune(RuneType.Red) == RuneEffectFlightTarget.EnemyUnit && RuneEffectFlightStyle.TargetForRune(RuneType.Green) == RuneEffectFlightTarget.AllyUnit, "rune colours fly to the destination of their GDD effect kind");
+Require(RuneTypes.All.All(rune => RuneEffectFlightStyle.ColorFor(rune) == UiTheme.RuneColor(rune) && RuneEffectFlightStyle.IconKeyFor(rune) == PlaceholderAssetCatalog.RuneIcon(rune).Key), "flying tokens reuse the rune palette colour and shared icon key");
+Require(RuneEffectFlightStyle.TravelSeconds > 0.0, "the flying token has a positive travel time");
+Require(Math.Abs(RuneEffectFlightStyle.ProgressAt(0.0)) < 1e-9 && Math.Abs(RuneEffectFlightStyle.ProgressAt(RuneEffectFlightStyle.TravelSeconds) - 1.0) < 1e-9, "travel progress runs 0..1 over the travel time");
+Require(RuneEffectFlightStyle.ProgressAt(RuneEffectFlightStyle.TravelSeconds * 2.0) == 1.0, "travel progress clamps at arrival");
+Require(Math.Abs(RuneEffectFlightStyle.ArcOffsetAt(0.0)) < 1e-9 && Math.Abs(RuneEffectFlightStyle.ArcOffsetAt(1.0)) < 1e-9 && RuneEffectFlightStyle.ArcOffsetAt(0.5) > RuneEffectFlightStyle.ArcOffsetAt(0.25), "the travel arc is zero at both ends and peaks in the middle");
+RequireThrows(() => RuneEffectFlightStyle.TargetFor((RuneEffectKind)999), "flight target rejects an unknown effect kind");
+RequireThrows(() => RuneEffectFlightStyle.ProgressAt(-0.1), "flight progress rejects negative time");
+RequireThrows(() => RuneEffectFlightStyle.ArcOffsetAt(1.5), "the flight arc rejects progress outside [0,1]");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
