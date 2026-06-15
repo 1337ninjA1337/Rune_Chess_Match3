@@ -3653,6 +3653,17 @@ Require(Math.Abs(Match3AnimationStyle.CueDurationSeconds(Match3AnimationCue.Swap
 Require(Match3AnimationStyle.CueDurationSeconds(Match3AnimationCue.Chain) < Match3AnimationStyle.CueDurationSeconds(Match3AnimationCue.Clear), "the chain settle beat is shorter than a clear pop so chains stay snappy");
 RequireThrows(() => Match3AnimationStyle.CueDurationSeconds((Match3AnimationCue)999), "the match-3 animation cue duration rejects an unknown cue");
 
+// Idle match-hint restyle (Match3HintStyle): the playable-swap glow shown after 8 idle seconds.
+// Trigger logic stays on CombatState.ShouldShowMatchHint; these tokens style the pulse. Rendering
+// is Unity-only (documented gap); the contract is verified here.
+Require(Match3HintStyle.HintDelaySeconds == CombatState.MatchHintDelaySeconds && Match3HintStyle.HintDelaySeconds == 8, "the idle hint delay mirrors the combat rule (8 seconds)");
+Require(Match3HintStyle.MinPulseOpacity > 0.0 && Match3HintStyle.MaxPulseOpacity <= 1.0 && Match3HintStyle.MinPulseOpacity < Match3HintStyle.MaxPulseOpacity, "the hint pulse opacity band is valid and ascending");
+Require(Math.Abs(Match3HintStyle.PulseOpacityAt(0.0) - Match3HintStyle.MinPulseOpacity) < 1e-9, "the hint pulse starts at its faintest");
+Require(Math.Abs(Match3HintStyle.PulseOpacityAt(Match3HintStyle.PulsePeriodSeconds / 2.0) - Match3HintStyle.MaxPulseOpacity) < 1e-9, "the hint pulse peaks at half a cycle");
+Require(Math.Abs(Match3HintStyle.PulseOpacityAt(0.0) - Match3HintStyle.PulseOpacityAt(Match3HintStyle.PulsePeriodSeconds)) < 1e-9, "the hint pulse is periodic over its cycle length");
+Require(Enumerable.Range(0, 20).Select(i => Match3HintStyle.PulseOpacityAt(i * 0.05)).All(o => o >= Match3HintStyle.MinPulseOpacity - 1e-9 && o <= Match3HintStyle.MaxPulseOpacity + 1e-9), "the hint pulse always stays within its opacity band");
+RequireThrows(() => Match3HintStyle.PulseOpacityAt(-0.1), "the hint pulse rejects negative time");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),
