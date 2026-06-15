@@ -3793,6 +3793,19 @@ Require(Math.Abs(PhaseTransitionStyle.BattleBannerOpacityAt(PhaseTransitionStyle
 Require(PhaseTransitionStyle.BattleBannerOpacityAt(PhaseTransitionStyle.BattleBannerTotalSeconds * 2.0) == 0.0, "the banner stays gone after its lifetime");
 RequireThrows(() => PhaseTransitionStyle.BattleBannerOpacityAt(-0.1), "the banner opacity rejects negative time");
 
+// Combat→reward transition (PhaseTransitionStyle round summary). Outcome banner + staged tally
+// reveal reading the real RoundRewardBreakdown; render is Unity-only (gap), the contract verified here.
+Require(PhaseTransitionStyle.OutcomeBannerText(BattleOutcome.PlayerVictory).Length > 0 && PhaseTransitionStyle.OutcomeBannerText(BattleOutcome.PlayerDefeat).Length > 0, "victory and defeat each have an outcome banner caption");
+Require(PhaseTransitionStyle.OutcomeBannerText(BattleOutcome.PlayerVictory) != PhaseTransitionStyle.OutcomeBannerText(BattleOutcome.PlayerDefeat), "the victory and defeat banners read differently");
+RequireThrows(() => PhaseTransitionStyle.OutcomeBannerText(BattleOutcome.Ongoing), "an ongoing battle has no outcome banner");
+var rewardSummaryBreakdown = new RoundRewardBreakdown(BaseGold: 10, ChainBonusGold: 5, AlchemistBonusGold: 0, ArtifactBonusGold: 3, OffersArtifactChoice: false, ArtifactIsRare: false, OffersHeroReward: false, GrantsFreeReroll: false, IsRunVictory: false);
+Require(PhaseTransitionStyle.RewardSummaryLineCount(rewardSummaryBreakdown) == 4, "the reward tally reveals base gold, each non-zero bonus, and the total");
+Require(PhaseTransitionStyle.RewardSummaryLineStaggerSeconds > 0.0, "the reward tally staggers lines by a positive time");
+Require(Math.Abs(PhaseTransitionStyle.RewardSummaryLineRevealSecondsAt(0)) < 1e-9 && Math.Abs(PhaseTransitionStyle.RewardSummaryLineRevealSecondsAt(2) - (2 * PhaseTransitionStyle.RewardSummaryLineStaggerSeconds)) < 1e-9, "each reward line reveals one stagger step after the previous");
+Require(Math.Abs(PhaseTransitionStyle.RewardSummaryRevealSeconds(rewardSummaryBreakdown) - (4 * PhaseTransitionStyle.RewardSummaryLineStaggerSeconds)) < 1e-9, "the full tally reveal spans every line");
+RequireThrows(() => PhaseTransitionStyle.RewardSummaryLineRevealSecondsAt(-1), "the reward line reveal rejects a negative index");
+RequireThrows(() => PhaseTransitionStyle.RewardSummaryLineCount(null!), "the reward tally rejects a null breakdown");
+
 // Placeholder asset manifest (visual overhaul "Подготовить пайплайн оригинальных
 // плейсхолдер-ассетов"). The catalog is the engine-agnostic single source of truth the
 // Unity pipeline enumerates; generating the sprites is a Unity-only step (documented gap),

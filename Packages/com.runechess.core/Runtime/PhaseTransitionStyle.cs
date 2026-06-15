@@ -60,5 +60,68 @@ namespace RuneChess.Core
             var intoFadeOut = secondsIntoBanner - holdEnd;
             return 1.0 - (intoFadeOut / BattleBannerFadeSeconds);
         }
+
+        // --- Combat→reward transition (task: бой → награда с подведением итога раунда). An outcome
+        // banner plus a staged reveal of the round's reward tally, reading the existing
+        // RoundRewardBreakdown so the lines shown match the gold actually credited. ---
+
+        /// <summary>Outcome banner caption for the combat→reward transition (original wording).</summary>
+        public static string OutcomeBannerText(BattleOutcome outcome) => outcome switch
+        {
+            BattleOutcome.PlayerVictory => "Победа!",
+            BattleOutcome.PlayerDefeat => "Поражение",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(outcome), outcome, "Only a resolved battle has an outcome banner.")
+        };
+
+        /// <summary>Stagger between reward-summary lines as the round tally reveals one beat at a time.</summary>
+        public const double RewardSummaryLineStaggerSeconds = 0.15;
+
+        /// <summary>
+        /// How many tally lines the reward summary reveals: the base gold, each non-zero bonus
+        /// component, and the final total. Mirrors the composition of <see cref="RoundRewardBreakdown"/>
+        /// so the reveal never shows an empty bonus line or omits one that was actually paid.
+        /// </summary>
+        public static int RewardSummaryLineCount(RoundRewardBreakdown breakdown)
+        {
+            if (breakdown is null)
+            {
+                throw new ArgumentNullException(nameof(breakdown));
+            }
+
+            var lines = 1; // base gold
+            if (breakdown.ChainBonusGold > 0)
+            {
+                lines++;
+            }
+
+            if (breakdown.AlchemistBonusGold > 0)
+            {
+                lines++;
+            }
+
+            if (breakdown.ArtifactBonusGold > 0)
+            {
+                lines++;
+            }
+
+            return lines + 1; // total line
+        }
+
+        /// <summary>When the reward line at <paramref name="lineIndex"/> appears, staggered after the first.</summary>
+        public static double RewardSummaryLineRevealSecondsAt(int lineIndex)
+        {
+            if (lineIndex < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(lineIndex), "Reward line index cannot be negative.");
+            }
+
+            return lineIndex * RewardSummaryLineStaggerSeconds;
+        }
+
+        /// <summary>Total time to reveal every reward-summary line for a breakdown.</summary>
+        public static double RewardSummaryRevealSeconds(RoundRewardBreakdown breakdown)
+            => RewardSummaryLineCount(breakdown) * RewardSummaryLineStaggerSeconds;
     }
 }
